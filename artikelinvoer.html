@@ -101,6 +101,9 @@ header .sub{opacity:.8;font-size:.8rem}
 .artikel-table tr:hover td{background:var(--groen-licht)}
 .artikel-table tr.editing td{background:#fff3e0}
 .table-wrap{max-height:500px;overflow-y:auto;border:1px solid var(--border);border-radius:6px}
+.col-resize-handle{position:absolute;top:0;right:0;width:6px;height:100%;cursor:col-resize;user-select:none;z-index:3}
+.col-resize-handle:hover{background:rgba(255,255,255,.35)}
+.col-resize-handle.dragging{background:rgba(255,255,255,.55)}
 
 .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.72rem;font-weight:600}
 .badge-Family{background:#c8e6c9;color:#2e7d32}
@@ -664,9 +667,53 @@ function toast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+// Resizable columns: drag handle on each <th>, widths persisted per user in localStorage.
+// table-layout:fixed makes column widths predictable; initial widths captured from natural render.
+function initColResize(tableSelector, storageKey) {
+  const table = document.querySelector(tableSelector);
+  if (!table || !table.tHead) return;
+  const ths = Array.from(table.tHead.rows[0].cells);
+  const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+  ths.forEach((th, i) => {
+    const w = saved[i] || th.offsetWidth;
+    th.style.width = w + 'px';
+  });
+  table.style.tableLayout = 'fixed';
+  ths.forEach((th, i) => {
+    const handle = document.createElement('div');
+    handle.className = 'col-resize-handle';
+    th.appendChild(handle);
+    handle.addEventListener('click', e => e.stopPropagation());
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startX = e.clientX;
+      const startW = th.offsetWidth;
+      handle.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      const move = ev => {
+        const w = Math.max(30, startW + ev.clientX - startX);
+        th.style.width = w + 'px';
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        handle.classList.remove('dragging');
+        document.body.style.cursor = '';
+        const widths = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        widths[i] = th.offsetWidth;
+        localStorage.setItem(storageKey, JSON.stringify(widths));
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  });
+}
+
 // Init
 renderTable();
 saveState();
+initColResize('.artikel-table', 'colWidths_artikelinvoer_v1');
 </script>
 </body>
 </html>
