@@ -31,10 +31,11 @@ Hoofd-app voor verkopers en planners om offertes, voorlopige orders, definitieve
 - **Agriware-lijsten import** (centraal modaal): vervang klanten / eindklanten / trays / masterdata-artikelen met verse exports uit Agriware (CSV/JSON/XLSX). LocalStorage-persistentie.
 - **Verpakking algemeen** sectie: type verpakking, kleur, EAN, plantenpaspoort, verkoopprijs consument, sealen, mix-type, min. contract %, ladingdrager
 - **11 bedrukkings-opties** als uitklapbare kaarten: karposter, sticker (pot/hoes), karsticker, etiket, hoes, doos, tray (met traycode-lookup), inlegtray, TGW, draagbeugel, overpakken — elk met eigen 'wie regelt layout / productie / betaald' (Baas / Klant / Derde)
-- Ruime invoer-drawer met daginvoer Ma–Zo, prijs, fust, kar
+- Ruime invoer-drawer met geplande aantallen, prijs, fust, kar (Ma–Zo verdeling wordt elders bijgehouden voor PowerBI-koppeling)
 - **Kopiëren vanuit bestaande regel** (modal-zoeker) → snel varianten toevoegen
 - **Bulk-acties**: selecteer meerdere regels en switch status, dupliceer, verwijder, of download Rapid Start XML in batch
-- **Inline cell-editing** op week, prijs en dagaantallen Ma–Zo
+- **Inline cell-editing** op week, prijs en geplande aantallen
+- **Dashboard-tab** met 4 KPI's (orderregels, geplande aantallen, geplande omzet, unieke klanten) en 3 grafieken (aantallen per week, top 10 klanten op omzet, verdeling per productgroep)
 - **Sorteerbare kolommen** met visuele indicator (▲/▼) en lichte ↕-hint op klikbare headers
 - **Per-regel Rapid Start XML download** voor import in Business Central (schema benadering — werk samen met BC-team uit voor productie)
 - Filteren op status, klant, productgroep, verkoper, jaar, week-range, vrije zoektekst

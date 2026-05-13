@@ -73,15 +73,23 @@ header .sub{opacity:.8;font-size:.8rem}
 }
 .form-group textarea{resize:vertical;min-height:50px}
 
-/* Day grid (Ma-Zo) */
-.daygrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:4px}
-.daycell{display:flex;flex-direction:column;gap:2px;text-align:center}
-.daycell label{font-size:.66rem;text-transform:uppercase;color:#666;font-weight:600}
-.daycell input{padding:5px 4px;text-align:right;font-size:.82rem;border:1px solid var(--border);border-radius:3px;font-family:var(--font)}
-.daycell input.neg{color:var(--rood);font-weight:600}
-.day-total{
-  background:var(--groen-licht);padding:6px 10px;border-radius:4px;
-  font-weight:700;color:var(--groen-dark);font-size:.85rem;margin-top:4px;text-align:right
+/* Dashboard */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px;position:relative}
+.kpi-label{font-size:.7rem;text-transform:uppercase;color:#666;font-weight:700;letter-spacing:.5px}
+.kpi-value{font-size:1.7rem;font-weight:700;color:#222;margin:6px 0 4px;line-height:1.1}
+.kpi-sub{font-size:.72rem;color:#888}
+.kpi-icon{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:6px;background:var(--groen-licht);display:flex;align-items:center;justify-content:center;color:var(--groen-dark);font-size:.95rem}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.chart-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px}
+.chart-card.chart-full{grid-column:1/-1}
+.chart-title{font-size:.7rem;text-transform:uppercase;color:#666;font-weight:700;letter-spacing:.5px;margin-bottom:10px}
+.chart-body{min-height:260px}
+.chart-body svg text{font-family:var(--font)}
+.chart-empty{color:#999;font-size:.85rem;padding:30px;text-align:center}
+@media (max-width:900px){
+  .kpi-row{grid-template-columns:repeat(2,1fr)}
+  .chart-row{grid-template-columns:1fr}
 }
 
 /* Buttons */
@@ -340,7 +348,8 @@ select.cell-input{padding:2px 3px;cursor:pointer;text-align:left}
 
 <div class="container">
   <div class="tabs">
-    <div class="tab active" onclick="showTab('lijst')">Orderlijst</div>
+    <div class="tab active" data-tab="lijst" onclick="showTab('lijst')">Orderlijst</div>
+    <div class="tab" data-tab="dashboard" onclick="showTab('dashboard')">Dashboard</div>
     <div class="tab" onclick="openDrawer()">+ Nieuwe regel</div>
   </div>
 
@@ -426,13 +435,7 @@ select.cell-input{padding:2px 3px;cursor:pointer;text-align:left}
           <th data-col="jaar" onclick="sortBy('jaar')">Jaar</th>
           <th data-col="week" onclick="sortBy('week')">Wk</th>
           <th data-col="verlaaddag" onclick="sortBy('verlaaddag')">Verl.</th>
-          <th data-col="maandag"  onclick="sortBy('maandag')">Ma</th>
-          <th data-col="dinsdag"  onclick="sortBy('dinsdag')">Di</th>
-          <th data-col="woensdag" onclick="sortBy('woensdag')">Wo</th>
-          <th data-col="donderdag" onclick="sortBy('donderdag')">Do</th>
-          <th data-col="vrijdag"  onclick="sortBy('vrijdag')">Vr</th>
-          <th data-col="zaterdag" onclick="sortBy('zaterdag')">Za</th>
-          <th data-col="zondag"   onclick="sortBy('zondag')">Zo</th>
+          <th data-col="geplande_aantallen" onclick="sortBy('geplande_aantallen')">Gepland</th>
           <th data-col="afgenomen_totaal" onclick="sortBy('afgenomen_totaal')">Tot</th>
           <th data-col="prijs" onclick="sortBy('prijs')">Prijs</th>
           <th data-col="type_kar" onclick="sortBy('type_kar')">Kar</th>
@@ -457,6 +460,50 @@ select.cell-input{padding:2px 3px;cursor:pointer;text-align:left}
       <button class="btn btn-secondary" onclick="reseed()">Demo data herladen</button>
       <button class="btn btn-secondary" onclick="openLookupModal()" title="Importeer Agriware/SharePoint lijsten (klanten, eindklanten, trays, masterdata)">Agriware-lijsten…</button>
       <span id="master-status" style="font-size:.78rem;color:#666;align-self:center;margin-left:6px"></span>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="panel" id="panel-dashboard">
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Orderregels</div>
+        <div class="kpi-value" id="kpi-regels">0</div>
+        <div class="kpi-sub">totaal in systeem</div>
+        <div class="kpi-icon">🛒</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Geplande aantallen</div>
+        <div class="kpi-value" id="kpi-aantallen">0</div>
+        <div class="kpi-sub">planten</div>
+        <div class="kpi-icon">📦</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Geplande omzet</div>
+        <div class="kpi-value" id="kpi-omzet">€ 0</div>
+        <div class="kpi-sub">aantal × prijs</div>
+        <div class="kpi-icon">📈</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Klanten</div>
+        <div class="kpi-value" id="kpi-klanten">0</div>
+        <div class="kpi-sub">unieke afnemers</div>
+        <div class="kpi-icon">👥</div>
+      </div>
+    </div>
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">Geplande aantallen per week</div>
+        <div class="chart-body" id="chart-week"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top 10 klanten op omzet</div>
+        <div class="chart-body" id="chart-klanten"></div>
+      </div>
+    </div>
+    <div class="chart-card chart-full">
+      <div class="chart-title">Verdeling per productgroep</div>
+      <div class="chart-body" id="chart-prod"></div>
     </div>
   </div>
 </div>
@@ -627,18 +674,8 @@ select.cell-input{padding:2px 3px;cursor:pointer;text-align:left}
       </div>
     </div>
 
-    <div class="subhead">Dagaantallen (negatief = afname)</div>
-    <div class="daygrid" id="daygrid">
-      <div class="daycell"><label>Ma</label><input id="d-maandag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Di</label><input id="d-dinsdag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Wo</label><input id="d-woensdag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Do</label><input id="d-donderdag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Vr</label><input id="d-vrijdag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Za</label><input id="d-zaterdag" type="number" step="1" oninput="recalcDayTotal()"></div>
-      <div class="daycell"><label>Zo</label><input id="d-zondag" type="number" step="1" oninput="recalcDayTotal()"></div>
-    </div>
-    <div class="day-total" id="day-total">Totaal: 0</div>
-    <div class="form-grid" style="margin-top:8px">
+    <div class="subhead">Aantallen</div>
+    <div class="form-grid">
       <div class="form-group">
         <label>Geplande aantallen</label>
         <input id="d-geplande_aantallen" type="number" step="1" oninput="recalcKarMath()">
@@ -749,7 +786,7 @@ select.cell-input{padding:2px 3px;cursor:pointer;text-align:left}
     <div style="margin:10px 0 6px;font-size:.75rem;font-weight:700;color:#555;text-transform:uppercase">Statussen om mee te nemen</div>
     <div id="ro-statuses" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:.85rem"></div>
     <div style="margin-top:12px">
-      <label class="checkrow"><input type="checkbox" id="ro-reset"> Reset aantallen, prijs en dagaantallen (verse aanvraag)</label>
+      <label class="checkrow"><input type="checkbox" id="ro-reset"> Reset aantallen en prijs (verse aanvraag)</label>
       <label class="checkrow"><input type="checkbox" id="ro-note" checked> Voeg opmerking "(overgezet uit jaar X)" toe</label>
     </div>
     <div style="margin-top:12px;padding:8px 10px;background:var(--groen-licht);border-radius:4px;font-size:.85rem;color:var(--groen-dark)">
@@ -947,9 +984,113 @@ function refreshTrayDatalist() {
 
 /* === RENDER === */
 function showTab(name) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  $('panel-'+name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.dataset.tab) t.classList.toggle('active', t.dataset.tab === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-'+name));
+  if (name === 'dashboard') renderDashboard();
+}
+
+/* === DASHBOARD === */
+function renderDashboard() {
+  const totaalRegels = regels.length;
+  const totaalAantallen = regels.reduce((s,r) => s + N(r.geplande_aantallen), 0);
+  const totaalOmzet = regels.reduce((s,r) => s + N(r.geplande_aantallen) * N(r.prijs), 0);
+  const klantenSet = new Set(regels.map(r => r.klant).filter(Boolean));
+  $('kpi-regels').textContent = totaalRegels.toLocaleString('nl-NL');
+  $('kpi-aantallen').textContent = totaalAantallen.toLocaleString('nl-NL');
+  $('kpi-omzet').textContent = '€ ' + Math.round(totaalOmzet).toLocaleString('nl-NL');
+  $('kpi-klanten').textContent = klantenSet.size.toLocaleString('nl-NL');
+
+  const byWeek = {};
+  regels.forEach(r => {
+    const w = N(r.week);
+    if (!w) return;
+    byWeek[w] = (byWeek[w] || 0) + N(r.geplande_aantallen);
+  });
+  const weeks = Object.keys(byWeek).map(Number).sort((a,b)=>a-b);
+  $('chart-week').innerHTML = renderBarChart(
+    weeks.map(w => ({label: 'wk '+w, value: byWeek[w]})),
+    {vertical: true, color: '#1b5e20'}
+  );
+
+  const byKlant = {};
+  regels.forEach(r => {
+    if (!r.klant) return;
+    byKlant[r.klant] = (byKlant[r.klant] || 0) + N(r.geplande_aantallen) * N(r.prijs);
+  });
+  const topKlanten = Object.entries(byKlant)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([k,v]) => ({label: k, value: v}));
+  $('chart-klanten').innerHTML = renderBarChart(topKlanten, {vertical: false, colored: true, fmt: 'eur'});
+
+  const byProd = {};
+  regels.forEach(r => {
+    if (!r.productgroep) return;
+    byProd[r.productgroep] = (byProd[r.productgroep] || 0) + N(r.geplande_aantallen);
+  });
+  const prodData = Object.entries(byProd).sort((a,b) => b[1] - a[1]).map(([k,v]) => ({label: k, value: v}));
+  $('chart-prod').innerHTML = renderBarChart(prodData, {vertical: true, color: '#8bc34a'});
+}
+
+function renderBarChart(data, opts) {
+  if (!data.length) return '<div class="chart-empty">Geen data</div>';
+  const W = 600;
+  const max = Math.max(...data.map(d => d.value), 1);
+  const fmtVal = v => opts.fmt === 'eur'
+    ? '€ ' + Math.round(v).toLocaleString('nl-NL')
+    : v.toLocaleString('nl-NL');
+  const fmtTick = v => v >= 1000000 ? Math.round(v/1000000)+'M' : (v >= 1000 ? Math.round(v/1000)+'k' : Math.round(v));
+
+  if (opts.vertical) {
+    const H = 260, padL = 50, padR = 8, padT = 14, padB = 36;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const stepX = innerW / data.length;
+    const barW = stepX * 0.7;
+    const tickN = 4;
+    let ticks = '';
+    for (let i = 0; i <= tickN; i++) {
+      const y = padT + innerH * (1 - i/tickN);
+      const v = max * i / tickN;
+      ticks += '<line x1="'+padL+'" x2="'+(W-padR)+'" y1="'+y+'" y2="'+y+'" stroke="#eee"/>';
+      ticks += '<text x="'+(padL-6)+'" y="'+(y+4)+'" font-size="10" fill="#888" text-anchor="end">'+fmtTick(v)+'</text>';
+    }
+    let bars = '', labels = '';
+    data.forEach((d,i) => {
+      const x = padL + stepX*i + (stepX-barW)/2;
+      const h = innerH * (d.value / max);
+      const y = padT + innerH - h;
+      bars += '<rect x="'+x+'" y="'+y+'" width="'+barW+'" height="'+h+'" fill="'+(opts.color||'#1b5e20')+'" rx="2"><title>'+esc(d.label)+': '+fmtVal(d.value)+'</title></rect>';
+      labels += '<text x="'+(x+barW/2)+'" y="'+(H-padB+14)+'" font-size="11" fill="#555" text-anchor="middle">'+esc(d.label)+'</text>';
+    });
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="260" preserveAspectRatio="xMidYMin meet">'+ticks+bars+labels+'</svg>';
+  } else {
+    const palette = ['#1b5e20','#8bc34a','#d4a373','#5d8ca8','#c0533f','#94d28a','#c5d77a','#3e8e41','#a0c84e','#b48a3e'];
+    const labelW = 140, padR = 40, padT = 10, rowH = 22;
+    const barH = 16;
+    const innerW = W - labelW - padR;
+    const H = padT + data.length * rowH + 28;
+    const tickN = 4;
+    let ticks = '';
+    for (let i = 0; i <= tickN; i++) {
+      const x = labelW + innerW * i / tickN;
+      const v = max * i / tickN;
+      ticks += '<line x1="'+x+'" x2="'+x+'" y1="'+padT+'" y2="'+(padT + data.length*rowH)+'" stroke="#eee"/>';
+      ticks += '<text x="'+x+'" y="'+(padT + data.length*rowH + 14)+'" font-size="10" fill="#888" text-anchor="middle">'+fmtTick(v)+'</text>';
+    }
+    let bars = '';
+    data.forEach((d,i) => {
+      const w = innerW * (d.value / max);
+      const y = padT + i * rowH;
+      const color = opts.colored ? palette[i % palette.length] : (opts.color || '#1b5e20');
+      const lbl = d.label.length > 22 ? d.label.slice(0,21)+'…' : d.label;
+      bars += '<text x="'+(labelW-6)+'" y="'+(y+barH/2+4)+'" font-size="11" fill="#555" text-anchor="end">'+esc(lbl)+'</text>';
+      bars += '<rect x="'+labelW+'" y="'+(y+(rowH-barH)/2)+'" width="'+w+'" height="'+barH+'" fill="'+color+'" rx="2"><title>'+esc(d.label)+': '+fmtVal(d.value)+'</title></rect>';
+    });
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" height="'+H+'" preserveAspectRatio="xMidYMin meet">'+ticks+bars+'</svg>';
+  }
 }
 
 function applyFilters(arr) {
@@ -1016,10 +1157,6 @@ function renderTable() {
   const tbody = $('tbl-body');
   const fmt = n => (typeof n === 'number' && n !== 0) ? n.toLocaleString('nl-NL') : '';
   const fmtPrijs = n => (typeof n === 'number' && n !== 0) ? '€ '+n.toFixed(3) : '';
-  const dayCell = (r, k) => {
-    const v = N(r[k]);
-    return '<td class="num cell-edit'+(v<0?' neg':'')+'" data-id="'+r.id+'" data-f="'+k+'">'+(v?fmt(v):'')+'</td>';
-  };
   const rowHtml = (r) => {
     const sel = selectedIds.has(r.id) ? ' selected' : '';
     return '<tr class="'+sel.trim()+'">'
@@ -1044,8 +1181,7 @@ function renderTable() {
       + '<td class="num">'+(N(r.jaar)||'')+'</td>'
       + '<td class="num cell-edit" data-id="'+r.id+'" data-f="week">'+(N(r.week)||'')+'</td>'
       + '<td>'+esc(r.verlaaddag)+'</td>'
-      + dayCell(r,'maandag') + dayCell(r,'dinsdag') + dayCell(r,'woensdag') + dayCell(r,'donderdag')
-      + dayCell(r,'vrijdag') + dayCell(r,'zaterdag') + dayCell(r,'zondag')
+      + '<td class="num cell-edit" data-id="'+r.id+'" data-f="geplande_aantallen">'+(fmt(N(r.geplande_aantallen)) || '')+'</td>'
       + '<td class="num">'+(fmt(N(r.afgenomen_totaal)) || '')+'</td>'
       + '<td class="num cell-edit" data-id="'+r.id+'" data-f="prijs">'+(fmtPrijs(N(r.prijs)))+'</td>'
       + '<td>'+esc(r.type_kar)+'</td>'
@@ -1263,14 +1399,14 @@ const DRAWER_FIELDS = [
   'productgroep','bloeistadium','potmaat','planningsgroep','teelt','teeltspecificatie',
   'jaar','week','verlaaddag','losdag','actiedag','prijs','af_tuin','transport','fust_incl_excl',
   'type_kar','aantal_lagen_kar','aantal_fust_laag','aantal_per_fust','aantal_pl_kar','aantal_fust','aantal_kar_bruto',
-  'maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag','geplande_aantallen',
+  'geplande_aantallen',
   // Verpakking algemeen
   'type_verpakking','verpakking_kleur','ean','plantenpaspoort','prijs_consument','sealen_strappen',
   'mix_type','details_klantmix','min_contract_pct','ladingdrager',
   'opmerking'
 ];
 const DRAWER_BOOLS = []; // bedrukkings-checkboxes worden afgehandeld door BEDRUKKING_OPTIES / readBedrukFromForm
-const NUM_FIELDS = new Set(['jaar','week','prijs','aantal_lagen_kar','aantal_fust_laag','aantal_per_fust','aantal_pl_kar','aantal_fust','aantal_kar_bruto','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag','geplande_aantallen','prijs_consument','min_contract_pct']);
+const NUM_FIELDS = new Set(['jaar','week','prijs','aantal_lagen_kar','aantal_fust_laag','aantal_per_fust','aantal_pl_kar','aantal_fust','aantal_kar_bruto','geplande_aantallen','prijs_consument','min_contract_pct']);
 
 function openDrawer(id) {
   editingId = id || null;
@@ -1319,7 +1455,6 @@ function openDrawer(id) {
   // Bedrukkings-opties: laad checkbox + alle sub-velden
   loadBedrukIntoForm(r || {});
 
-  recalcDayTotal();
   $('drawer-bg').classList.add('show');
   $('drawer').classList.add('show');
   setTimeout(() => $('d-klant').focus(), 80);
@@ -1505,17 +1640,6 @@ function readBedrukFromForm(r) {
   });
 }
 
-function recalcDayTotal() {
-  const days = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'];
-  let t = 0;
-  days.forEach(d => {
-    const v = N($('d-'+d).value);
-    t += v;
-    $('d-'+d).classList.toggle('neg', v < 0);
-  });
-  $('day-total').textContent = 'Totaal: ' + t;
-}
-
 /* === KAR MATH (auto-calc) === */
 const manualOverride = {aantal_pl_kar:false, aantal_kar_bruto:false};
 function markManual(f) { manualOverride[f] = true; refreshKarHints(); }
@@ -1627,7 +1751,7 @@ function addFreeComponent() {
 
 /* === JAAR OVERZETTEN === */
 const ROLLOVER_DEFAULT_STATUSES = ['V','O','D','A','AD','AI','X'];
-const ROLLOVER_RESET_FIELDS = ['prijs','geplande_aantallen','aantal_kar_bruto','afgenomen_totaal','maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag','aantal_fust'];
+const ROLLOVER_RESET_FIELDS = ['prijs','geplande_aantallen','aantal_kar_bruto','afgenomen_totaal','aantal_fust'];
 
 function openRolloverModal() {
   // Source year dropdown
@@ -1809,9 +1933,6 @@ function readForm() {
     r[f] = NUM_FIELDS.has(f) ? N(v) : v;
   });
   DRAWER_BOOLS.forEach(f => { r[f] = $('d-'+f).checked; });
-  // totaal recompute
-  r.afgenomen_totaal = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag']
-    .reduce((s,d) => s + N(r[d]), 0);
   // Bedrukkings-opties uitlezen (zet booleans + alle sub-velden)
   readBedrukFromForm(r);
   // store karposter/sticker as Ja/Nee strings too for export compatibility
@@ -1936,7 +2057,6 @@ function pickCopy(id) {
   });
   DRAWER_BOOLS.forEach(f => { $('d-'+f).checked = !!r[f]; });
   $('d-status').value = 'V'; // start als aanvraag
-  recalcDayTotal();
   $('drawer-bg').classList.add('show');
   $('drawer').classList.add('show');
 }
@@ -1968,8 +2088,6 @@ function rapidStartXml(rs) {
       ['Losdag', r.losdag],
       ['Actiedag', r.actiedag],
       ['AfgenomenTotaal', r.afgenomen_totaal],
-      ['Maandag', r.maandag],['Dinsdag', r.dinsdag],['Woensdag', r.woensdag],
-      ['Donderdag', r.donderdag],['Vrijdag', r.vrijdag],['Zaterdag', r.zaterdag],['Zondag', r.zondag],
       ['GeplandeAantallen', r.geplande_aantallen],
       ['Prijs', r.prijs],
       ['AfTuin', r.af_tuin],
@@ -2047,13 +2165,12 @@ function exportCSV() {
     bedrukHeaders.push(o.label);
     o.subFields.forEach(sf => bedrukHeaders.push(o.label + ' — ' + sf.label));
   });
-  const h = ['Jaar','Status','VRC','VRC info','Verkoop/Opzet','Verkoper','Klant','Eindklant','Afzetland','Productgroep','Teelt','Bloeistadium','Teeltspecificatie','Potmaat','Planningsgroep','Week','Verlaaddag','Losdag','Actiedag','Ma','Di','Wo','Do','Vr','Za','Zo','Totaal','Geplande','Prijs','AfTuin','Transport','Fust','TypeKar','AantalLagenKar','AantalFustLaag','AantalPerFust','AantalPlKar','AantalFust','AantalKarBruto','TypeVerpakking','VerpakkingKleur','EAN','Plantenpaspoort','PrijsConsument','SealenStrappen','MixType','DetailsKlantmix','MinContractPct','Ladingdrager', ...bedrukHeaders, 'Opmerking','MixSamenstelling'];
+  const h = ['Jaar','Status','VRC','VRC info','Verkoop/Opzet','Verkoper','Klant','Eindklant','Afzetland','Productgroep','Teelt','Bloeistadium','Teeltspecificatie','Potmaat','Planningsgroep','Week','Verlaaddag','Losdag','Actiedag','Totaal','Geplande','Prijs','AfTuin','Transport','Fust','TypeKar','AantalLagenKar','AantalFustLaag','AantalPerFust','AantalPlKar','AantalFust','AantalKarBruto','TypeVerpakking','VerpakkingKleur','EAN','Plantenpaspoort','PrijsConsument','SealenStrappen','MixType','DetailsKlantmix','MinContractPct','Ladingdrager', ...bedrukHeaders, 'Opmerking','MixSamenstelling'];
   const rows = regels.map(r => {
     const base = [
       r.jaar, r.status, r.vrc, r.vrc_info, r.verkoop_of_opzet, r.verkoper, r.klant, r.eindklant, r.afzetland,
       r.productgroep, r.teelt, r.bloeistadium, r.teeltspecificatie, r.potmaat, r.planningsgroep,
       r.week, r.verlaaddag, r.losdag, r.actiedag,
-      r.maandag, r.dinsdag, r.woensdag, r.donderdag, r.vrijdag, r.zaterdag, r.zondag,
       r.afgenomen_totaal, r.geplande_aantallen, r.prijs, r.af_tuin, r.transport, r.fust_incl_excl,
       r.type_kar, r.aantal_lagen_kar, r.aantal_fust_laag, r.aantal_per_fust, r.aantal_pl_kar, r.aantal_fust, r.aantal_kar_bruto,
       r.type_verpakking, r.verpakking_kleur, r.ean, r.plantenpaspoort, r.prijs_consument, r.sealen_strappen,
@@ -2081,13 +2198,12 @@ function exportExcel() {
     bedrukHeaders.push(o.label);
     o.subFields.forEach(sf => bedrukHeaders.push(o.label + ' — ' + sf.label));
   });
-  const h = ['Jaar','Status','VRC','VRC info','Verkoop/Opzet','Verkoper','Klant','Eindklant','Afzetland','Productgroep','Teelt','Bloeistadium','Teeltspecificatie','Potmaat','Planningsgroep','Week','Verlaaddag','Losdag','Actiedag','Ma','Di','Wo','Do','Vr','Za','Zo','Totaal','Geplande','Prijs','AfTuin','Transport','Fust','TypeKar','AantalLagenKar','AantalFustLaag','AantalPerFust','AantalPlKar','AantalFust','AantalKarBruto','TypeVerpakking','VerpakkingKleur','EAN','Plantenpaspoort','PrijsConsument','SealenStrappen','MixType','DetailsKlantmix','MinContractPct','Ladingdrager', ...bedrukHeaders, 'Opmerking','MixSamenstelling'];
+  const h = ['Jaar','Status','VRC','VRC info','Verkoop/Opzet','Verkoper','Klant','Eindklant','Afzetland','Productgroep','Teelt','Bloeistadium','Teeltspecificatie','Potmaat','Planningsgroep','Week','Verlaaddag','Losdag','Actiedag','Totaal','Geplande','Prijs','AfTuin','Transport','Fust','TypeKar','AantalLagenKar','AantalFustLaag','AantalPerFust','AantalPlKar','AantalFust','AantalKarBruto','TypeVerpakking','VerpakkingKleur','EAN','Plantenpaspoort','PrijsConsument','SealenStrappen','MixType','DetailsKlantmix','MinContractPct','Ladingdrager', ...bedrukHeaders, 'Opmerking','MixSamenstelling'];
   const rows = regels.map(r => {
     const base = [
       r.jaar, r.status, r.vrc, r.vrc_info, r.verkoop_of_opzet, r.verkoper, r.klant, r.eindklant, r.afzetland,
       r.productgroep, r.teelt, r.bloeistadium, r.teeltspecificatie, r.potmaat, r.planningsgroep,
       r.week, r.verlaaddag, r.losdag, r.actiedag,
-      r.maandag, r.dinsdag, r.woensdag, r.donderdag, r.vrijdag, r.zaterdag, r.zondag,
       r.afgenomen_totaal, r.geplande_aantallen, r.prijs, r.af_tuin, r.transport, r.fust_incl_excl,
       r.type_kar, r.aantal_lagen_kar, r.aantal_fust_laag, r.aantal_per_fust, r.aantal_pl_kar, r.aantal_fust, r.aantal_kar_bruto,
       r.type_verpakking, r.verpakking_kleur, r.ean, r.plantenpaspoort, r.prijs_consument, r.sealen_strappen,
@@ -2512,10 +2628,6 @@ function startInlineEdit(td) {
       const nv = inp.value === '' ? 0 : N(inp.value);
       if (nv !== N(orig)) {
         r[field] = nv;
-        if (['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag'].includes(field)) {
-          r.afgenomen_totaal = ['maandag','dinsdag','woensdag','donderdag','vrijdag','zaterdag','zondag']
-            .reduce((s,d)=>s+N(r[d]),0);
-        }
         toast('Bijgewerkt: '+field);
       }
     }
