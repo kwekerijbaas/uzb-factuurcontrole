@@ -39,6 +39,26 @@ from .types import (
 _UREN_TOLERANTIE_MIN = 0
 
 
+_KWARTIER = 15
+
+
+def rond_op_kwartier(minuten_per_percentage: dict[Decimal, int]) -> dict[Decimal, int]:
+    """Rond elke toeslag-bucket af op kwartieren, met behoud van het weektotaal
+    (SPEC §4). Nitea-uren staan al op kwartieren, dus het totaal is een veelvoud
+    van 15; de afrondingsrest wordt op de grootste bucket gelegd."""
+    afgerond = {
+        pct: int(round(m / _KWARTIER) * _KWARTIER)
+        for pct, m in minuten_per_percentage.items()
+    }
+    totaal = sum(minuten_per_percentage.values())
+    doel = int(round(totaal / _KWARTIER) * _KWARTIER)
+    rest = doel - sum(afgerond.values())
+    if rest and afgerond:
+        grootste = max(afgerond, key=lambda p: afgerond[p])
+        afgerond[grootste] += rest
+    return {pct: m for pct, m in afgerond.items() if m}
+
+
 def _naar_minuut(t: time) -> int:
     return t.hour * 60 + t.minute
 
@@ -86,8 +106,18 @@ def _verzamel_minuten(
             pct, bron = _tod_percentage(m, regels, feestdagen)
             minuten.append((m, pct, bron))
 
-        # consistentie-check: bruto - pauze moet de Nitea-nettotijd zijn
-        if totaal - regel.pauze_minuten != regel.gewerkte_minuten:
+        # Nitea 'Werk tijd' is leidend: de niet-gewerkte tijd binnen de bracket
+        # (pauze én eventuele onderbrekingen bij split shifts) wordt weggehaald,
+        # zodat het gewerkte totaal exact de Nitea-nettotijd is. Bij ontbrekende
+        # of onmogelijke werktijd vallen we terug op pure pauze-aftrek.
+        if 0 < regel.gewerkte_minuten <= totaal:
+            te_verwijderen = totaal - regel.gewerkte_minuten
+        else:
+            te_verwijderen = max(0, regel.pauze_minuten)
+
+        # informatief: bracket − pauze verklaart de werktijd niet (split shift /
+        # afwijkende registratie) — de aftrek is dan groter dan alleen pauze.
+        if regel.gewerkte_minuten and totaal - regel.pauze_minuten != regel.gewerkte_minuten:
             afwijkingen.append(
                 Afwijking(
                     datum=regel.datum,
@@ -95,20 +125,21 @@ def _verzamel_minuten(
                     detail=(
                         f"begin/eind ({totaal} min) − pauze ({regel.pauze_minuten}) "
                         f"= {totaal - regel.pauze_minuten}, maar Nitea meldt "
-                        f"{regel.gewerkte_minuten} gewerkte minuten"
+                        f"{regel.gewerkte_minuten} gewerkte minuten; "
+                        f"{te_verwijderen} min als niet-gewerkt afgetrokken"
                     ),
                     registratie_minuten=regel.gewerkte_minuten,
                 )
             )
 
-        # pauze valt op de minuten met de laagste toeslag (asc op pct, dan tijd)
-        pauze = max(0, regel.pauze_minuten)
-        if pauze:
+        # verwijder de niet-gewerkte minuten met de LAAGSTE toeslag (asc pct, dan
+        # tijd) — zo blijven nacht-/avond-/zaterdaguren behouden.
+        if te_verwijderen > 0:
             volgorde = sorted(range(len(minuten)), key=lambda i: (minuten[i][1], minuten[i][0]))
-            pauze_idx = set(volgorde[:pauze])
+            weg_idx = set(volgorde[:te_verwijderen])
         else:
-            pauze_idx = set()
-        gewerkt.extend(m for i, m in enumerate(minuten) if i not in pauze_idx)
+            weg_idx = set()
+        gewerkt.extend(m for i, m in enumerate(minuten) if i not in weg_idx)
 
     gewerkt.sort(key=lambda x: x[0])
     return gewerkt
