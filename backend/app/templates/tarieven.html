@@ -1,0 +1,61 @@
+{% extends "basis.html" %}
+{% block titel %}Lonen &amp; tarieven — UF{% endblock %}
+{% block inhoud %}
+<h1>Lonen &amp; tarieven</h1>
+
+<div class="kaart">
+  <h2>Hoe de tarieven tot stand komen</h2>
+  <p>Een tarief wordt niet ingevoerd maar berekend:
+     <strong>tarief = CAO-uurloon &times; omrekenfactor</strong>.
+     De omrekenfactor ligt vast met het uitzendbureau; de lonen veranderen periodiek.</p>
+  <p class="hint">Loonronde? Upload alleen de loontabel. Nieuwe kaart van een bureau
+     (na onderhandeling)? Upload de tariefkaart, dan worden de factoren opnieuw bepaald.</p>
+</div>
+
+<div class="kaart">
+  <h2>Huidige stand</h2>
+  {% if actieve_loontabel %}
+    <p>Actieve loontabel: <strong>{{ actieve_loontabel.naam }}</strong>
+       (vanaf {{ actieve_loontabel.ingangsdatum.strftime('%d-%m-%Y') }},
+       {{ actieve_loontabel.lonen|length }} schalen).</p>
+  {% else %}
+    <p class="fout">Nog geen CAO-loontabel geladen — zonder lonen kunnen er geen bedragen berekend worden.</p>
+  {% endif %}
+  <table>
+    <tr><th>Uitzendbureau</th><th>Omrekenfactoren</th></tr>
+    {% for uzb in per_uzb %}
+    <tr>
+      <td>{{ uzb.naam }}</td>
+      <td>{% if uzb.aantal_factoren %}{{ uzb.aantal_factoren }}{% else %}<span class="fout">geen</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="kaart">
+  <h2>CAO-loontabel uploaden</h2>
+  <form method="post" action="/tarieven/loontabel" enctype="multipart/form-data">
+    <label for="ln">Omschrijving</label>
+    <input id="ln" type="text" name="naam" placeholder="CAO Glastuinbouw per 1 juli 2026" required>
+    <label for="ld">Ingangsdatum</label>
+    <input id="ld" type="date" name="ingangsdatum" required>
+    <label for="lb">Bestand (.xlsx)</label>
+    <input id="lb" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">Een kolom met de schaalcode en een kolom met het uurloon volstaat.</p>
+    <button type="submit">Loontabel opslaan</button>
+  </form>
+</div>
+
+<div class="kaart">
+  <h2>UZB-tariefkaart uploaden</h2>
+  <form method="post" action="/tarieven/tariefkaart" enctype="multipart/form-data">
+    <label for="td">Ingangsdatum</label>
+    <input id="td" type="date" name="ingangsdatum" required>
+    <label for="tb">Bestand (.xlsx)</label>
+    <input id="tb" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">De geconsolideerde kaart met een tabblad per uitzendbureau.</p>
+    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto"> ook de CAO-lonen uit dit bestand overnemen</label>
+    <button type="submit">Tariefkaart verwerken</button>
+  </form>
+</div>
+{% endblock %}

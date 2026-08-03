@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titel %}UF — UZB-urencontrole{% endblock %}</title>
+  <style>
+    :root { --groen:#2d6a4f; --rand:#d8dee4; --grijs:#5b6570; --rood:#b42318; --oranje:#b54708; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; color:#1c2530; background:#f6f7f9; }
+    header { background:var(--groen); color:#fff; padding:.9rem 1.5rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
+    header a { color:#fff; text-decoration:none; opacity:.9; }
+    header a:hover { opacity:1; text-decoration:underline; }
+    header .merk { font-weight:700; font-size:1.1rem; }
+    header .wie { margin-left:auto; font-size:.85rem; opacity:.85; }
+    main { max-width:960px; margin:1.5rem auto; padding:0 1.5rem 3rem; }
+    h1 { font-size:1.5rem; margin:.2rem 0 1rem; }
+    h2 { font-size:1.1rem; margin:1.8rem 0 .6rem; }
+    .kaart { background:#fff; border:1px solid var(--rand); border-radius:10px; padding:1.2rem 1.4rem; margin-bottom:1.2rem; }
+    label { display:block; font-weight:600; margin:.7rem 0 .25rem; font-size:.92rem; }
+    input, select { width:100%; padding:.5rem .6rem; border:1px solid var(--rand); border-radius:6px; font:inherit; background:#fff; }
+    button { background:var(--groen); color:#fff; border:0; border-radius:6px; padding:.6rem 1.2rem; font:inherit; font-weight:600; cursor:pointer; margin-top:1rem; }
+    button:hover { filter:brightness(1.1); }
+    table { width:100%; border-collapse:collapse; margin-top:.6rem; font-size:.9rem; }
+    th, td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--rand); vertical-align:top; }
+    th { background:#eef1f4; font-weight:600; }
+    .hint { color:var(--grijs); font-size:.86rem; margin:.3rem 0 0; }
+    .fout { color:var(--rood); font-weight:600; }
+    .waarschuwing { color:var(--oranje); }
+    .leeg { color:var(--grijs); font-style:italic; }
+    .rij { display:flex; gap:1rem; flex-wrap:wrap; }
+    .rij > div { flex:1 1 200px; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="merk">UF — urencontrole</span>
+    <a href="/">Start</a>
+    <a href="/week">Week verwerken</a>
+    <a href="/tarieven">Lonen &amp; tarieven</a>
+    {% if gebruiker %}<span class="wie">{{ gebruiker.naam }}{% if gebruiker.is_ontwikkelaar %} (lokaal){% endif %}</span>{% endif %}
+  </header>
+  <main>{% block inhoud %}{% endblock %}</main>
+</body>
+</html>

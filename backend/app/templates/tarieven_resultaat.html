@@ -1,0 +1,58 @@
+{% extends "basis.html" %}
+{% block titel %}{{ titel }} — UF{% endblock %}
+{% block inhoud %}
+<h1>{{ titel }}</h1>
+<div class="kaart">
+  <p>{{ samenvatting }}</p>
+  <p><a href="/tarieven">&larr; terug naar lonen &amp; tarieven</a></p>
+</div>
+
+{% if bevindingen %}
+<div class="kaart">
+  <h2>Controle ({{ bevindingen|length }})</h2>
+  <p class="hint">Deze punten zijn gevonden in het geüploade bestand. Fouten wijzen meestal
+     op een typefout of een kapotte formule; leg ze voor aan het uitzendbureau.</p>
+  <table>
+    <tr><th>Ernst</th><th>Bureau</th><th>Schaal</th><th>Categorie</th><th>Melding</th></tr>
+    {% for b in bevindingen %}
+    <tr>
+      <td class="{{ 'fout' if b.ernst == 'fout' else 'waarschuwing' }}">{{ b.ernst }}</td>
+      <td>{{ b.uzb_sleutel }}</td><td>{{ b.kaartcode or '' }}</td>
+      <td>{{ b.categorie or '' }}</td><td>{{ b.melding }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if resultaten %}
+<div class="kaart">
+  <h2>Per uitzendbureau</h2>
+  <table>
+    <tr><th>Bureau</th><th>Schalen</th><th>Factoren</th><th>Gewijzigd</th></tr>
+    {% for r in resultaten %}
+    <tr>
+      <td>{{ r.naam }}</td><td>{{ r.schalen }}</td><td>{{ r.factoren }}</td>
+      <td>{{ r.verschillen|length }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% for r in resultaten if r.verschillen %}
+    <h2>Wijzigingen — {{ r.naam }}</h2>
+    <table>
+      <tr><th>Schaal</th><th>Categorie</th><th>Wijziging</th></tr>
+      {% for v in r.verschillen %}
+      <tr><td>{{ v.kaartcode }}</td><td>{{ v.categorie }}</td><td>{{ v.melding }}</td></tr>
+      {% endfor %}
+    </table>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if waarschuwingen %}
+<div class="kaart">
+  <h2>Opmerkingen bij het inlezen</h2>
+  <ul>{% for w in waarschuwingen %}<li class="waarschuwing">{{ w }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}

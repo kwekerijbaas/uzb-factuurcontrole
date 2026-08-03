@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 backend/.env
+
+# Lokale data en artefacten
+backend/data/
+backend/*.db

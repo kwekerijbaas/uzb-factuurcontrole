@@ -1,0 +1,30 @@
+# Lokale ontwikkelomgeving: Postgres + de app.
+#   docker compose up --build
+#   http://localhost:8000
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: uzk
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: ./backend
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/uzk
+      # Easy Auth draait alleen in Azure; lokaal zonder login werken.
+      AUTH_VEREIST: "false"
+    ports: ["8000:8000"]
+    volumes: ["./backend:/app"]
+
+volumes:
+  pgdata:
