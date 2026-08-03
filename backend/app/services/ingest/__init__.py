@@ -8,6 +8,7 @@ zijn, net als de calc-engine.
 """
 
 from .loontabel import lees_loontabel
+from .tariefkaart import KaartBlad, cao_schaal_code, lees_cao_loontabel, lees_tariefkaart
 from .nitea import NiteaMedewerker, lees_nitea
 from .snoop import SnoopMedewerker, lees_snoop
 
@@ -17,4 +18,8 @@ __all__ = [
     "lees_nitea",
     "NiteaMedewerker",
     "lees_loontabel",
+    "lees_tariefkaart",
+    "lees_cao_loontabel",
+    "cao_schaal_code",
+    "KaartBlad",
 ]

@@ -14,6 +14,10 @@ from .types import (
     CAT_150,
     CAT_200,
     CAT_FEESTDAG,
+    ALLE_CATEGORIEEN,
+    CAT_115,
+    CAT_122,
+    CAT_NACHT_50,
     CAT_NACHTUUR,
     BedragRegel,
     BedragResultaat,
@@ -21,6 +25,13 @@ from .types import (
     TariefKaart,
     UzbConventies,
     kies_kaart,
+)
+from .validatie import (
+    Bevinding,
+    valideer_minimumloon,
+    valideer_tarieven,
+    valideer_uniforme_factor,
+    vergelijk_factoren,
 )
 from .uzb import CERVOKORDAAT, CONVENTIES, LEVEL_ONE, STERK_WERK, conventies
 
@@ -49,4 +60,13 @@ __all__ = [
     "CAT_200",
     "CAT_FEESTDAG",
     "CAT_NACHTUUR",
+    "CAT_NACHT_50",
+    "CAT_115",
+    "CAT_122",
+    "ALLE_CATEGORIEEN",
+    "Bevinding",
+    "valideer_tarieven",
+    "valideer_uniforme_factor",
+    "valideer_minimumloon",
+    "vergelijk_factoren",
 ]

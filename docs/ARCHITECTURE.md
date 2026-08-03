@@ -88,9 +88,8 @@ Azure Static Web App volstond daar niet voor.
 2. **Datamodel + CAO-calculatie-engine + tests** (`backend/`). ✅ *(al aanwezig)*
 3. **Ingest** — SNOOP (.xlsx) en Nitea (.pdf) inlezen (`services/ingest/`). ✅
 4. **Tariefmapping per UZB + bedrag** (SPEC §5, `services/tarief/`). ✅
-5. **Tariefkaart in de app** — CAO-loontabel-upload met ingangsdatum; tarieven
-   afgeleid via omrekenfactor (SPEC §6). Model + migratie aanwezig. ✅
-   *Openstaand: de factoren eenmalig vullen uit de huidige tariefkaart.*
+5. **Tariefkaart in de app** — CAO-loontabel- én tariefkaart-upload met
+   ingangsdatum, afgeleide omrekenfactoren en validatie (SPEC §6). ✅
 6. **Web-laag** — upload/resultaat/downloads (FastAPI + frontend). ⏳
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
 8. **Deploy** — Dockerfile + GitHub Actions + Entra ID + custom domain. ⏳

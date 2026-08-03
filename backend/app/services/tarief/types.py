@@ -18,6 +18,21 @@ CAT_150 = "150"
 CAT_200 = "200"
 CAT_FEESTDAG = "feestdag"
 CAT_NACHTUUR = "nachtuur"  # Sterk Werk: 'Totaal nachtuur'
+CAT_NACHT_50 = "nacht50"  # Sterk Werk: losse '50% nacht'-opslag
+CAT_115 = "115"  # Cervokordaat: middagtoeslag
+CAT_122 = "122"  # Cervokordaat: avondtoeslag
+
+ALLE_CATEGORIEEN = (
+    CAT_100,
+    CAT_135,
+    CAT_115,
+    CAT_122,
+    CAT_150,
+    CAT_200,
+    CAT_FEESTDAG,
+    CAT_NACHTUUR,
+    CAT_NACHT_50,
+)
 
 
 @dataclass(frozen=True)

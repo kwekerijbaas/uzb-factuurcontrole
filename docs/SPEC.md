@@ -140,12 +140,46 @@ maar hebben een eigen factor.
 huidige, met de uitzendbureaus afgestemde tariefkaart (`factor = tarief /
 uurloon`). Daarna volstaan loontabel-uploads.
 
-**Validatie bij upload:** waarschuw bij schalen die wél een factor hebben maar
-géén loon in de nieuwe tabel (die krijgen géén tarief in plaats van een tarief
-van 0), en bij lonen onder het geldende wettelijk minimumloon.
+**Twee soorten upload:**
 
-> **Implementatie:** `services/ingest/loontabel.py` (upload) en
-> `services/tarief/kaart.py` (afleiden, factor-bootstrap, keuze op datum).
+| Upload | Wanneer | Gevolg |
+|---|---|---|
+| **CAO-loontabel** | Loonronde | Nieuwe lonen vanaf ingangsdatum; factoren blijven, tarieven bewegen mee |
+| **UZB-tariefkaart** | Onderhandeling / nieuwe kaart van het bureau | Factoren opnieuw afgeleid (`tarief ÷ loon`) vanaf ingangsdatum |
+
+De omrekenfactor wordt dus **nooit met de hand ingevoerd**; hij volgt uit het
+brondocument dat het uitzendbureau aanlevert. Een losse handmatige correctie
+per schaal/categorie blijft mogelijk (met ingangsdatum en toelichting), maar is
+de uitzondering.
+
+**Uniforme factor:** Sterk Werk en Cervokordaat hanteren contractueel één
+factor per tariefcategorie voor álle schalen; Level One verschilt per
+suffix (Vast/Flex/Seizoens). Dat staat als `uniforme_factor` per tabblad in
+`services/ingest/tariefkaart.py`, zodat een afwijkende schaal automatisch wordt
+gesignaleerd.
+
+**Validatie bij upload** (`services/tarief/validatie.py`):
+- **uitschieters** — per categorie de verhouding tot het basistarief vergeleken
+  met de mediaan over alle schalen; >5% afwijking is vrijwel altijd een
+  typefout of kapotte formule. Jeugd- en volwassenschalen worden apart
+  vergeleken (ze hebben eigen verhoudingen);
+- **gaten** — een categorie die voor de meerderheid van de schalen geldt maar
+  bij deze schaal ontbreekt;
+- **niet-uniforme factor** bij bureaus die één factor per categorie hanteren;
+- **onder het minimumloon**;
+- **verschiloverzicht** — wat de omrekenfactoren doen t.o.v. de vorige versie,
+  zodat een onbedoelde wijziging opvalt vóór bevestiging.
+
+Op de kaart per 01-01-2026 leverde dit drie fouten op die in het Excel-bestand
+onopgemerkt waren gebleven: Cervokordaat C3 met een 135%-tarief van € 29,80
+(lager dan het basistarief; verwacht ~€ 38,36), Level One jeugd-payroll B3 met
+een 200%-tarief van € 40,91 (verwacht ~€ 38,39), en schaal 18C2 zonder 150%- en
+200%-tarief.
+
+> **Implementatie:** `services/ingest/loontabel.py` en
+> `services/ingest/tariefkaart.py` (uploads), `services/tarief/kaart.py`
+> (afleiden, factor-bootstrap, keuze op datum) en
+> `services/tarief/validatie.py` (controles + verschiloverzicht).
 
 ## 7. Factuurcontrole (reconciliatie)
 
