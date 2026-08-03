@@ -106,24 +106,46 @@ buckets × het bijbehorende tarief.
   op 100-tarief.
 - Geen nachtdiensten; feestdag op apart `150%2`-tarief.
 
-## 6. Tariefkaart-versiebeheer (CAO-/minimumloon-wijzigingen)
+## 6. Tariefkaart in de applicatie (CAO-/minimumloon-wijzigingen)
 
-Minimumlonen en CAO-lonen worden periodiek aangepast. Daarom wordt de
-tariefkaart **versiebeheerd op ingangsdatum**:
+De tariefkaart wordt **niet ingevoerd maar afgeleid**. Er wordt alleen een
+**CAO-loontabel** geüpload; de tarieven volgen daaruit:
 
-- Elke geüploade tariefkaart krijgt een **`ingangsdatum`** (bv. "geldig vanaf
-  01-07-2026").
-- Bij het verwerken van een week selecteert de engine automatisch de
-  tariefkaart die geldig was op de **datums van die week** (de laatste kaart met
-  `ingangsdatum ≤ weekmaandag`).
-- Historische weken blijven dus met de destijds geldende tarieven kloppen;
-  nieuwe weken bewegen automatisch mee.
-- Bij een CAO-ronde hoeft de gebruiker alleen een nieuwe kaart met ingangsdatum
-  te uploaden — geen codewijziging.
+```
+tarief = CAO-uurloon x omrekenfactor
+```
 
-**Validatie bij upload:** controleer dat alle loonschalen uit de vorige kaart
-aanwezig zijn (waarschuw bij ontbrekende/nieuwe schalen), en dat tarieven ≥ het
-geldende wettelijk minimumloon zijn.
+- De **omrekenfactor** ligt contractueel vast met het uitzendbureau (per
+  kaartschaal en per tariefcategorie) en verandert niet mee met de CAO.
+- Een geüploade **loontabel** heeft een **`ingangsdatum`**. Vanaf die datum
+  worden de tarieven tegen die lonen berekend; daarvóór blijft de vorige tabel
+  gelden. Historische weken blijven dus kloppen.
+- Bij het verwerken van een week wordt de loontabel gekozen die gold op de
+  weekdatums (de laatste met `ingangsdatum ≤ weekmaandag`).
+- Bij een CAO-ronde uploadt de gebruiker dus **alleen de nieuwe lonen** — geen
+  tarieven overtypen, geen codewijziging.
+
+**Waarom een factor en niet een tarieventabel:** de verhouding
+`tarief / uurloon` is per uitzendbureau stabiel. Gemeten op de kaart per
+01-01-2026: bij Sterk Werk is de verhouding tussen de categorieën constant over
+alle schalen (150% = 1,1075 × 100%; nachtuur = 1,364 ×; 200% = 1,487 ×), bij
+Level One constant binnen een schaaltype (Flex ≈ 1,172; Vast ≈ 1,151).
+
+**Datamodel:** `cao_loontabel` + `cao_loon` (de upload) en `uzb_tarief_factor`
+(SCD2, per UZB × kaartcode × categorie). Een kaartcode verwijst naar een
+CAO-schaal: `B4F` (Flex) en `B4V` (Vast) delen het CAO-loon van schaal `B4`
+maar hebben een eigen factor.
+
+**Bootstrappen:** `leid_factoren_af()` berekent de factoren eenmalig uit de
+huidige, met de uitzendbureaus afgestemde tariefkaart (`factor = tarief /
+uurloon`). Daarna volstaan loontabel-uploads.
+
+**Validatie bij upload:** waarschuw bij schalen die wél een factor hebben maar
+géén loon in de nieuwe tabel (die krijgen géén tarief in plaats van een tarief
+van 0), en bij lonen onder het geldende wettelijk minimumloon.
+
+> **Implementatie:** `services/ingest/loontabel.py` (upload) en
+> `services/tarief/kaart.py` (afleiden, factor-bootstrap, keuze op datum).
 
 ## 7. Factuurcontrole (reconciliatie)
 

@@ -25,6 +25,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Time,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -76,6 +77,78 @@ class Loonschaal(Base, Scd2Mixin, TijdstempelMixin):
     code: Mapped[str] = mapped_column(String(50), nullable=False)
     omschrijving: Mapped[str | None] = mapped_column(String(200))
     uurtarief: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+
+
+class CaoLoontabel(Base, TijdstempelMixin):
+    """Eén geüploade CAO-loontabel. Vanaf `ingangsdatum` gelden deze lonen; de
+    UZB-tarieven bewegen automatisch mee (zie UzbTariefFactor)."""
+
+    __tablename__ = "cao_loontabel"
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(200), nullable=False)
+    ingangsdatum: Mapped[date] = mapped_column(Date, nullable=False)
+    bron_bestand: Mapped[str | None] = mapped_column(String(500))
+    geimporteerd_door: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+    lonen: Mapped[list[CaoLoon]] = relationship(
+        back_populates="loontabel", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (UniqueConstraint("ingangsdatum", name="uq_cao_loontabel_ingangsdatum"),)
+
+
+class CaoLoon(Base):
+    """Uurloon van één CAO-schaal binnen een loontabel."""
+
+    __tablename__ = "cao_loon"
+
+    id: Mapped[uuid.UUID] = _pk()
+    loontabel_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cao_loontabel.id", ondelete="CASCADE"), nullable=False
+    )
+    schaal_code: Mapped[str] = mapped_column(String(50), nullable=False)  # bv. "B2", "15B2"
+    omschrijving: Mapped[str | None] = mapped_column(String(200))
+    uurloon: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+
+    loontabel: Mapped[CaoLoontabel] = relationship(back_populates="lonen")
+
+    __table_args__ = (
+        UniqueConstraint("loontabel_id", "schaal_code", name="uq_cao_loon_tabel_schaal"),
+    )
+
+
+class UzbTariefFactor(Base, Scd2Mixin, TijdstempelMixin):
+    """Omrekenfactor per UZB, per tariefkaart-schaal, per tariefcategorie:
+
+        tarief = CAO-uurloon x factor
+
+    De factor ligt contractueel vast met het uitzendbureau en verandert niet mee
+    met de CAO-lonen. Daardoor levert het uploaden van een nieuwe loontabel
+    automatisch een nieuwe, correcte tariefkaart op vanaf die ingangsdatum
+    (SPEC §6).
+
+    `kaartcode` is de code van het uitzendbureau (bv. "B4F" of "B4V"), die naar
+    dezelfde `cao_schaal_code` ("B4") kan verwijzen met een andere factor --
+    Flex en Vast delen immers het CAO-loon maar niet het tarief.
+    """
+
+    __tablename__ = "uzb_tarief_factor"
+
+    id: Mapped[uuid.UUID] = _pk()
+    uzb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uzb.id"), nullable=False)
+    kaartcode: Mapped[str] = mapped_column(String(50), nullable=False)
+    cao_schaal_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    categorie: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 100 | 135 | 150 | 200 | feestdag | nachtuur
+    factor: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "uzb_id", "kaartcode", "categorie", "geldig_van",
+            name="uq_uzb_tarief_factor_versie",
+        ),
+    )
 
 
 class Uzk(Base, TijdstempelMixin):
