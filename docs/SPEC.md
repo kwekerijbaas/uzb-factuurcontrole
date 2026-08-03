@@ -4,10 +4,12 @@
 > UZB-uren- en factuurcontrole vastleggen. Gevalideerd tegen week 25/2026
 > (Level One + Sterk Werk).
 >
-> De CAO-toeslagberekening (§4) is geïmplementeerd in
-> `backend/app/services/calc/` en geseed in `backend/app/services/seed/`.
-> De **tariefmapping per UZB** (§5) en de **factuurcontrole** (§7) zijn nog
-> niet geïmplementeerd; deze spec is de bron voor die bouw.
+> **Geïmplementeerd:** de bron-ingest (§2) in `backend/app/services/ingest/`,
+> de CAO-toeslagberekening (§4) in `backend/app/services/calc/` (geseed vanuit
+> `backend/app/services/seed/`), en de tariefmapping + bedragberekening (§5)
+> in `backend/app/services/tarief/`.
+> **Nog te bouwen:** de tariefkaart-upload (§6) en de factuurcontrole (§7);
+> deze spec is de bron voor die bouw.
 
 ## 1. Doel
 
@@ -60,6 +62,16 @@ Per medewerker per week worden de gewerkte uren in **buckets** gesplitst.
 Elke UZB heeft een eigen tabblad in de tariefkaart, een eigen code-mapping en
 eigen facturatie-conventies. Het inkoopbedrag per medewerker = som over de
 buckets × het bijbehorende tarief.
+
+> **Implementatie:** de conventies staan als data in
+> `backend/app/services/tarief/uzb.py`; de bedragberekening in `bedrag.py`.
+> De koppeling loopt via de **toeslag-bron** uit de calc-trace (`nacht`,
+> `avond`, `feestdag`, `overwerk_35`, …) en niet via het percentage, omdat één
+> percentage meerdere tarieven kan hebben (nacht/avond/zaterdag/feestdag zijn
+> alle 50%, maar Sterk Werk kent een apart nachtuur-tarief en Level One een
+> apart feestdag-tarief). Een bron die een UZB niet doorbelast (bv. de
+> dag-grens bij Sterk Werk) valt terug op het basistarief; de uren verdwijnen
+> dus niet.
 
 ### 5.1 Level One — regulier (`L1`)
 - **Code-mapping:** `"B2 Flex"` → `B2F`, `"B4 Vast"` → `B4V`,

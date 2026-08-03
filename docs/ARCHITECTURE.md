@@ -85,10 +85,11 @@ Azure Static Web App volstond daar niet voor.
 
 1. **Spec + architectuur** vastgelegd (`docs/`). ✅
 2. **Datamodel + CAO-calculatie-engine + tests** (`backend/`). ✅ *(al aanwezig)*
-3. **Ingest** — SNOOP (.xlsx) en Nitea (.pdf) inlezen naar het datamodel;
-   valideren tegen referentie-uitkomsten SPEC §8. ⏳
-4. **Tariefmapping per UZB + bedrag** (SPEC §5) — inkoopbedrag per medewerker. ⏳
-5. **Web-laag** — upload/resultaat/downloads (FastAPI + frontend). ⏳
-6. **Tariefkaart-beheer** — upload met ingangsdatum → SCD2-versie. ⏳
+3. **Ingest** — SNOOP (.xlsx) en Nitea (.pdf) inlezen (`services/ingest/`). ✅
+4. **Tariefmapping per UZB + bedrag** (SPEC §5, `services/tarief/`). ✅
+5. **Tariefkaart-beheer** — upload met ingangsdatum → SCD2-versie in de DB.
+   *Vereist een modelwijziging: `loonschaal` moet per UZB en per
+   tariefcategorie (100/135/150/200/feestdag/nachtuur), nu één `uurtarief`.* ⏳
+6. **Web-laag** — upload/resultaat/downloads (FastAPI + frontend). ⏳
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
 8. **Deploy** — Dockerfile + GitHub Actions + Entra ID + custom domain. ⏳

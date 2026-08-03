@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import TypeVar
 
 from .types import (
     SOORT_GEEN_PLANNING,
@@ -40,23 +41,38 @@ _UREN_TOLERANTIE_MIN = 0
 
 
 _KWARTIER = 15
+_K = TypeVar("_K")
 
 
-def rond_op_kwartier(minuten_per_percentage: dict[Decimal, int]) -> dict[Decimal, int]:
-    """Rond elke toeslag-bucket af op kwartieren, met behoud van het weektotaal
+def rond_op_kwartier(minuten_per_bucket: dict[_K, int]) -> dict[_K, int]:
+    """Rond elke bucket af op kwartieren, met behoud van het weektotaal
     (SPEC §4). Nitea-uren staan al op kwartieren, dus het totaal is een veelvoud
-    van 15; de afrondingsrest wordt op de grootste bucket gelegd."""
+    van 15; de afrondingsrest wordt op de grootste bucket gelegd.
+
+    Werkt op zowel percentage- als bron-buckets (zie `minuten_per_bron`)."""
     afgerond = {
-        pct: int(round(m / _KWARTIER) * _KWARTIER)
-        for pct, m in minuten_per_percentage.items()
+        sleutel: int(round(m / _KWARTIER) * _KWARTIER)
+        for sleutel, m in minuten_per_bucket.items()
     }
-    totaal = sum(minuten_per_percentage.values())
+    totaal = sum(minuten_per_bucket.values())
     doel = int(round(totaal / _KWARTIER) * _KWARTIER)
     rest = doel - sum(afgerond.values())
     if rest and afgerond:
-        grootste = max(afgerond, key=lambda p: afgerond[p])
+        grootste = max(afgerond, key=lambda s: afgerond[s])
         afgerond[grootste] += rest
-    return {pct: m for pct, m in afgerond.items() if m}
+    return {sleutel: m for sleutel, m in afgerond.items() if m}
+
+
+def minuten_per_bron(trace: list[TraceSegment]) -> dict[str, int]:
+    """Aggregeer de trace naar minuten per toeslag-bron.
+
+    Nodig omdat één percentage meerdere tarieven kan hebben: nacht, avond,
+    zaterdagmiddag en feestdag vallen alle onder 50%, maar Sterk Werk kent een
+    apart nachtuur-tarief en Level One een apart feestdag-tarief (SPEC §5)."""
+    per_bron: dict[str, int] = defaultdict(int)
+    for seg in trace:
+        per_bron[seg.bron] += seg.minuut_tot - seg.minuut_van
+    return dict(per_bron)
 
 
 def _naar_minuut(t: time) -> int:
