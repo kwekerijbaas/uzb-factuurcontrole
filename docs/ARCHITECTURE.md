@@ -8,72 +8,85 @@ factuurcontrole terugkrijgen.
 
 ```
 Browser (Ola/Jacob)
-   │  HTTPS, ingelogd via Entra ID
+   │  HTTPS, ingelogd met een code per e-mail
    ▼
-uf.kwekerijbaas.nl  ──CNAME──►  Azure App Service (Linux, Python)
+uf.kwekerijbaas.nl  ──CNAME──►  Render (Docker, regio Frankfurt)
+   │                              backend/  FastAPI + calc-engine + templates
    │
-   ├── backend/    FastAPI + engine (calc) + datamodel (SCD2-versiebeheer)
-   ├── frontend/   upload → resultaat → downloads   (nog te bouwen)
-   └── Azure Postgres + Blob Storage
-         ├── loonschaal/toeslag_regel  (SCD2: geldig_van/geldig_tot)
-         └── runs/                      (verwerkte weken + overzichten)
+   ├── Supabase Auth       inlogcode per e-mail, alleen @kwekerijbaas.nl
+   └── Supabase Postgres   loontabellen, omrekenfactoren (SCD2), weekcontroles
 ```
 
+**Waarom deze verdeling:** Supabase levert de database en het inloggen, maar
+draait geen Python — Edge Functions zijn Deno/TypeScript. De app is Python
+(FastAPI, met `pdfplumber` voor de Nitea-PDF's) en heeft dus een plek nodig die
+containers draait. Render leest `render.yaml` en bouwt `backend/Dockerfile`;
+Fly.io of Railway werken met dezelfde image.
+
 **Repo-structuur (branch `claude/staffing-hours-app-z19SH`):**
-`backend/` (datamodel, migraties, calc-engine, tests), `docs/` (deze docs +
-CAO-bron), `frontend/` (nog te bouwen). De bestaande `artikelinvoer`-app in de
+`backend/` (datamodel, migraties, calc-engine, web-laag, tests), `docs/` (deze
+docs + CAO-bron), `render.yaml` (deploy). De bestaande `artikelinvoer`-app in de
 repo-root staat hier los van.
 
 > **Versiebeheer van tarieven** is al in het datamodel verankerd via een
 > SCD2-patroon (`geldig_van`/`geldig_tot` op `loonschaal` en `toeslag_regel`) —
 > dit dekt de CAO-/minimumloonwijzigingen uit SPEC §6.
 
-**Waarom App Service (en niet een statische web app):** de app moet PDF's
-inlezen en rekenen — dat vereist een server-side runtime (Python). De oude
-Azure Static Web App volstond daar niet voor.
-
 ## 2. Componenten
 
 | Component | Keuze | Toelichting |
 |---|---|---|
-| Runtime | **Azure App Service (Linux, Python 3.12)** of Container Apps | Draait de FastAPI-backend. Container Apps als je liever met de Dockerfile werkt. |
-| Web framework | **FastAPI** + server-rendered HTML (Jinja) of een lichte SPA | Upload-formulier, resultaatpagina, downloads. |
-| Auth | **Entra ID** via App Service Authentication ("Easy Auth") | Alleen aangewezen medewerkers. Geen eigen wachtwoordbeheer. |
-| Opslag | **Azure Blob Storage** | Tariefkaart-versies + verwerkte weken. Loon-/tariefgegevens dus versleuteld at-rest, niet publiek. |
-| Domein | `uf.kwekerijbaas.nl` via **CNAME** + managed TLS-certificaat | Zie §4. |
-| CI/CD | **GitHub Actions** vanuit `kwekerijbaas/artikelinvoer` | Bouwt en deployt bij push naar de app-branch. |
+| Runtime | **Render** (Docker, Frankfurt) | Bouwt `backend/Dockerfile` uit deze repo. Fly.io/Railway werken ook. |
+| Web framework | **FastAPI** + Jinja-templates | Upload-formulieren, resultaatpagina's, downloads. |
+| Database | **Supabase Postgres** (EU) | Alembic-migraties. Back-ups en beheer via Supabase. |
+| Login | **Supabase Auth** — code per e-mail | Geen wachtwoordbeheer; alleen `@kwekerijbaas.nl`. |
+| Domein | `uf.kwekerijbaas.nl` via **CNAME** + managed TLS | Zie §4. |
+| CI | **GitHub Actions** | Draait migraties en tests bij elke push. |
 
-## 3. Toegang (Entra ID)
+## 3. Toegang
 
-- App Service Authentication aanzetten met de Microsoft Entra-provider.
-- Toegang beperken tot een **beveiligingsgroep** (bv. `UF-gebruikers`) met
-  Ola, Jacob en wie jij toevoegt — beheer je dan in Entra, niet in de app.
-- App vereist login vóór elke request; geen anonieme toegang.
+Inloggen gaat met een **code per e-mail** (Supabase Auth): adres invullen, code
+uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
-## 4. Custom domain + DNS
+- Alleen adressen binnen `TOEGESTANE_DOMEINEN` (standaard `kwekerijbaas.nl`)
+  krijgen toegang; losse uitzonderingen via `TOEGESTANE_EMAILS`.
+- De controle staat op drie plekken: vóór het versturen van de code, ná
+  verificatie, en bij élk verzoek op basis van het sessiecookie. Wie uit het
+  domein valt, is met een bestaand cookie meteen buiten.
+- Een middleware sluit **de hele app** af in plaats van route voor route; alleen
+  `/gezondheid` en het inlogscherm zijn open. Een vergeten dependency op één
+  route kan de loongegevens dus niet openzetten.
+- Sessie 12 uur geldig, cookie ondertekend met `SESSIE_GEHEIM`, `HttpOnly` en
+  `Secure`.
 
-1. In App Service: **Custom domains → Add** `uf.kwekerijbaas.nl`.
-2. Azure toont een verificatie-`TXT` en de doel-hostname voor de `CNAME`.
+**Instellen in Supabase:** Authentication → Providers → Email aanzetten (met
+"Confirm email"), en bij Email Templates de *Magic Link*-template zo laten dat
+`{{ .Token }}` in de mail staat — de app vraagt om de code, niet om een klik.
+
+## 4. Eigen domein + DNS
+
+1. In Render: **Settings → Custom Domains → Add** `uf.kwekerijbaas.nl`.
+2. Render toont de doel-hostname voor het `CNAME`-record.
 3. In het DNS-beheer van `kwekerijbaas.nl`:
-   - `CNAME  uf  →  <app-name>.azurewebsites.net`
-   - `TXT    asuid.uf  →  <verificatiewaarde>`
-4. Terug in Azure: domein valideren en **managed certificate** aanzetten (gratis
-   TLS, auto-verlenging).
+   `CNAME  uf  →  <naam>.onrender.com`
+4. Render regelt het TLS-certificaat automatisch (Let's Encrypt, auto-verlenging).
 
-> Provisionen van de Azure-resource en het zetten van de DNS-records doe jij
-> (je gaf aan de rechten te hebben). De app + deploy-config lever ik klaar in de
-> repo, inclusief de exacte stappen hierboven.
+Tot het domein staat is de app bereikbaar op het standaardadres van Render.
 
 ## 5. Geheimen & configuratie
 
-- **Geen** secrets in de repo. App-instellingen (Blob-connectionstring, e.d.)
-  via **App Service Configuration** of **Key Vault**.
+- **Geen** secrets in de repo. `render.yaml` markeert `DATABASE_URL`,
+  `SUPABASE_URL` en `SUPABASE_ANON_KEY` als `sync: false`: die vul je in de
+  Render-omgeving in. `SESSIE_GEHEIM` laat Render zelf genereren.
+- `DATABASE_URL` komt uit Supabase → Project Settings → Database → Connection
+  string (URI). Neem de **Session pooler**-variant en vervang `postgresql://`
+  door `postgresql+psycopg://`.
 - Lokale ontwikkeling via een `.env` (in `.gitignore`), met een
   `.env.example` als sjabloon.
 
 ## 6. Wekelijkse flow voor de gebruiker
 
-1. Inloggen op `uf.kwekerijbaas.nl` (Entra).
+1. Inloggen op `uf.kwekerijbaas.nl` (code per e-mail).
 2. Week kiezen; per UZB de **SNOOP (.xlsx)** en **Nitea (.pdf)** uploaden.
 3. App genereert de **urenoverzichten** (download per UZB).
 4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
@@ -90,6 +103,7 @@ Azure Static Web App volstond daar niet voor.
 4. **Tariefmapping per UZB + bedrag** (SPEC §5, `services/tarief/`). ✅
 5. **Tariefkaart in de app** — CAO-loontabel- én tariefkaart-upload met
    ingangsdatum, afgeleide omrekenfactoren en validatie (SPEC §6). ✅
-6. **Web-laag** — upload/resultaat/downloads (FastAPI + frontend). ⏳
+6. **Web-laag** — inloggen, upload, resultaat en downloads. ✅
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
-8. **Deploy** — Dockerfile + GitHub Actions + Entra ID + custom domain. ⏳
+8. **Deploy** — Dockerfile, `render.yaml` en CI staan klaar; Supabase-project
+   en Render-service moeten nog aangemaakt worden. ⏳

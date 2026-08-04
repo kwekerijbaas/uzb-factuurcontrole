@@ -1,0 +1,29 @@
+{% extends "basis.html" %}
+{% block titel %}Inloggen — UF{% endblock %}
+{% block inhoud %}
+<h1>Inloggen</h1>
+<div class="kaart" style="max-width:26rem">
+  {% if fout %}<p class="fout">{{ fout }}</p>{% endif %}
+  {% if melding %}<p>{{ melding }}</p>{% endif %}
+
+  {% if stap == 'code' %}
+    <form method="post" action="/inloggen/code">
+      <input type="hidden" name="email" value="{{ email }}">
+      <label for="code">Inlogcode uit de e-mail</label>
+      <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code"
+             pattern="[0-9]*" placeholder="123456" required autofocus>
+      <button type="submit">Inloggen</button>
+    </form>
+    <p class="hint">Geen e-mail ontvangen? Kijk in ongewenste post, of
+       <a href="/inloggen">vraag een nieuwe code aan</a>.</p>
+  {% else %}
+    <form method="post" action="/inloggen">
+      <label for="email">Werk-e-mailadres</label>
+      <input id="email" type="email" name="email" value="{{ email }}"
+             placeholder="naam@kwekerijbaas.nl" required autofocus>
+      <button type="submit">Stuur mij een inlogcode</button>
+    </form>
+    <p class="hint">Je krijgt een code per e-mail. Er zijn geen wachtwoorden.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -6,11 +6,22 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/uzk"
 
-    # Azure App Service Authentication ("Easy Auth") zet de identiteit in
-    # request-headers. Lokaal staat dat niet aan; dan wordt `dev_gebruiker`
-    # gebruikt. In Azure moet `auth_vereist` aan blijven staan.
+    # --- Toegang ---------------------------------------------------------- #
+    # Inloggen gaat via Supabase Auth (inlogcode per e-mail). Zet
+    # `auth_vereist` alleen lokaal uit; anders is de app zonder login open.
     auth_vereist: bool = True
-    dev_gebruiker: str = "lokale-ontwikkelaar"
+    dev_gebruiker: str = "lokaal@kwekerijbaas.nl"
+
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
+    # Ondertekent het sessiecookie. In productie verplicht een eigen waarde.
+    sessie_geheim: str = "onveilig-standaard-geheim-alleen-voor-lokaal"
+    cookie_secure: bool = True
+
+    # Wie mag inloggen: alle adressen binnen deze domeinen, plus losse adressen.
+    toegestane_domeinen: list[str] = ["kwekerijbaas.nl"]
+    toegestane_emails: list[str] = []
 
     # Waar geüploade bronbestanden en gegenereerde overzichten landen.
     opslag_pad: str = "./data"

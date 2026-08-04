@@ -1,0 +1,31 @@
+# Deploy op Render: koppel deze repo, Render leest dit bestand.
+# De database draait bij Supabase; hier draait alleen de app.
+services:
+  - type: web
+    name: uf-urencontrole
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: frankfurt
+    plan: starter
+    healthCheckPath: /gezondheid
+    envVars:
+      # Supabase -> Project Settings -> Database -> Connection string (URI).
+      # Gebruik de "Session pooler"-variant en vervang postgresql:// door
+      # postgresql+psycopg://
+      - key: DATABASE_URL
+        sync: false
+      # Supabase -> Project Settings -> API
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Ondertekent het sessiecookie; Render genereert een willekeurige waarde.
+      - key: SESSIE_GEHEIM
+        generateValue: true
+      - key: AUTH_VEREIST
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TOEGESTANE_DOMEINEN
+        value: '["kwekerijbaas.nl"]'

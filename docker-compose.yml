@@ -21,8 +21,9 @@ services:
       db: { condition: service_healthy }
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/uzk
-      # Easy Auth draait alleen in Azure; lokaal zonder login werken.
+      # Lokaal zonder inloggen werken (in productie staat dit aan).
       AUTH_VEREIST: "false"
+      COOKIE_SECURE: "false"
     ports: ["8000:8000"]
     volumes: ["./backend:/app"]
 

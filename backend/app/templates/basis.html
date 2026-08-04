@@ -35,10 +35,13 @@
 <body>
   <header>
     <span class="merk">UF — urencontrole</span>
-    <a href="/">Start</a>
-    <a href="/week">Week verwerken</a>
-    <a href="/tarieven">Lonen &amp; tarieven</a>
-    {% if gebruiker %}<span class="wie">{{ gebruiker.naam }}{% if gebruiker.is_ontwikkelaar %} (lokaal){% endif %}</span>{% endif %}
+    {% if gebruiker %}
+      <a href="/">Start</a>
+      <a href="/week">Week verwerken</a>
+      <a href="/tarieven">Lonen &amp; tarieven</a>
+      <span class="wie">{{ gebruiker.naam }}{% if gebruiker.is_ontwikkelaar %} (lokaal){% endif %}
+        &middot; <a href="/uitloggen">uitloggen</a></span>
+    {% endif %}
   </header>
   <main>{% block inhoud %}{% endblock %}</main>
 </body>

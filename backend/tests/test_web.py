@@ -6,19 +6,24 @@ overzicht) is end-to-end tegen Postgres gedraaid.
 
 from __future__ import annotations
 
-import base64
 import io
-import json
 from datetime import date, time
 from decimal import Decimal
 
 import openpyxl
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from app.auth import huidige_gebruiker
+from app.auth import (
+    SESSIE_COOKIE,
+    Gebruiker,
+    gebruiker_uit_cookie,
+    huidige_gebruiker,
+    is_toegestaan,
+    zet_sessie,
+)
 from app.config import settings
 from app.services.calc.types import PlanningRegel, RegistratieRegel
 from app.services.export import bestandsnaam, bouw_overzicht
@@ -32,32 +37,77 @@ MA = date(2025, 9, 1)
 
 def _request(headers: dict[str, str] | None = None) -> Request:
     rauw = [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()]
-    return Request({"type": "http", "headers": Headers(raw=rauw).raw, "method": "GET", "path": "/"})
+    return Request(
+        {"type": "http", "headers": Headers(raw=rauw).raw, "method": "GET", "path": "/"}
+    )
+
+
+def _client(monkeypatch, ingelogd: bool = False):
+    from fastapi.testclient import TestClient
+
+    from app.auth import Gebruiker, zet_sessie
+    from app.main import app
+
+    monkeypatch.setattr(settings, "auth_vereist", True)
+    monkeypatch.setattr(settings, "cookie_secure", False)
+    client = TestClient(app, follow_redirects=False)
+    if ingelogd:
+        antwoord = Response()
+        zet_sessie(antwoord, Gebruiker(email="ola@kwekerijbaas.nl", id="abc"))
+        client.cookies.set(SESSIE_COOKIE, antwoord.headers["set-cookie"].split("=")[1].split(";")[0])
+    return client
 
 
 # --------------------------------------------------------------------------- #
 # Toegang
 # --------------------------------------------------------------------------- #
-def test_gebruiker_uit_easy_auth_headers():
-    principal = base64.b64encode(
-        json.dumps({"claims": [{"typ": "roles", "val": "beheerder"}]}).encode()
-    ).decode()
-    gebruiker = huidige_gebruiker(
-        _request(
-            {
-                "x-ms-client-principal-name": "ola@kwekerijbaas.nl",
-                "x-ms-client-principal-id": "abc-123",
-                "x-ms-client-principal": principal,
-            }
-        )
-    )
-    assert gebruiker.naam == "ola@kwekerijbaas.nl"
-    assert gebruiker.rollen == ("beheerder",)
-    assert not gebruiker.is_ontwikkelaar
+@pytest.mark.parametrize(
+    "email,verwacht",
+    [
+        ("ola@kwekerijbaas.nl", True),
+        ("OLA@Kwekerijbaas.NL", True),  # hoofdletterongevoelig
+        ("iemand@gmail.com", False),
+        ("kwekerijbaas.nl", False),  # geen adres
+        ("aanvaller@kwaad.nl@gmail.com", False),
+        ("", False),
+    ],
+)
+def test_alleen_eigen_domein_mag_inloggen(email, verwacht):
+    assert is_toegestaan(email) is verwacht
+
+
+def test_los_toegelaten_adres(monkeypatch):
+    monkeypatch.setattr(settings, "toegestane_emails", ["extern@boekhouder.nl"])
+    assert is_toegestaan("extern@boekhouder.nl")
+    assert not is_toegestaan("ander@boekhouder.nl")
+
+
+def test_sessiecookie_rondrit():
+    antwoord = Response()
+    zet_sessie(antwoord, Gebruiker(email="ola@kwekerijbaas.nl", id="abc"))
+    koekje = antwoord.headers["set-cookie"]
+    waarde = koekje.split("=", 1)[1].split(";")[0]
+
+    verzoek = _request({"cookie": f"{SESSIE_COOKIE}={waarde}"})
+    gebruiker = gebruiker_uit_cookie(verzoek)
+    assert gebruiker is not None and gebruiker.email == "ola@kwekerijbaas.nl"
+
+
+def test_geknoeid_cookie_wordt_geweigerd():
+    assert gebruiker_uit_cookie(_request({"cookie": f"{SESSIE_COOKIE}=verzonnen"})) is None
+
+
+def test_ingetrokken_toegang_verloopt_de_sessie(monkeypatch):
+    """Wie uit het toegestane domein valt, komt er met een oud cookie niet in."""
+    antwoord = Response()
+    zet_sessie(antwoord, Gebruiker(email="ola@kwekerijbaas.nl", id="abc"))
+    waarde = antwoord.headers["set-cookie"].split("=", 1)[1].split(";")[0]
+
+    monkeypatch.setattr(settings, "toegestane_domeinen", ["andersbedrijf.nl"])
+    assert gebruiker_uit_cookie(_request({"cookie": f"{SESSIE_COOKIE}={waarde}"})) is None
 
 
 def test_zonder_login_geen_toegang(monkeypatch):
-    """In Azure mag de app nooit zonder ingelogde gebruiker bereikbaar zijn."""
     monkeypatch.setattr(settings, "auth_vereist", True)
     with pytest.raises(HTTPException) as fout:
         huidige_gebruiker(_request())
@@ -69,13 +119,19 @@ def test_lokaal_zonder_login_toegestaan(monkeypatch):
     assert huidige_gebruiker(_request()).is_ontwikkelaar
 
 
-def test_onleesbare_principal_levert_geen_rollen():
-    gebruiker = huidige_gebruiker(
-        _request(
-            {"x-ms-client-principal-name": "ola@kwekerijbaas.nl", "x-ms-client-principal": "!!"}
-        )
-    )
-    assert gebruiker.rollen == ()
+def test_pagina_s_zijn_afgeschermd(monkeypatch):
+    """De middleware sluit de hele app af, niet route voor route."""
+    client = _client(monkeypatch)
+    for pad in ("/", "/week", "/tarieven"):
+        antwoord = client.get(pad)
+        assert antwoord.status_code == 303, pad
+        assert antwoord.headers["location"] == "/inloggen"
+
+
+def test_gezondheid_en_inlogscherm_blijven_open(monkeypatch):
+    client = _client(monkeypatch)
+    assert client.get("/gezondheid").status_code == 200
+    assert client.get("/inloggen").status_code == 200
 
 
 # --------------------------------------------------------------------------- #
