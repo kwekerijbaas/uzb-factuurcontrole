@@ -92,6 +92,43 @@ en voor Auth, nooit voor data-toegang via de REST-API.
 > is de gewenste situatie — **voeg geen policies toe** om die melding weg te
 > krijgen; dat zou de REST-API juist weer openzetten.
 
+## 4c. E-mailbezorging (Resend)
+
+De ingebouwde mailserver van Supabase is bedoeld om te proberen (enkele mails
+per uur) en niet voor dagelijks gebruik. De inlogcodes gaan daarom via Resend.
+
+**Verifieer een subdomein, niet het hoofddomein.** De gewone bedrijfsmail loopt
+via Microsoft 365 en hangt aan het SPF-record van `kwekerijbaas.nl`. Door
+`mail.kwekerijbaas.nl` te gebruiken blijft dat record ongemoeid: gaat er iets
+mis in de mailconfiguratie, dan raakt dat alleen deze app en niet de
+bedrijfsmail.
+
+1. **Resend** → Domains → `mail.kwekerijbaas.nl`, regio EU (Ireland).
+2. **DNS** → de door Resend getoonde MX-, SPF- en DKIM-records op het
+   subdomein zetten. De records van het hoofddomein niet aanpassen.
+3. **Resend** → API Keys → sleutel met alleen *Sending access*.
+4. **Supabase** → Authentication → Emails → SMTP Settings:
+
+   | Veld | Waarde |
+   |---|---|
+   | Sender email | `uf@mail.kwekerijbaas.nl` |
+   | Sender name | `UF urencontrole` |
+   | Host | `smtp.resend.com` |
+   | Port | `465` |
+   | Username | `resend` (letterlijk) |
+   | Password | de Resend API-sleutel |
+
+5. **Supabase** → Authentication → Rate Limits → e-maillimiet ophogen (bv. 30
+   per uur); de lage standaard hoort bij de ingebouwde mailserver.
+
+**Mailtemplate** (Authentication → Emails → Magic link or OTP): de app vraagt om
+een code, niet om een klik. Gebruik `{{ .Token }}` in de body en laat
+`{{ .ConfirmationURL }}` weg — een link zou naar de Site URL van Supabase leiden
+in plaats van naar de app, wat op een mislukte login lijkt.
+
+**Bezorging nagaan:** Resend → Logs toont per bericht of het verstuurd,
+geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
+
 ## 5. Geheimen & configuratie
 
 - **Geen** secrets in de repo. `render.yaml` markeert `DATABASE_URL`,
