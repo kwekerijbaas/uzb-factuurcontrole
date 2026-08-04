@@ -73,6 +73,25 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
 Tot het domein staat is de app bereikbaar op het standaardadres van Render.
 
+## 4b. Supabase-project
+
+Project **UF urencontrole** (`icfmqxiigxvzumvqiyba`), regio `eu-central-1`
+(Frankfurt, dezelfde regio als de app), Postgres 17. Het schema is aangemaakt
+uit de Alembic-migraties; `alembic_version` staat op `b7c1d4e9f2a3`, zodat een
+latere `alembic upgrade head` vanaf de container verder gaat waar dit ophield.
+
+**Row Level Security staat aan op alle tabellen, bewust zonder policies.**
+Zonder RLS is elke tabel via Supabase's REST-API te lezen en te wijzigen met de
+anon-sleutel — en die sleutel is bedoeld om in browsers te staan, dus niet
+geheim. Met RLS aan en géén policies is die weg volledig dicht. De app raakt dat
+niet: die verbindt rechtstreeks met Postgres als eigenaar van de tabellen, en
+een eigenaar omzeilt RLS. Supabase wordt hier alleen gebruikt voor de database
+en voor Auth, nooit voor data-toegang via de REST-API.
+
+> De database-linter meldt hierover `rls_enabled_no_policy` op INFO-niveau. Dat
+> is de gewenste situatie — **voeg geen policies toe** om die melding weg te
+> krijgen; dat zou de REST-API juist weer openzetten.
+
 ## 5. Geheimen & configuratie
 
 - **Geen** secrets in de repo. `render.yaml` markeert `DATABASE_URL`,
@@ -81,6 +100,8 @@ Tot het domein staat is de app bereikbaar op het standaardadres van Render.
 - `DATABASE_URL` komt uit Supabase → Project Settings → Database → Connection
   string (URI). Neem de **Session pooler**-variant en vervang `postgresql://`
   door `postgresql+psycopg://`.
+- `SUPABASE_URL` is `https://icfmqxiigxvzumvqiyba.supabase.co`;
+  `SUPABASE_ANON_KEY` haal je uit Project Settings → API.
 - Lokale ontwikkeling via een `.env` (in `.gitignore`), met een
   `.env.example` als sjabloon.
 
@@ -105,5 +126,6 @@ Tot het domein staat is de app bereikbaar op het standaardadres van Render.
    ingangsdatum, afgeleide omrekenfactoren en validatie (SPEC §6). ✅
 6. **Web-laag** — inloggen, upload, resultaat en downloads. ✅
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
-8. **Deploy** — Dockerfile, `render.yaml` en CI staan klaar; Supabase-project
-   en Render-service moeten nog aangemaakt worden. ⏳
+8. **Deploy** — Supabase-project aangemaakt, schema gemigreerd, RLS aan. ✅
+   *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen en
+   het `CNAME`-record zetten.* ⏳
