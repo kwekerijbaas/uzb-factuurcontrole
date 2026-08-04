@@ -54,13 +54,15 @@
 <div class="kaart">
   <h2>CAO-loontabel uploaden</h2>
   <form method="post" action="/tarieven/loontabel" enctype="multipart/form-data">
-    <label for="ln">Omschrijving</label>
-    <input id="ln" type="text" name="naam" placeholder="CAO Glastuinbouw per 1 juli 2026" required>
-    <label for="ld">Ingangsdatum</label>
-    <input id="ld" type="date" name="ingangsdatum" required>
-    <label for="lb">Bestand (.xlsx)</label>
-    <input id="lb" type="file" name="bestand" accept=".xlsx" required>
-    <p class="hint">Een kolom met de schaalcode en een kolom met het uurloon volstaat.</p>
+    <label for="lb">Bestand (.pdf of .xlsx)</label>
+    <input id="lb" type="file" name="bestand" accept=".pdf,.xlsx" required>
+    <p class="hint">De cao-PDF kan rechtstreeks; omschrijving en ingangsdatum worden
+       daaruit gehaald. Bij een Excel-bestand volstaat een kolom met de schaalcode
+       en een kolom met het uurloon, maar is de ingangsdatum verplicht.</p>
+    <label for="ln">Omschrijving <span style="font-weight:400">(optioneel)</span></label>
+    <input id="ln" type="text" name="naam" placeholder="wordt uit de PDF gehaald">
+    <label for="ld">Ingangsdatum <span style="font-weight:400">(optioneel bij PDF)</span></label>
+    <input id="ld" type="date" name="ingangsdatum">
     <button type="submit">Loontabel opslaan</button>
   </form>
 </div>

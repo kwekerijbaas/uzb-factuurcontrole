@@ -15,6 +15,7 @@ from app.auth import Gebruiker, huidige_gebruiker
 from app.config import settings
 from app.db import get_session
 from app.services.ingest import cao_schaal_code, lees_cao_loontabel, lees_tariefkaart
+from app.services.ingest.cao_pdf import lees_cao_pdf
 from app.services.ingest.level_one import lees_level_one_export
 from app.services.ingest.loontabel import lees_loontabel
 from app.services.tarief.kaart import Loontabel
@@ -80,18 +81,34 @@ def overzicht(
 async def upload_loontabel(
     request: Request,
     bestand: UploadFile = File(...),
-    naam: str = Form(...),
-    ingangsdatum: date = Form(...),
+    naam: str = Form(""),
+    ingangsdatum: date | None = Form(None),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
     """Nieuwe CAO-lonen. De omrekenfactoren blijven staan; de tarieven bewegen
-    vanaf de ingangsdatum automatisch mee."""
+    vanaf de ingangsdatum automatisch mee.
+
+    De cao-partijen publiceren de loontabel als PDF; een Excel-bestand met een
+    schaal- en een loonkolom kan ook. Bij een PDF worden de omschrijving en de
+    ingangsdatum uit het document gehaald als ze niet zijn ingevuld.
+    """
     inhoud = await bestand.read()
+    is_pdf = (bestand.filename or "").lower().endswith(".pdf") or inhoud[:5] == b"%PDF-"
     try:
-        tabel, waarschuwingen = lees_loontabel(inhoud, naam, ingangsdatum)
+        if is_pdf:
+            tabel, waarschuwingen = lees_cao_pdf(inhoud, naam or None, ingangsdatum)
+        else:
+            if ingangsdatum is None:
+                raise ValueError(
+                    "geef een ingangsdatum op; die staat niet in een Excel-bestand"
+                )
+            tabel, waarschuwingen = lees_loontabel(
+                inhoud, naam or bestand.filename or "CAO-loontabel", ingangsdatum
+            )
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=str(fout)) from fout
+    ingangsdatum = tabel.ingangsdatum
 
     bevindingen = valideer_minimumloon(tabel, Decimal(settings.minimumloon))
     bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
@@ -102,7 +119,7 @@ async def upload_loontabel(
         name="tarieven_resultaat.html",
         context={
             "gebruiker": gebruiker,
-            "titel": f"Loontabel '{naam}' opgeslagen",
+            "titel": f"Loontabel '{tabel.naam}' opgeslagen",
             "samenvatting": (
                 f"{len(tabel.lonen)} CAO-schalen, geldig vanaf "
                 f"{ingangsdatum:%d-%m-%Y}."
