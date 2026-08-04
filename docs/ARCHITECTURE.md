@@ -1,4 +1,4 @@
-# Architectuur & deploy — uf.baaskwekerij.nl
+# Architectuur & deploy — UZB-urencontrole
 
 De UZB-urencontrole wordt een beveiligde webapp waar Ola en Jacob wekelijks de
 SNOOP- (Excel) en Nitea- (PDF) bestanden inladen en de urenoverzichten +
@@ -10,7 +10,7 @@ factuurcontrole terugkrijgen.
 Browser (Ola/Jacob)
    │  HTTPS, ingelogd met een code per e-mail
    ▼
-uf.baaskwekerij.nl  ──CNAME──►  Render (Docker, regio Frankfurt)
+baaskwekerij.nl/uf  ──doorverwijzing──►  Render (Docker, Frankfurt)
    │                              backend/  FastAPI + calc-engine + templates
    │
    ├── Supabase Auth       inlogcode per e-mail, alleen @kwekerijbaas.nl
@@ -48,7 +48,7 @@ repo-root staat hier los van.
 | Web framework | **FastAPI** + Jinja-templates | Upload-formulieren, resultaatpagina's, downloads. |
 | Database | **Supabase Postgres** (EU) | Alembic-migraties. Back-ups en beheer via Supabase. |
 | Login | **Supabase Auth** — code per e-mail | Geen wachtwoordbeheer; alleen `@kwekerijbaas.nl`. |
-| Domein | `uf.baaskwekerij.nl` via **CNAME** + managed TLS | Zie §4. |
+| Adres | `<naam>.onrender.com`, ingang via `baaskwekerij.nl/uf` | Zie §4. |
 | CI | **GitHub Actions** | Draait migraties en tests bij elke push. |
 
 ## 3. Toegang
@@ -71,35 +71,21 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 "Confirm email"), en bij Email Templates de *Magic Link*-template zo laten dat
 `{{ .Token }}` in de mail staat — de app vraagt om de code, niet om een klik.
 
-## 4. Eigen domein + DNS
+## 4. Adres van de app
 
-De app draait op **`uf.baaskwekerij.nl`**; `baaskwekerij.nl/uf` is de
-makkelijk te onthouden ingang en stuurt daarheen door.
+De app draait op het standaardadres van Render (`<naam>.onrender.com`).
+**`baaskwekerij.nl/uf`** is de ingang die Ola en Jacob gebruiken en stuurt
+daarheen door; wat erachter zit merken ze niet.
+
+Bewust geen eigen subdomein: dat scheelt een DNS-record en een certificaat, en
+het omzeilt de beperkingen die de gratis laag op eigen domeinen kan hebben. Wil
+je het later toch, dan volstaat bij TransIP (domein `baaskwekerij.nl`) een
+record `uf` van type `CNAME` naar `<naam>.onrender.com.` plus **Custom Domains**
+in Render — verder verandert er niets.
 
 **Twee domeinen, let op het verschil:** `kwekerijbaas.nl` (e-mail, en
-`send.kwekerijbaas.nl` voor de inlogmail) en `baaskwekerij.nl` (website en de
-app). De namen lijken op elkaar maar zijn omgedraaid.
-
-### Eigen subdomein (optioneel)
-
-Niet nodig om te starten: de doorverwijspagina hieronder kan net zo goed
-rechtstreeks naar het `.onrender.com`-adres wijzen. Gebruikers zien alleen
-`baaskwekerij.nl/uf` en merken niets van wat erachter zit. Dat scheelt een
-CNAME, een certificaat, en het omzeilt de beperkingen die de gratis laag op
-eigen domeinen kan hebben.
-
-Wil je het toch:
-
-1. In Render: **Settings → Custom Domains → Add** `uf.baaskwekerij.nl`.
-2. Bij **TransIP** (DNS van `baaskwekerij.nl`) een record toevoegen:
-
-   | Naam | TTL | Type | Waarde |
-   |---|---|---|---|
-   | `uf` | 1 uur | CNAME | `<naam>.onrender.com.` |
-
-   TransIP verwacht de afsluitende punt. Vul alleen `uf` in, niet de volledige
-   hostnaam — die wordt automatisch aangevuld.
-3. Render regelt het TLS-certificaat (Let's Encrypt, auto-verlenging).
+`send.kwekerijbaas.nl` voor de inlogmail) en `baaskwekerij.nl` (website). De
+namen lijken op elkaar maar zijn omgedraaid.
 
 ### Doorverwijzing vanaf baaskwekerij.nl/uf
 
@@ -108,7 +94,7 @@ Wil je het toch:
 bestanden, dus een reverse proxy die `/uf` naar de app doorzet is niet mogelijk
 — een doorverwijzing wel.
 
-Voeg in de Pages-repo het bestand `uf/index.html` toe:
+Voeg in de Pages-repo het bestand `uf/index.html` toe en vul het Render-adres in:
 
 ```html
 <!doctype html>
@@ -116,18 +102,18 @@ Voeg in de Pages-repo het bestand `uf/index.html` toe:
 <head>
   <meta charset="utf-8">
   <title>UF urencontrole</title>
-  <link rel="canonical" href="https://uf.baaskwekerij.nl/">
-  <meta http-equiv="refresh" content="0; url=https://uf.baaskwekerij.nl/">
-  <script>location.replace("https://uf.baaskwekerij.nl/" + location.search);</script>
+  <meta http-equiv="refresh" content="0; url=https://UF-ADRES.onrender.com/">
+  <script>location.replace("https://UF-ADRES.onrender.com/");</script>
 </head>
 <body>
   <p>Je wordt doorgestuurd naar de urencontrole.
-     Gebeurt er niets? <a href="https://uf.baaskwekerij.nl/">Klik hier</a>.</p>
+     Gebeurt er niets? <a href="https://UF-ADRES.onrender.com/">Klik hier</a>.</p>
 </body>
 </html>
 ```
 
-Tot het subdomein staat is de app bereikbaar op het standaardadres van Render.
+Verhuist de app later naar een eigen subdomein, dan is dit het enige bestand dat
+mee moet veranderen.
 
 ## 4b. Supabase-project
 
@@ -201,8 +187,7 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 
 ## 6. Wekelijkse flow voor de gebruiker
 
-1. Naar `baaskwekerij.nl/uf` (of rechtstreeks `uf.baaskwekerij.nl`) en
-   inloggen met een code per e-mail.
+1. Naar `baaskwekerij.nl/uf` en inloggen met een code per e-mail.
 2. Week kiezen; per UZB de **SNOOP (.xlsx)** en **Nitea (.pdf)** uploaden.
 3. App genereert de **urenoverzichten** (download per UZB).
 4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
@@ -222,5 +207,5 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 6. **Web-laag** — inloggen, upload, resultaat en downloads. ✅
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
 8. **Deploy** — Supabase-project aangemaakt, schema gemigreerd, RLS aan. ✅
-   *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen,
-   het `CNAME`-record bij TransIP zetten en de doorverwijspagina plaatsen.* ⏳
+   *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen en
+   de doorverwijspagina plaatsen. Geen DNS-werk nodig.* ⏳
