@@ -15,7 +15,9 @@ from app.auth import Gebruiker, huidige_gebruiker
 from app.config import settings
 from app.db import get_session
 from app.services.ingest import cao_schaal_code, lees_cao_loontabel, lees_tariefkaart
+from app.services.ingest.level_one import lees_level_one_export
 from app.services.ingest.loontabel import lees_loontabel
+from app.services.tarief.kaart import Loontabel
 from app.services.opslag import (
     bewaar_factoren,
     bewaar_loontabel,
@@ -198,5 +200,88 @@ async def upload_tariefkaart(
             "waarschuwingen": waarschuwingen,
             "bevindingen": bevindingen,
             "resultaten": resultaten,
+        },
+    )
+
+
+@router.post("/level-one", response_class=HTMLResponse)
+async def upload_level_one(
+    request: Request,
+    bestand: UploadFile = File(...),
+    ingangsdatum: date = Form(...),
+    kolom: str = Form("nieuw"),
+    ook_lonen: bool = Form(False),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> HTMLResponse:
+    """Level One's eigen tariefexport verwerken.
+
+    Dit formaat wijkt af van de geconsolideerde kaart: één blok per CAO-schaal
+    met een regel per loonbestanddeel, en aparte kolommen voor Vast, Flex en
+    Seizoen. Alleen de tarieven van Level One worden bijgewerkt; de andere
+    uitzendbureaus blijven ongemoeid.
+    """
+    inhoud = await bestand.read()
+    try:
+        export, waarschuwingen = lees_level_one_export(inhoud, kolom)
+    except ValueError as fout:
+        raise HTTPException(status_code=400, detail=str(fout)) from fout
+
+    if ook_lonen and export.lonen:
+        tabel = Loontabel(
+            naam=f"CAO-lonen bij Level One-export {ingangsdatum:%d-%m-%Y}",
+            ingangsdatum=ingangsdatum,
+            lonen=dict(export.lonen),
+        )
+        bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
+        sessie.flush()
+
+    lonen = loontabel_op(sessie, ingangsdatum)
+    if lonen is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geen CAO-loontabel die geldt op deze ingangsdatum. Vink "
+                "'lonen uit dit bestand overnemen' aan, of upload eerst een loontabel."
+            ),
+        )
+
+    bevindingen = valideer_tarieven("L1", export.tarieven)
+    kaart = TariefKaart(
+        uzb_sleutel="L1",
+        geldig_van=ingangsdatum,
+        schalen={c: SchaalTarief(c, t) for c, t in export.tarieven.items()},
+    )
+    koppeling = {c: cao_schaal_code(c) for c in export.tarieven}
+    koppeling = {c: v for c, v in koppeling.items() if v}
+    factoren, zonder_loon = leid_factoren_af(kaart, lonen, koppeling)
+
+    uzb = borg_uzb(sessie, "L1", UZB_NAMEN["L1"])
+    verschillen = vergelijk_factoren("L1", factoren_op(sessie, "L1", ingangsdatum), factoren)
+    bewaar_factoren(sessie, uzb, factoren, ingangsdatum)
+    sessie.commit()
+
+    return templates.TemplateResponse(
+        request=request,
+        name="tarieven_resultaat.html",
+        context={
+            "gebruiker": gebruiker,
+            "titel": f"Level One-tarieven verwerkt per {ingangsdatum:%d-%m-%Y}",
+            "samenvatting": (
+                f"{len(export.tarieven)} schalen ingelezen, {len(factoren)} "
+                "omrekenfactoren afgeleid."
+            ),
+            "waarschuwingen": waarschuwingen,
+            "bevindingen": bevindingen,
+            "resultaten": [
+                {
+                    "sleutel": "L1",
+                    "naam": UZB_NAMEN["L1"],
+                    "schalen": len(export.tarieven),
+                    "factoren": len(factoren),
+                    "zonder_loon": zonder_loon,
+                    "verschillen": verschillen,
+                }
+            ],
         },
     )

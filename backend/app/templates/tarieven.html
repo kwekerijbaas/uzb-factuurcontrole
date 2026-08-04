@@ -1,5 +1,24 @@
 {% extends "basis.html" %}
-{% block titel %}Lonen &amp; tarieven — UF{% endblock %}
+{% block titel %}Lonen &amp; tarieven — UF
+<div class="kaart">
+  <h2>Level One-tariefexport uploaden</h2>
+  <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
+    <label for="ld2">Ingangsdatum</label>
+    <input id="ld2" type="date" name="ingangsdatum" required>
+    <label for="lb2">Bestand (.xlsx)</label>
+    <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
+       kolommen voor Vast, Flex en Seizoen.</p>
+    <label for="lk">Welke kolommen</label>
+    <select id="lk" name="kolom">
+      <option value="nieuw">de nieuwe tarieven</option>
+      <option value="oud">de oude tarieven (ter controle)</option>
+    </select>
+    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
+    <button type="submit">Level One-tarieven verwerken</button>
+  </form>
+</div>
+{% endblock %}
 {% block inhoud %}
 <h1>Lonen &amp; tarieven</h1>
 
@@ -54,8 +73,27 @@
     <label for="tb">Bestand (.xlsx)</label>
     <input id="tb" type="file" name="bestand" accept=".xlsx" required>
     <p class="hint">De geconsolideerde kaart met een tabblad per uitzendbureau.</p>
-    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto"> ook de CAO-lonen uit dit bestand overnemen</label>
+    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
     <button type="submit">Tariefkaart verwerken</button>
+  </form>
+</div>
+
+<div class="kaart">
+  <h2>Level One-tariefexport uploaden</h2>
+  <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
+    <label for="ld2">Ingangsdatum</label>
+    <input id="ld2" type="date" name="ingangsdatum" required>
+    <label for="lb2">Bestand (.xlsx)</label>
+    <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
+       kolommen voor Vast, Flex en Seizoen.</p>
+    <label for="lk">Welke kolommen</label>
+    <select id="lk" name="kolom">
+      <option value="nieuw">de nieuwe tarieven</option>
+      <option value="oud">de oude tarieven (ter controle)</option>
+    </select>
+    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
+    <button type="submit">Level One-tarieven verwerken</button>
   </form>
 </div>
 {% endblock %}
