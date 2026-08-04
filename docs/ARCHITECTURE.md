@@ -17,11 +17,19 @@ uf.baaskwekerij.nl  ──CNAME──►  Render (Docker, regio Frankfurt)
    └── Supabase Postgres   loontabellen, omrekenfactoren (SCD2), weekcontroles
 ```
 
-**Waarom deze verdeling:** Supabase levert de database en het inloggen, maar
-draait geen Python — Edge Functions zijn Deno/TypeScript. De app is Python
-(FastAPI, met `pdfplumber` voor de Nitea-PDF's) en heeft dus een plek nodig die
-containers draait. Render leest `render.yaml` en bouwt `backend/Dockerfile`;
-Fly.io of Railway werken met dezelfde image.
+**Waarom een aparte plek voor de app:** de app moet bij elk gebruik bestanden
+ontvangen en uitlezen, rekenen, de database raadplegen en een Excel-bestand
+teruggeven. Dat is serverwerk. GitHub Pages (waar `baaskwekerij.nl` op draait)
+serveert alleen stilstaande bestanden en kan dat dus niet; Supabase evenmin,
+want Edge Functions zijn Deno/TypeScript terwijl de rekenkern Python is
+(`pdfplumber` voor de Nitea-PDF's). Vandaar een container-hoster.
+
+**Kosten:** de gratis laag van Render volstaat. Die valt na 15 minuten zonder
+verkeer stil, waardoor het eerste bezoek zo'n minuut opstarttijd heeft — voor
+een wekelijkse controle door twee mensen is dat prima. Stoort dat wachten, dan
+is `plan: starter` in `render.yaml` (~EUR 7/mnd) genoeg. Google Cloud Run is een
+alternatief dat bij dit gebruiksvolume ook gratis blijft en dezelfde image
+draait.
 
 **Repo-structuur (branch `claude/staffing-hours-app-z19SH`):**
 `backend/` (datamodel, migraties, calc-engine, web-laag, tests), `docs/` (deze
@@ -36,7 +44,7 @@ repo-root staat hier los van.
 
 | Component | Keuze | Toelichting |
 |---|---|---|
-| Runtime | **Render** (Docker, Frankfurt) | Bouwt `backend/Dockerfile` uit deze repo. Fly.io/Railway werken ook. |
+| Runtime | **Render** (Docker, Frankfurt, gratis laag) | Bouwt `backend/Dockerfile` uit deze repo. Fly.io, Railway of Cloud Run werken met dezelfde image. |
 | Web framework | **FastAPI** + Jinja-templates | Upload-formulieren, resultaatpagina's, downloads. |
 | Database | **Supabase Postgres** (EU) | Alembic-migraties. Back-ups en beheer via Supabase. |
 | Login | **Supabase Auth** — code per e-mail | Geen wachtwoordbeheer; alleen `@kwekerijbaas.nl`. |
@@ -72,7 +80,15 @@ makkelijk te onthouden ingang en stuurt daarheen door.
 `send.kwekerijbaas.nl` voor de inlogmail) en `baaskwekerij.nl` (website en de
 app). De namen lijken op elkaar maar zijn omgedraaid.
 
-### Subdomein voor de app
+### Eigen subdomein (optioneel)
+
+Niet nodig om te starten: de doorverwijspagina hieronder kan net zo goed
+rechtstreeks naar het `.onrender.com`-adres wijzen. Gebruikers zien alleen
+`baaskwekerij.nl/uf` en merken niets van wat erachter zit. Dat scheelt een
+CNAME, een certificaat, en het omzeilt de beperkingen die de gratis laag op
+eigen domeinen kan hebben.
+
+Wil je het toch:
 
 1. In Render: **Settings → Custom Domains → Add** `uf.baaskwekerij.nl`.
 2. Bij **TransIP** (DNS van `baaskwekerij.nl`) een record toevoegen:

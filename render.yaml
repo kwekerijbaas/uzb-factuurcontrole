@@ -7,7 +7,10 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
     region: frankfurt
-    plan: starter
+    # Gratis laag: valt na 15 minuten zonder verkeer stil en heeft dan zo'n
+    # minuut nodig om weer op te starten. Voor een wekelijkse controle door
+    # twee mensen is dat prima. Zet op 'starter' als het wachten stoort.
+    plan: free
     healthCheckPath: /gezondheid
     envVars:
       # Supabase -> Project Settings -> Database -> Connection string (URI).
