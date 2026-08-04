@@ -98,12 +98,13 @@ De ingebouwde mailserver van Supabase is bedoeld om te proberen (enkele mails
 per uur) en niet voor dagelijks gebruik. De inlogcodes gaan daarom via Resend.
 
 **Verifieer een subdomein, niet het hoofddomein.** De gewone bedrijfsmail loopt
-via Microsoft 365 en hangt aan het SPF-record van `kwekerijbaas.nl`. Door
-`mail.kwekerijbaas.nl` te gebruiken blijft dat record ongemoeid: gaat er iets
-mis in de mailconfiguratie, dan raakt dat alleen deze app en niet de
-bedrijfsmail.
+via Microsoft 365 en hangt aan het SPF-record van `kwekerijbaas.nl`. Door een
+apart subdomein te gebruiken blijft dat record ongemoeid: gaat er iets mis in de
+mailconfiguratie, dan raakt dat alleen deze app en niet de bedrijfsmail. Welk
+subdomein maakt technisch niet uit, zolang Resend, de DNS-records en het
+afzenderadres in Supabase dezelfde naam aanhouden.
 
-1. **Resend** → Domains → `mail.kwekerijbaas.nl`, regio EU (Ireland).
+1. **Resend** → Domains → `send.kwekerijbaas.nl`, regio EU (Ireland).
 2. **DNS** → de door Resend getoonde MX-, SPF- en DKIM-records op het
    subdomein zetten. De records van het hoofddomein niet aanpassen.
 3. **Resend** → API Keys → sleutel met alleen *Sending access*.
@@ -111,7 +112,7 @@ bedrijfsmail.
 
    | Veld | Waarde |
    |---|---|
-   | Sender email | `uf@mail.kwekerijbaas.nl` |
+   | Sender email | `uf@send.kwekerijbaas.nl` |
    | Sender name | `UF urencontrole` |
    | Host | `smtp.resend.com` |
    | Port | `465` |
