@@ -1,4 +1,4 @@
-# Architectuur & deploy — uf.kwekerijbaas.nl
+# Architectuur & deploy — uf.baaskwekerij.nl
 
 De UZB-urencontrole wordt een beveiligde webapp waar Ola en Jacob wekelijks de
 SNOOP- (Excel) en Nitea- (PDF) bestanden inladen en de urenoverzichten +
@@ -10,7 +10,7 @@ factuurcontrole terugkrijgen.
 Browser (Ola/Jacob)
    │  HTTPS, ingelogd met een code per e-mail
    ▼
-uf.kwekerijbaas.nl  ──CNAME──►  Render (Docker, regio Frankfurt)
+uf.baaskwekerij.nl  ──CNAME──►  Render (Docker, regio Frankfurt)
    │                              backend/  FastAPI + calc-engine + templates
    │
    ├── Supabase Auth       inlogcode per e-mail, alleen @kwekerijbaas.nl
@@ -40,7 +40,7 @@ repo-root staat hier los van.
 | Web framework | **FastAPI** + Jinja-templates | Upload-formulieren, resultaatpagina's, downloads. |
 | Database | **Supabase Postgres** (EU) | Alembic-migraties. Back-ups en beheer via Supabase. |
 | Login | **Supabase Auth** — code per e-mail | Geen wachtwoordbeheer; alleen `@kwekerijbaas.nl`. |
-| Domein | `uf.kwekerijbaas.nl` via **CNAME** + managed TLS | Zie §4. |
+| Domein | `uf.baaskwekerij.nl` via **CNAME** + managed TLS | Zie §4. |
 | CI | **GitHub Actions** | Draait migraties en tests bij elke push. |
 
 ## 3. Toegang
@@ -65,13 +65,53 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
 ## 4. Eigen domein + DNS
 
-1. In Render: **Settings → Custom Domains → Add** `uf.kwekerijbaas.nl`.
-2. Render toont de doel-hostname voor het `CNAME`-record.
-3. In het DNS-beheer van `kwekerijbaas.nl`:
-   `CNAME  uf  →  <naam>.onrender.com`
-4. Render regelt het TLS-certificaat automatisch (Let's Encrypt, auto-verlenging).
+De app draait op **`uf.baaskwekerij.nl`**; `baaskwekerij.nl/uf` is de
+makkelijk te onthouden ingang en stuurt daarheen door.
 
-Tot het domein staat is de app bereikbaar op het standaardadres van Render.
+**Twee domeinen, let op het verschil:** `kwekerijbaas.nl` (e-mail, en
+`send.kwekerijbaas.nl` voor de inlogmail) en `baaskwekerij.nl` (website en de
+app). De namen lijken op elkaar maar zijn omgedraaid.
+
+### Subdomein voor de app
+
+1. In Render: **Settings → Custom Domains → Add** `uf.baaskwekerij.nl`.
+2. Bij **TransIP** (DNS van `baaskwekerij.nl`) een record toevoegen:
+
+   | Naam | TTL | Type | Waarde |
+   |---|---|---|---|
+   | `uf` | 1 uur | CNAME | `<naam>.onrender.com.` |
+
+   TransIP verwacht de afsluitende punt. Vul alleen `uf` in, niet de volledige
+   hostnaam — die wordt automatisch aangevuld.
+3. Render regelt het TLS-certificaat (Let's Encrypt, auto-verlenging).
+
+### Doorverwijzing vanaf baaskwekerij.nl/uf
+
+`baaskwekerij.nl` draait op **GitHub Pages** (A-records naar 185.199.108-111.153,
+`www` als CNAME naar `kwekerijbaas.github.io`). Dat serveert alleen statische
+bestanden, dus een reverse proxy die `/uf` naar de app doorzet is niet mogelijk
+— een doorverwijzing wel.
+
+Voeg in de Pages-repo het bestand `uf/index.html` toe:
+
+```html
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <title>UF urencontrole</title>
+  <link rel="canonical" href="https://uf.baaskwekerij.nl/">
+  <meta http-equiv="refresh" content="0; url=https://uf.baaskwekerij.nl/">
+  <script>location.replace("https://uf.baaskwekerij.nl/" + location.search);</script>
+</head>
+<body>
+  <p>Je wordt doorgestuurd naar de urencontrole.
+     Gebeurt er niets? <a href="https://uf.baaskwekerij.nl/">Klik hier</a>.</p>
+</body>
+</html>
+```
+
+Tot het subdomein staat is de app bereikbaar op het standaardadres van Render.
 
 ## 4b. Supabase-project
 
@@ -145,7 +185,8 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 
 ## 6. Wekelijkse flow voor de gebruiker
 
-1. Inloggen op `uf.kwekerijbaas.nl` (code per e-mail).
+1. Naar `baaskwekerij.nl/uf` (of rechtstreeks `uf.baaskwekerij.nl`) en
+   inloggen met een code per e-mail.
 2. Week kiezen; per UZB de **SNOOP (.xlsx)** en **Nitea (.pdf)** uploaden.
 3. App genereert de **urenoverzichten** (download per UZB).
 4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
@@ -165,5 +206,5 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 6. **Web-laag** — inloggen, upload, resultaat en downloads. ✅
 7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
 8. **Deploy** — Supabase-project aangemaakt, schema gemigreerd, RLS aan. ✅
-   *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen en
-   het `CNAME`-record zetten.* ⏳
+   *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen,
+   het `CNAME`-record bij TransIP zetten en de doorverwijspagina plaatsen.* ⏳
