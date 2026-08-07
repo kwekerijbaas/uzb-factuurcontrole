@@ -77,3 +77,36 @@ def test_factuur_van_het_verkeerde_bureau_wordt_geweigerd():
         pytest.skip("voorbeeldfactuur niet beschikbaar")
     with pytest.raises(ValueError, match="opmaak van SW"):
         lees_factuur(pad[0], "L1")
+
+
+# --------------------------------------------------------------------------- #
+# Bureau afleiden in plaats van laten kiezen
+# --------------------------------------------------------------------------- #
+def test_bureau_wordt_uit_het_bestand_afgeleid():
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    assert bepaal_uzb([_mw(werkgever="SterkWerk")], NAMEN) == "SW"
+    assert bepaal_uzb([_mw(werkgever="Level One")], NAMEN) == "L1"
+
+
+def test_zonder_werkgeverskolom_telt_de_loonschaal_ook_hier():
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    assert bepaal_uzb([_mw(loonschaal="B2 Sw")], NAMEN) == "SW"
+    assert bepaal_uzb([_mw(loonschaal="C6 Payroll")], NAMEN) == "L1"
+
+
+def test_export_met_twee_bureaus_wordt_geweigerd():
+    """Anders zou het ene bureau tegen de tarieven van het andere lopen."""
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    gemengd = [_mw(werkgever="Level One"), _mw(werkgever="SterkWerk")]
+    with pytest.raises(ValueError, match="meerdere uitzendbureaus"):
+        bepaal_uzb(gemengd, NAMEN)
+
+
+def test_bestand_zonder_aanwijzing_vraagt_om_de_kolom():
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    with pytest.raises(ValueError, match="Werkgever op datum shift"):
+        bepaal_uzb([_mw()], NAMEN)

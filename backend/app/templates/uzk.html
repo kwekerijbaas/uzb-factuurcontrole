@@ -14,14 +14,10 @@
 <div class="kaart">
   <h2>Lijst uploaden</h2>
   <form method="post" action="/uzk/lijst" enctype="multipart/form-data">
-    <label for="u">Uitzendbureau</label>
-    <select id="u" name="uzb_sleutel" required>
-      {% for sleutel, naam in uzbs.items() %}<option value="{{ sleutel }}">{{ naam }}</option>{% endfor %}
-    </select>
     <label for="b">Bestand (.xlsx)</label>
     <input id="b" type="file" name="bestand" accept=".xlsx" required>
-    <p class="hint">Een SNOOP-export over een langere periode. Bij een schaalwissel
-       telt de meest recente.</p>
+    <p class="hint">Een SNOOP-export over een langere periode. Het uitzendbureau
+       wordt uit het bestand afgeleid. Bij een schaalwissel telt de meest recente.</p>
     <button type="submit">Lijst inladen</button>
   </form>
 </div>

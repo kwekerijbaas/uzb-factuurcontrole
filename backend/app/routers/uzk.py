@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.models import Uzk
-from app.services.ingest.herkenning import controleer_uzb
+from app.services.ingest.herkenning import bepaal_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import borg_uzb, onthoud_uzk, uzb_op_sleutel
 
@@ -62,23 +62,19 @@ def overzicht(
 async def upload_lijst(
     request: Request,
     bestand: UploadFile = File(...),
-    uzb_sleutel: str = Form(...),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
     """Laad de uitzendkrachtenlijst van één uitzendbureau.
 
-    De lijst vult de loonschaal per uitzendkracht, zodat weken waarin SNOOP
-    iemand niet bevat toch een tarief krijgen. Bij een schaalwissel in de
-    periode telt de meest recente.
+    Het uitzendbureau wordt uit de lijst zelf afgeleid. De lijst vult de
+    loonschaal per uitzendkracht, zodat weken waarin SNOOP iemand niet bevat
+    toch een tarief krijgen. Bij een schaalwissel telt de meest recente.
     """
-    if uzb_sleutel not in UZB_NAMEN:
-        raise HTTPException(status_code=400, detail=f"onbekend uitzendbureau: {uzb_sleutel}")
-
     inhoud = await bestand.read()
     try:
         regels, waarschuwingen = lees_uzk_lijst(inhoud)
-        controleer_uzb(regels, uzb_sleutel, UZB_NAMEN)
+        uzb_sleutel = bepaal_uzb(regels, UZB_NAMEN)
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=str(fout)) from fout
 

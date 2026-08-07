@@ -5,10 +5,6 @@
 <div class="kaart">
   <form method="post" action="/week/verwerk" enctype="multipart/form-data"
         onsubmit="setTimeout(() =&gt; { this.reset(); document.getElementById('klaar').hidden = false; }, 1500)">
-    <label for="uzb">Uitzendbureau</label>
-    <select id="uzb" name="uzb_sleutel" required>
-      {% for sleutel, naam in uzbs.items() %}<option value="{{ sleutel }}">{{ naam }}</option>{% endfor %}
-    </select>
     <div class="rij">
       <div>
         <label for="jaar">Jaar</label>
@@ -21,7 +17,8 @@
     </div>
     <label for="snoop">SNOOP-export (.xlsx)</label>
     <input id="snoop" type="file" name="snoop_bestand" accept=".xlsx" required>
-    <p class="hint">Planning en loonschaal per medewerker.</p>
+    <p class="hint">Loonschaal per medewerker. Het uitzendbureau wordt hieruit
+       afgeleid, dus je hoeft dat niet te kiezen.</p>
     <label for="nitea">Nitea-overzicht (.pdf)</label>
     <input id="nitea" type="file" name="nitea_bestand" accept=".pdf" required>
     <p class="hint">De werkelijk gewerkte uren; deze zijn leidend.</p>

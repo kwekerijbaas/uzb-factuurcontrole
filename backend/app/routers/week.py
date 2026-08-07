@@ -15,7 +15,7 @@ from app.db import get_session
 from app.services.export import bestandsnaam, bouw_overzicht
 from app.config import settings
 from app.services.ingest import lees_nitea, lees_snoop
-from app.services.ingest.herkenning import controleer_uzb
+from app.services.ingest.herkenning import bepaal_uzb
 from app.services.opslag import (
     bekende_loonschalen,
     bewaar_weekresultaat,
@@ -62,7 +62,6 @@ def formulier(
 
 @router.post("/verwerk")
 async def verwerk(
-    uzb_sleutel: str = Form(...),
     iso_jaar: int = Form(...),
     iso_week: int = Form(...),
     snoop_bestand: UploadFile = File(...),
@@ -70,9 +69,11 @@ async def verwerk(
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> Response:
-    """Verwerk één week en geef het urenoverzicht als download terug."""
-    if uzb_sleutel not in UZB_NAMEN:
-        raise HTTPException(status_code=400, detail=f"onbekend uitzendbureau: {uzb_sleutel}")
+    """Verwerk één week en geef het urenoverzicht als download terug.
+
+    Het uitzendbureau wordt uit de SNOOP-export afgeleid; die noteert het in de
+    kolom "Werkgever op datum shift".
+    """
     try:
         maandag = maandag_van(iso_jaar, iso_week)
     except ValueError as fout:
@@ -80,9 +81,7 @@ async def verwerk(
 
     try:
         snoop = lees_snoop(await snoop_bestand.read())
-        # Zonder deze controle worden de uren van het ene bureau afgerekend
-        # tegen de tarieven van het andere.
-        controleer_uzb(snoop, uzb_sleutel, UZB_NAMEN)
+        uzb_sleutel = bepaal_uzb(snoop, UZB_NAMEN)
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=f"SNOOP-bestand: {fout}") from fout
     nitea = lees_nitea(await nitea_bestand.read())

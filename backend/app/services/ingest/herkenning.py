@@ -66,6 +66,38 @@ def herken_uzb(medewerkers) -> tuple[str | None, str | None]:
     return None, None
 
 
+def bepaal_uzb(medewerkers, uzb_namen: dict[str, str]) -> str:
+    """Leid het uitzendbureau af uit het bestand zelf.
+
+    Scheelt een keuze in het scherm, en daarmee de mogelijkheid om de uren van
+    het ene bureau tegen de tarieven van het andere af te rekenen.
+    """
+    werkgevers = {
+        str(m.werkgever).strip() for m in medewerkers if getattr(m, "werkgever", None)
+    }
+    herkend = {_WERKGEVERS.get(_norm(w)) for w in werkgevers} - {None}
+    # Level One regulier en jeugd-payroll staan in dezelfde export.
+    if herkend <= {"L1", "L1_JEUGD"} and herkend:
+        herkend = {"L1"}
+    if len(herkend) > 1:
+        namen = ", ".join(sorted(uzb_namen.get(h, h) for h in herkend))
+        raise ValueError(
+            f"dit bestand bevat meerdere uitzendbureaus ({namen}). "
+            "Lever per bureau een aparte export aan."
+        )
+    if herkend:
+        return herkend.pop()
+
+    sleutel, ruw = herken_uzb(medewerkers)
+    if sleutel is None:
+        raise ValueError(
+            "het uitzendbureau is niet af te leiden uit dit bestand. Zorg dat de "
+            "kolom 'Werkgever op datum shift' is meegeëxporteerd, of dat de "
+            "loonschalen zijn ingevuld."
+        )
+    return "L1" if sleutel == "L1_JEUGD" else sleutel
+
+
 def controleer_uzb(medewerkers, verwacht: str, uzb_namen: dict[str, str]) -> None:
     """Weiger het bestand als het van een ander uitzendbureau blijkt te zijn."""
     gevonden, ruwe_naam = herken_uzb(medewerkers)

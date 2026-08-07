@@ -24,7 +24,7 @@ Per week, per uitzendbureau (UZB):
 
 | Bron | Formaat | Inhoud |
 |---|---|---|
-| **SNOOP-export** | `.xlsx` | Per medewerker de **tarief-code** (loonschaal) en geplande/gewerkte uren. |
+| **SNOOP-export** | `.xlsx` | Per medewerker de **tarief-code** (loonschaal) en de kolom **Werkgever op datum shift**, waaruit het uitzendbureau wordt afgeleid. |
 | **Nitea-registratie** | `.pdf` (+ `.xlsx`) | Werkelijk gewerkte uren per medewerker per dag. **Nitea's "werk tijd" is leidend.** Nachtdiensturen zijn in de Nitea-Excel **rood** gemarkeerd. |
 | **Tariefkaart** | `.xlsx` | Per UZB een tabblad met per loonschaal de tarieven per toeslagcategorie. Heeft een **ingangsdatum** (zie §6). |
 | **UZB-factuur** | `.pdf` | Voor de controlestap. Per UZB een eigen indeling (zie §5). |
@@ -96,10 +96,14 @@ buckets × het bijbehorende tarief.
 - **Conventies:** dag-grens (>10 u/dag = 50%) **wel** toepassen; feestdag op
   apart feestdag-tarief; pauze op de **laagste** toeslag.
 
-### 5.2 Level One — Volwassenen / Payroll (`L1_VW`)
-- Payroll-schalen (bv. `C6 Payroll`). Factuur bevat naast loon soms een
-  **reiskostenvergoeding** (aparte regel, aantal × tarief) die **niet** in de
-  urenberekening zit maar wél op de factuur staat — apart benoemen in de controle.
+### 5.2 Level One — Volwassenen / Payroll
+- Payroll-schalen (bv. `C6 Payroll`) lopen via de Level One-mapping mee
+  (`… Payroll` → V-tarief); er is geen apart uitzendbureau voor.
+- **Vervallen per augustus 2026:** dit betrof één medewerker, waarvan afscheid
+  is genomen. De mapping blijft staan voor eerdere weken.
+- De factuur bevat naast loon soms een **reiskostenvergoeding** (aparte regel,
+  aantal × tarief) die niet in de urenberekening zit maar wél op de factuur —
+  die telt in het bedrag mee, niet in de uren.
 
 ### 5.3 Level One — Jeugd (`L1_JEUGD`)
 - Jeugdschalen per leeftijd (bv. `B 15 jaar Jeugd`, `C2 18 jaar jeugd`).
