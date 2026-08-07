@@ -28,6 +28,7 @@ _KOLOMMEN = {
     "eindtijd": "eind",
     "gewerkteuren": "uren",
     "tariefuitzendbureau": "loonschaal",
+    "werkgeveropdatumshift": "werkgever",
 }
 
 _VERPLICHT = {"medewerker", "datum", "start", "eind"}
@@ -84,6 +85,9 @@ class SnoopMedewerker:
     naam: str
     loonschaal: str | None
     planning: list[PlanningRegel] = field(default_factory=list)
+    # Naam van het uitzendbureau zoals SNOOP hem noteert; wordt gebruikt om te
+    # controleren dat het bestand bij het gekozen bureau hoort.
+    werkgever: str | None = None
 
 
 def lees_snoop(bron: str | Path | bytes) -> list[SnoopMedewerker]:
@@ -147,6 +151,11 @@ def lees_snoop(bron: str | Path | bytes) -> list[SnoopMedewerker]:
             schaal = rij[idx["loonschaal"]]
             if schaal:
                 schaal_stemmen.setdefault(naam, Counter())[str(schaal).strip()] += 1
+
+        if "werkgever" in idx and idx["werkgever"] < len(rij):
+            werkgever = rij[idx["werkgever"]]
+            if werkgever and not mw.werkgever:
+                mw.werkgever = str(werkgever).strip()
 
     for naam, teller in schaal_stemmen.items():
         per_naam[naam].loonschaal = teller.most_common(1)[0][0]

@@ -15,6 +15,7 @@ from app.db import get_session
 from app.services.export import bestandsnaam, bouw_overzicht
 from app.config import settings
 from app.services.ingest import lees_nitea, lees_snoop
+from app.services.ingest.herkenning import controleer_uzb
 from app.services.opslag import (
     bekende_loonschalen,
     bewaar_weekresultaat,
@@ -79,6 +80,9 @@ async def verwerk(
 
     try:
         snoop = lees_snoop(await snoop_bestand.read())
+        # Zonder deze controle worden de uren van het ene bureau afgerekend
+        # tegen de tarieven van het andere.
+        controleer_uzb(snoop, uzb_sleutel, UZB_NAMEN)
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=f"SNOOP-bestand: {fout}") from fout
     nitea = lees_nitea(await nitea_bestand.read())

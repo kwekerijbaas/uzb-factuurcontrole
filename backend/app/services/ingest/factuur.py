@@ -200,15 +200,28 @@ def lees_factuur(bron: str | Path | bytes, uzb_sleutel: str | None = None) -> Fa
     regels = _regels_uit_pdf(bron)
     tekst = "\n".join(regels)
 
+    if "Naam:" in tekst and "Loon normale uren" in tekst:
+        herkend = "L1"
+    elif "Uitzendkracht" in tekst and "Factuurnummer" in tekst:
+        herkend = "SW"
+    else:
+        herkend = None
+
     if uzb_sleutel is None:
-        if "Naam:" in tekst and "Loon normale uren" in tekst:
-            uzb_sleutel = "L1"
-        elif "Uitzendkracht" in tekst and "Factuurnummer" in tekst:
-            uzb_sleutel = "SW"
-        else:
+        if herkend is None:
             raise ValueError(
                 "factuuropmaak niet herkend; kies het uitzendbureau handmatig"
             )
+        uzb_sleutel = herkend
+    elif herkend is not None and not (
+        {uzb_sleutel, herkend} <= {"L1", "L1_JEUGD"} or uzb_sleutel == herkend
+    ):
+        # Anders wordt de factuur van het ene bureau afgezet tegen de uren van
+        # het andere.
+        raise ValueError(
+            f"deze factuur heeft de opmaak van {herkend}, maar er is "
+            f"{uzb_sleutel} gekozen"
+        )
 
     factuur = (
         _lees_level_one(regels) if uzb_sleutel in ("L1", "L1_JEUGD") else _lees_sterk_werk(regels)

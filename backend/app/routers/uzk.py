@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.models import Uzk
+from app.services.ingest.herkenning import controleer_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import borg_uzb, onthoud_uzk, uzb_op_sleutel
 
@@ -77,6 +78,7 @@ async def upload_lijst(
     inhoud = await bestand.read()
     try:
         regels, waarschuwingen = lees_uzk_lijst(inhoud)
+        controleer_uzb(regels, uzb_sleutel, UZB_NAMEN)
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=str(fout)) from fout
 
