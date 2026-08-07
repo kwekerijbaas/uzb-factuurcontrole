@@ -72,12 +72,18 @@ def verwerk_week(
     conventies: UzbConventies,
     feestdagen: frozenset[date] = frozenset(),
     parameters: WeekParameters | None = None,
+    bekende_loonschalen: dict[str, str] | None = None,
 ) -> WeekVerwerking:
     """Bereken voor elke geregistreerde medewerker de uren en het bedrag.
 
     Nitea is leidend voor wie er gewerkt heeft; SNOOP levert de planning en de
     loonschaal. Medewerkers die wél gepland maar niet geregistreerd zijn worden
     als melding teruggegeven, niet als regel met nul uren.
+
+    Staat iemand niet in SNOOP, dan wordt teruggevallen op zijn laatst bekende
+    loonschaal (`bekende_loonschalen`). Zonder die terugval zouden de gewerkte
+    uren wel meetellen maar het bedrag nul zijn, waardoor het weekgemiddelde
+    stilzwijgend te laag uitkomt.
     """
     verwerking = WeekVerwerking(uzb_sleutel, iso_jaar, iso_week)
     snoop_op_naam = {normaliseer_naam(s.naam): s for s in snoop}
@@ -102,12 +108,24 @@ def verwerk_week(
         )
 
         loonschaal = planning_bron.loonschaal if planning_bron else None
+        if not loonschaal and bekende_loonschalen:
+            loonschaal = bekende_loonschalen.get(sleutel)
+            if loonschaal:
+                verwerking.meldingen.append(
+                    f"{medewerker.naam}: loonschaal '{loonschaal}' overgenomen uit een "
+                    "eerdere week (staat niet in SNOOP)"
+                )
         kaartcode = conventies.kaartcode(loonschaal)
         schaal: SchaalTarief | None = kaart.schaal(kaartcode) if kaart else None
         if loonschaal and schaal is None:
             verwerking.meldingen.append(
                 f"{medewerker.naam}: geen tarief voor loonschaal "
-                f"'{loonschaal}' (kaartcode {kaartcode}) -- niet meegerekend"
+                f"'{loonschaal}' (kaartcode {kaartcode}) -- geen bedrag berekend"
+            )
+        elif not loonschaal:
+            verwerking.meldingen.append(
+                f"{medewerker.naam}: geen loonschaal bekend -- "
+                f"{resultaat.netto_uren} uur zonder bedrag"
             )
 
         verwerking.medewerkers.append(

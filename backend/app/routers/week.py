@@ -14,7 +14,13 @@ from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.services.export import bestandsnaam, bouw_overzicht
 from app.services.ingest import lees_nitea, lees_snoop
-from app.services.opslag import factoren_op, loontabel_op
+from app.services.opslag import (
+    bekende_loonschalen,
+    borg_uzb,
+    factoren_op,
+    loontabel_op,
+    onthoud_uzk,
+)
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
 from app.services.tarief import bouw_tariefkaart, conventies
 from app.services.verwerking import verwerk_week
@@ -85,6 +91,7 @@ async def verwerk(
     if lonen and factoren:
         kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
 
+    uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
     verwerking = verwerk_week(
         uzb_sleutel=uzb_sleutel,
         iso_jaar=iso_jaar,
@@ -95,7 +102,18 @@ async def verwerk(
         kaart=kaart,
         conventies=conventies(CONVENTIE_SLEUTEL[uzb_sleutel]),
         feestdagen=feestdagen_cao_periode(),
+        bekende_loonschalen=bekende_loonschalen(sessie, uzb_sleutel),
     )
+
+    # Onthoud iedereen met zijn loonschaal, zodat een week waarin SNOOP
+    # onvolledig is alsnog een tarief kan vinden.
+    for medewerker in verwerking.medewerkers:
+        onthoud_uzk(
+            sessie, uzb, medewerker.naam, medewerker.nitea_id, medewerker.loonschaal
+        )
+    for bron in snoop:
+        onthoud_uzk(sessie, uzb, bron.naam, None, bron.loonschaal)
+    sessie.commit()
     if kaart is None:
         verwerking.meldingen.insert(
             0,

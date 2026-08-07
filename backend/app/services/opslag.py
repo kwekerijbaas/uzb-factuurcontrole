@@ -6,14 +6,15 @@ tarief-service gebruikt, zodat de rekenlogica databasevrij blijft.
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import CaoLoon, CaoLoontabel, Uzb, UzbTariefFactor
+from app.models import CaoLoon, CaoLoontabel, Uzb, UzbTariefFactor, Uzk
 from app.services.tarief.kaart import Loontabel, TariefFactor
 
 
@@ -153,3 +154,51 @@ def factoren_op(sessie: Session, uzb_sleutel: str, dag: date) -> list[TariefFact
         )
         for r in rijen
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Uitzendkrachten en hun laatst bekende loonschaal
+# --------------------------------------------------------------------------- #
+def _sleutel(naam: str) -> str:
+    return re.sub(r"\s+", " ", str(naam or "")).strip().lower()
+
+
+def onthoud_uzk(
+    sessie: Session,
+    uzb: Uzb,
+    naam: str,
+    externe_code: str | None = None,
+    loonschaal: str | None = None,
+) -> Uzk:
+    """Leg de uitzendkracht vast met zijn loonschaal.
+
+    De loonschaal komt uit SNOOP en staat daar niet altijd in: wie wel in Nitea
+    zit maar niet in de planning, kreeg voorheen geen tarief en dus een bedrag
+    van nul. Door de schaal per uitzendkracht te bewaren kan een volgende week
+    daarop terugvallen. Een lege schaal overschrijft nooit een bekende.
+    """
+    rij = sessie.scalar(
+        select(Uzk).where(Uzk.uzb_id == uzb.id).where(func.lower(Uzk.naam) == _sleutel(naam))
+    )
+    if rij is None:
+        rij = Uzk(uzb_id=uzb.id, naam=_sleutel(naam), externe_code=externe_code,
+                  loonschaal_code=loonschaal, actief=True)
+        sessie.add(rij)
+        sessie.flush()
+        return rij
+    if externe_code and not rij.externe_code:
+        rij.externe_code = externe_code
+    if loonschaal:
+        rij.loonschaal_code = loonschaal
+    return rij
+
+
+def bekende_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
+    """Laatst bekende loonschaal per uitzendkracht, op genormaliseerde naam."""
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return {}
+    rijen = sessie.scalars(
+        select(Uzk).where(Uzk.uzb_id == uzb.id).where(Uzk.loonschaal_code.is_not(None))
+    ).all()
+    return {_sleutel(r.naam): r.loonschaal_code for r in rijen if r.loonschaal_code}

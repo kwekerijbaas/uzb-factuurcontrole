@@ -36,10 +36,6 @@ from .types import (
     WeekResultaat,
 )
 
-# tolerantie voor uren-afwijking tussen planning en registratie
-_UREN_TOLERANTIE_MIN = 0
-
-
 _KWARTIER = 15
 _K = TypeVar("_K")
 
@@ -109,6 +105,7 @@ def _verzamel_minuten(
     regels: list[ToeslagRegel],
     feestdagen: frozenset[date],
     afwijkingen: list[Afwijking],
+    params: WeekParameters,
 ) -> list[tuple[datetime, Decimal, str]]:
     """Geeft de gewerkte minuten (na pauze-aftrek) met hun tijdgebonden toeslag,
     chronologisch gesorteerd."""
@@ -131,9 +128,11 @@ def _verzamel_minuten(
         else:
             te_verwijderen = max(0, regel.pauze_minuten)
 
-        # informatief: bracket − pauze verklaart de werktijd niet (split shift /
-        # afwijkende registratie) — de aftrek is dan groter dan alleen pauze.
-        if regel.gewerkte_minuten and totaal - regel.pauze_minuten != regel.gewerkte_minuten:
+        # Informatief: bracket − pauze verklaart de werktijd niet (split shift
+        # of afwijkende registratie). Kleine verschillen zijn Nitea's
+        # kwartierafronding en worden niet gemeld.
+        onverklaard = abs(totaal - regel.pauze_minuten - regel.gewerkte_minuten)
+        if regel.gewerkte_minuten and onverklaard > params.tolerantie_registratie_minuten:
             afwijkingen.append(
                 Afwijking(
                     datum=regel.datum,
@@ -190,7 +189,7 @@ def bereken_week(
     params = parameters or WeekParameters()
     afwijkingen: list[Afwijking] = []
 
-    gewerkt = _verzamel_minuten(registratie, toeslag_regels, feestdagen, afwijkingen)
+    gewerkt = _verzamel_minuten(registratie, toeslag_regels, feestdagen, afwijkingen, params)
 
     minuten_per_pct: dict[Decimal, int] = defaultdict(int)
     rauw_trace: list[tuple[datetime, Decimal, str]] = []
@@ -214,7 +213,7 @@ def bereken_week(
         minuten_per_pct[pct] += 1
         rauw_trace.append((moment, pct, bron))
 
-    _vergelijk_planning(registratie, planning, afwijkingen)
+    _vergelijk_planning(registratie, planning, afwijkingen, params)
 
     return WeekResultaat(
         netto_minuten=sum(minuten_per_pct.values()),
@@ -228,6 +227,7 @@ def _vergelijk_planning(
     registratie: list[RegistratieRegel],
     planning: list[PlanningRegel],
     afwijkingen: list[Afwijking],
+    params: WeekParameters,
 ) -> None:
     reg_per_dag: dict[date, int] = defaultdict(int)
     reg_tijden: dict[date, list[RegistratieRegel]] = defaultdict(list)
@@ -256,7 +256,7 @@ def _vergelijk_planning(
                           planning_minuten=pmin)
             )
             continue
-        if abs(rmin - pmin) > _UREN_TOLERANTIE_MIN:
+        if abs(rmin - pmin) > params.tolerantie_uren_minuten:
             afwijkingen.append(
                 Afwijking(d, SOORT_UREN_VERSCHIL,
                           f"gepland {pmin} min, gewerkt {rmin} min",
@@ -265,9 +265,9 @@ def _vergelijk_planning(
         # tijdvenster-afwijking (begin/eind), alleen bij gelijke urentelling relevant
         p0 = min(plan_tijden[d], key=lambda x: x.begin)
         r0 = min(reg_tijden[d], key=lambda x: x.begin)
-        if _naar_minuut(p0.begin) != _naar_minuut(r0.begin) or _naar_minuut(
-            p0.eind
-        ) != _naar_minuut(r0.eind):
+        verschil_begin = abs(_naar_minuut(p0.begin) - _naar_minuut(r0.begin))
+        verschil_eind = abs(_naar_minuut(p0.eind) - _naar_minuut(r0.eind))
+        if max(verschil_begin, verschil_eind) > params.tolerantie_tijd_minuten:
             afwijkingen.append(
                 Afwijking(d, SOORT_TIJD_VERSCHIL,
                           f"gepland {p0.begin:%H:%M}-{p0.eind:%H:%M}, "

@@ -13,8 +13,23 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.services.calc.engine import minuten_per_bron, rond_op_kwartier
 from app.services.tarief import TariefKaart
 from app.services.verwerking import WeekVerwerking
+
+# Voor wie geen tarief heeft is er geen tariefcategorie; toon dan de toeslag-
+# bron zelf, zodat de uren herkenbaar blijven.
+_BRON_LABEL = {
+    "normaal": "100",
+    "overwerk_35": "100",
+    "nacht": "nachtuur",
+    "avond": "150",
+    "zaterdag_middag": "150",
+    "dag_grens_50": "150",
+    "week_grens_50": "150",
+    "zondag": "200",
+    "feestdag": "feestdag",
+}
 
 _KOP = Font(bold=True, color="FFFFFF")
 _KOP_VULLING = PatternFill("solid", fgColor="2F5496")
@@ -39,11 +54,31 @@ def _breedtes(ws, breedtes: list[int]) -> None:
         ws.column_dimensions[get_column_letter(i)].width = breedte
 
 
-def _categorieen(verwerking: WeekVerwerking) -> list[str]:
+def _categorieen(verwerking: WeekVerwerking, conventies=None) -> list[str]:
     gezien: set[str] = set()
     for medewerker in verwerking.medewerkers:
         gezien.update(r.categorie for r in medewerker.bedrag.regels)
+        gezien.update(_uren_zonder_tarief(medewerker))
     return sorted(gezien)
+
+
+def _uren_zonder_tarief(medewerker) -> dict[str, Decimal]:
+    """Uren per categorie voor wie geen tarief heeft.
+
+    Zonder loonschaal levert de bedragberekening geen regels op. De uren zijn
+    dan wel gewerkt, dus die horen zichtbaar te blijven -- anders lijkt de
+    medewerker nul uur te hebben gewerkt terwijl het weektotaal ze wel meetelt.
+    """
+    if medewerker.bedrag.regels:
+        return {}
+    per_bron = rond_op_kwartier(minuten_per_bron(medewerker.resultaat.trace))
+    per_categorie: dict[str, Decimal] = {}
+    for bron, minuten in per_bron.items():
+        categorie = _BRON_LABEL.get(bron, bron)
+        per_categorie[categorie] = per_categorie.get(categorie, Decimal("0")) + (
+            Decimal(minuten) / Decimal(60)
+        ).quantize(Decimal("0.01"))
+    return per_categorie
 
 
 def bouw_overzicht(
@@ -66,6 +101,7 @@ def bouw_overzicht(
     rij = 4
     for medewerker in verwerking.medewerkers:
         per_categorie = {r.categorie: r.uren for r in medewerker.bedrag.regels}
+        per_categorie.update(_uren_zonder_tarief(medewerker))
         ws.cell(row=rij, column=1, value=medewerker.naam)
         ws.cell(row=rij, column=2, value=medewerker.nitea_id)
         ws.cell(row=rij, column=3, value=medewerker.loonschaal)
