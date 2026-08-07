@@ -76,9 +76,11 @@ def verwerk_week(
 ) -> WeekVerwerking:
     """Bereken voor elke geregistreerde medewerker de uren en het bedrag.
 
-    Nitea is leidend voor wie er gewerkt heeft; SNOOP levert de planning en de
-    loonschaal. Medewerkers die wél gepland maar niet geregistreerd zijn worden
-    als melding teruggegeven, niet als regel met nul uren.
+    Nitea is leidend voor wie er gewerkt heeft; SNOOP levert alleen de
+    loonschaal. Wie wel gepland maar niet geregistreerd is, heeft simpelweg niet
+    gewerkt en komt niet in het overzicht. Verschillen tussen planning en
+    registratie worden niet gemeld: Nitea wordt vóór het verwerken al
+    gecontroleerd, dus die zeggen niets over de te factureren uren.
 
     Staat iemand niet in SNOOP, dan wordt teruggevallen op zijn laatst bekende
     loonschaal (`bekende_loonschalen`). Zonder die terugval zouden de gewerkte
@@ -93,11 +95,6 @@ def verwerk_week(
         sleutel = normaliseer_naam(medewerker.naam)
         gezien.add(sleutel)
         planning_bron = snoop_op_naam.get(sleutel)
-        if planning_bron is None:
-            verwerking.meldingen.append(
-                f"{medewerker.naam}: wel uren in Nitea, niet gevonden in SNOOP "
-                "(geen planning en geen loonschaal)"
-            )
 
         resultaat = bereken_week(
             medewerker.registratie,
@@ -110,11 +107,6 @@ def verwerk_week(
         loonschaal = planning_bron.loonschaal if planning_bron else None
         if not loonschaal and bekende_loonschalen:
             loonschaal = bekende_loonschalen.get(sleutel)
-            if loonschaal:
-                verwerking.meldingen.append(
-                    f"{medewerker.naam}: loonschaal '{loonschaal}' overgenomen uit een "
-                    "eerdere week (staat niet in SNOOP)"
-                )
         kaartcode = conventies.kaartcode(loonschaal)
         schaal: SchaalTarief | None = kaart.schaal(kaartcode) if kaart else None
         if loonschaal and schaal is None:
@@ -139,12 +131,6 @@ def verwerk_week(
                 afwijkingen=resultaat.afwijkingen,
             )
         )
-
-    for sleutel, bron in sorted(snoop_op_naam.items()):
-        if sleutel not in gezien:
-            verwerking.meldingen.append(
-                f"{bron.naam}: wel ingepland in SNOOP, geen registratie in Nitea"
-            )
 
     verwerking.medewerkers.sort(key=lambda m: m.naam)
     return verwerking

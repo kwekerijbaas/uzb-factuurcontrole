@@ -103,6 +103,12 @@ class WeekParameters:
     tolerantie_uren_minuten: int = 15
     tolerantie_tijd_minuten: int = 15
 
+    # De SNOOP-planning naast de Nitea-registratie leggen. Staat uit: Nitea is
+    # leidend en wordt vóór het verwerken al gecontroleerd, dus een afwijking
+    # ten opzichte van de planning zegt niets over de te factureren uren. Zet
+    # aan wie de planning wél wil bewaken.
+    vergelijk_planning: bool = False
+
 
 @dataclass
 class WeekResultaat:

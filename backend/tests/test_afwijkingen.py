@@ -39,8 +39,10 @@ KAART = TariefKaart(
 
 
 def _soorten(registratie, planning=(), params=None):
+    # de planningvergelijking staat standaard uit; voor deze tests aan
     resultaat = bereken_week(
-        list(registratie), list(planning), REGELS, frozenset(), params or WeekParameters()
+        list(registratie), list(planning), REGELS, frozenset(),
+        params or WeekParameters(vergelijk_planning=True),
     )
     return {a.soort for a in resultaat.afwijkingen}
 
@@ -85,8 +87,17 @@ def test_tolerantie_is_instelbaar():
     """Wie strenger wil controleren, zet de grens terug op nul."""
     registratie = [RegistratieRegel(MA, time(6, 57), time(15, 2), 485, 0)]
     planning = [PlanningRegel(MA, time(7, 0), time(15, 0), 485)]
-    streng = WeekParameters(tolerantie_tijd_minuten=0)
+    streng = WeekParameters(tolerantie_tijd_minuten=0, vergelijk_planning=True)
     assert SOORT_TIJD_VERSCHIL in _soorten(registratie, planning, streng)
+
+
+def test_planningvergelijking_staat_standaard_uit():
+    """Nitea is leidend en wordt vooraf gecontroleerd; verschillen met de
+    planning zeggen niets over de te factureren uren."""
+    registratie = [RegistratieRegel(MA, time(8, 0), time(16, 0), 480, 0)]
+    planning = [PlanningRegel(MA, time(7, 0), time(15, 0), 300)]
+    resultaat = bereken_week(registratie, planning, REGELS, frozenset(), WeekParameters())
+    assert resultaat.afwijkingen == []
 
 
 # --------------------------------------------------------------------------- #
@@ -108,7 +119,7 @@ def test_zonder_snoop_wordt_de_bekende_loonschaal_gebruikt():
     medewerker = verwerking.medewerkers[0]
     assert medewerker.loonschaal == "B2 Flex"
     assert medewerker.bedrag.totaal == Decimal("231.52")  # 8 x 28,94
-    assert any("overgenomen uit een eerdere week" in m for m in verwerking.meldingen)
+    assert verwerking.meldingen == []  # geldt als normaal, geen aandachtspunt
 
 
 def test_snoop_wint_van_de_onthouden_schaal():

@@ -138,10 +138,10 @@ def _verzamel_minuten(
                     datum=regel.datum,
                     soort=SOORT_REGISTRATIE_INCONSISTENT,
                     detail=(
-                        f"begin/eind ({totaal} min) − pauze ({regel.pauze_minuten}) "
-                        f"= {totaal - regel.pauze_minuten}, maar Nitea meldt "
-                        f"{regel.gewerkte_minuten} gewerkte minuten; "
-                        f"{te_verwijderen} min als niet-gewerkt afgetrokken"
+                        f"onderbroken dienst: {regel.begin:%H:%M}-{regel.eind:%H:%M} "
+                        f"met {regel.gewerkte_minuten} gewerkte minuten volgens "
+                        f"Nitea; {te_verwijderen} min als niet-gewerkt afgetrokken, "
+                        "bij de laagste toeslag"
                     ),
                     registratie_minuten=regel.gewerkte_minuten,
                 )
@@ -213,7 +213,8 @@ def bereken_week(
         minuten_per_pct[pct] += 1
         rauw_trace.append((moment, pct, bron))
 
-    _vergelijk_planning(registratie, planning, afwijkingen, params)
+    if params.vergelijk_planning:
+        _vergelijk_planning(registratie, planning, afwijkingen, params)
 
     return WeekResultaat(
         netto_minuten=sum(minuten_per_pct.values()),

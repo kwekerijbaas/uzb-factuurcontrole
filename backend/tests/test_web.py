@@ -183,22 +183,25 @@ def test_verwerking_koppelt_uren_en_bedrag():
     assert verwerking.meldingen == []
 
 
-def test_registratie_zonder_snoop_wordt_gemeld_maar_wel_geteld():
+def test_registratie_zonder_snoop_telt_gewoon_mee():
+    """Nitea bepaalt wie er gewerkt heeft; ontbreken in SNOOP is op zichzelf
+    geen probleem, alleen het ontbreken van een loonschaal is dat."""
     verwerking = verwerk_week(
         "L1", 2026, 25, [], [_nitea("Onbekende Kracht")],
         cao_toeslag_regels(), KAART, LEVEL_ONE,
     )
     assert verwerking.medewerkers[0].netto_uren == Decimal("8.00")
-    assert any("niet gevonden in SNOOP" in m for m in verwerking.meldingen)
+    assert any("geen loonschaal bekend" in m for m in verwerking.meldingen)
 
 
-def test_planning_zonder_registratie_geeft_geen_regel_met_nul_uren():
+def test_planning_zonder_registratie_levert_geen_regel_op():
+    """Wie gepland stond maar niet werkte, hoort niet in het overzicht."""
     verwerking = verwerk_week(
         "L1", 2026, 25, [_snoop("Niet Verschenen")], [],
         cao_toeslag_regels(), KAART, LEVEL_ONE,
     )
     assert verwerking.medewerkers == []
-    assert any("geen registratie in Nitea" in m for m in verwerking.meldingen)
+    assert verwerking.meldingen == []
 
 
 def test_onbekende_loonschaal_levert_melding_en_geen_bedrag():
@@ -239,7 +242,7 @@ def test_meldingen_belanden_op_het_afwijkingen_tabblad():
     tekst = "\n".join(
         str(c.value) for rij in wb["Afwijkingen"].iter_rows() for c in rij if c.value
     )
-    assert "niet gevonden in SNOOP" in tekst
+    assert "geen loonschaal bekend" in tekst
 
 
 def test_bestandsnaam_is_veilig():

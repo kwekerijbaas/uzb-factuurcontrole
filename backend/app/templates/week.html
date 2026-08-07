@@ -3,7 +3,8 @@
 {% block inhoud %}
 <h1>Week verwerken</h1>
 <div class="kaart">
-  <form method="post" action="/week/verwerk" enctype="multipart/form-data">
+  <form method="post" action="/week/verwerk" enctype="multipart/form-data"
+        onsubmit="setTimeout(() =&gt; { this.reset(); document.getElementById('klaar').hidden = false; }, 1500)">
     <label for="uzb">Uitzendbureau</label>
     <select id="uzb" name="uzb_sleutel" required>
       {% for sleutel, naam in uzbs.items() %}<option value="{{ sleutel }}">{{ naam }}</option>{% endfor %}
@@ -24,11 +25,14 @@
     <label for="nitea">Nitea-overzicht (.pdf)</label>
     <input id="nitea" type="file" name="nitea_bestand" accept=".pdf" required>
     <p class="hint">De werkelijk gewerkte uren; deze zijn leidend.</p>
-    <label for="factuur">UZB-factuur (.pdf) <span style="font-weight:400">(optioneel)</span></label>
-    <input id="factuur" type="file" name="factuur_bestand" accept=".pdf">
-    <p class="hint">Voeg de factuur toe om die naast het overzicht te leggen; het
-       resultaat krijgt dan een tabblad Factuurcontrole.</p>
+    <label for="factuur">UZB-facturen (.pdf) <span style="font-weight:400">(optioneel)</span></label>
+    <input id="factuur" type="file" name="factuur_bestanden" accept=".pdf" multiple>
+    <p class="hint">Meerdere facturen tegelijk kan: houd Ctrl ingedrukt bij het
+       kiezen. Ze worden als één geheel naast het overzicht gelegd; het resultaat
+       krijgt dan een tabblad Factuurcontrole.</p>
     <button type="submit">Verwerken en overzicht downloaden</button>
   </form>
+  <p id="klaar" hidden class="hint">Het overzicht is gedownload en de gekozen
+     bestanden zijn gewist, zodat je meteen een volgende week kunt verwerken.</p>
 </div>
 {% endblock %}

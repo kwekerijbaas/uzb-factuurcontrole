@@ -58,6 +58,12 @@ Per medewerker per week worden de gewerkte uren in **buckets** gesplitst.
 - Rond elke bucket af op **kwartieren**, met behoud van het **Nitea-weektotaal**
   (de som van de buckets moet gelijk blijven aan de door Nitea geregistreerde uren).
 
+**De SNOOP-planning wordt niet met de registratie vergeleken.** Nitea legt vast
+wie er werkelijk gewerkt heeft en wordt vóór het verwerken al gecontroleerd; een
+verschil met de planning zegt dus niets over de te factureren uren. SNOOP dient
+alleen als bron voor de loonschaal. Wie de planning tóch wil bewaken, zet
+`WeekParameters.vergelijk_planning` aan.
+
 ## 5. Tariefmapping per UZB
 
 Elke UZB heeft een eigen tabblad in de tariefkaart, een eigen code-mapping en

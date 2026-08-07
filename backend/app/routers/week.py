@@ -15,7 +15,7 @@ from app.db import get_session
 from app.services.export import bestandsnaam, bouw_overzicht
 from app.services.factuurcontrole import bevindingenmail, controleer
 from app.services.ingest import lees_nitea, lees_snoop
-from app.services.ingest.factuur import lees_factuur
+from app.services.ingest.factuur import Factuur, lees_factuur
 from app.services.opslag import (
     bekende_loonschalen,
     borg_uzb,
@@ -65,7 +65,7 @@ async def verwerk(
     iso_week: int = Form(...),
     snoop_bestand: UploadFile = File(...),
     nitea_bestand: UploadFile = File(...),
-    factuur_bestand: UploadFile | None = File(None),
+    factuur_bestanden: list[UploadFile] = File(default_factory=list),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> Response:
@@ -126,24 +126,41 @@ async def verwerk(
 
     naam = UZB_NAMEN[uzb_sleutel]
 
-    # Optioneel: de UZB-factuur ernaast leggen (SPEC §7).
+    # Optioneel: de UZB-facturen ernaast leggen (SPEC §7). Een week bestaat
+    # regelmatig uit meerdere facturen -- een verzamelfactuur plus losse
+    # nagekomen stukken -- dus die worden eerst tot één geheel samengevoegd.
     controle = None
-    if factuur_bestand is not None and factuur_bestand.filename:
-        rauw = await factuur_bestand.read()
-        if rauw:
-            try:
-                factuur = lees_factuur(rauw, uzb_sleutel)
-            except ValueError as fout:
-                raise HTTPException(
-                    status_code=400, detail=f"factuur: {fout}"
-                ) from fout
-            controle = controleer(verwerking, factuur, naam)
-            verwerking.meldingen.insert(
-                0,
-                f"Factuurcontrole: {len(controle.bevindingen)} bevinding(en); "
-                f"gefactureerd EUR {controle.bedrag_factuur:,.2f} tegenover "
-                f"EUR {controle.bedrag_overzicht:,.2f} berekend.",
+    samen: Factuur | None = None
+    for bestand in factuur_bestanden:
+        if not bestand or not bestand.filename:
+            continue
+        rauw = await bestand.read()
+        if not rauw:
+            continue
+        try:
+            deel = lees_factuur(rauw, uzb_sleutel)
+        except ValueError as fout:
+            raise HTTPException(
+                status_code=400, detail=f"{bestand.filename}: {fout}"
+            ) from fout
+        if samen is None:
+            samen = deel
+        else:
+            samen.krachten.extend(deel.krachten)
+            samen.factuurnummers.extend(
+                n for n in deel.factuurnummers if n not in samen.factuurnummers
             )
+
+    if samen is not None:
+        controle = controleer(verwerking, samen, naam)
+        verwerking.meldingen.insert(
+            0,
+            f"Factuurcontrole over {len(controle.factuurnummers)} factu"
+            f"{'ren' if len(controle.factuurnummers) != 1 else 'ur'}: "
+            f"{len(controle.bevindingen)} bevinding(en); gefactureerd "
+            f"EUR {controle.bedrag_factuur:,.2f} tegenover "
+            f"EUR {controle.bedrag_overzicht:,.2f} berekend.",
+        )
 
     inhoud = bouw_overzicht(verwerking, naam, kaart, controle)
     return Response(
