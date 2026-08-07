@@ -10,7 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import gebruiker_uit_cookie
 from app.config import settings
-from app.routers import tarieven, toegang, uzk, week
+from app.routers import facturen, tarieven, toegang, uzk, week
 
 BASIS = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASIS / "templates"))
@@ -29,6 +29,7 @@ app.include_router(toegang.router)
 app.include_router(tarieven.router)
 app.include_router(uzk.router)
 app.include_router(week.router)
+app.include_router(facturen.router)
 
 
 @app.middleware("http")

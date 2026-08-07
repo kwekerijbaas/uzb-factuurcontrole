@@ -269,11 +269,14 @@ class MatchPeriode(Base, TijdstempelMixin):
     gevalideerd_op: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     berekening: Mapped[BerekendeUren | None] = relationship(
-        back_populates="match", uselist=False
+        back_populates="match", uselist=False, cascade="all, delete-orphan"
     )
 
 
 class BerekendeUren(Base, TijdstempelMixin):
+    """De uitkomst van één uitzendkracht × week, bewaard zodat de factuur later
+    los kan worden gecontroleerd zonder de bronbestanden opnieuw te uploaden."""
+
     __tablename__ = "berekende_uren"
 
     id: Mapped[uuid.UUID] = _pk()
@@ -282,6 +285,15 @@ class BerekendeUren(Base, TijdstempelMixin):
     # {"0": 2280, "35": 240, "50": 120, "100": 0}
     minuten_per_percentage: Mapped[dict] = mapped_column(JSONB, nullable=False)
     trace: Mapped[list | None] = mapped_column(JSONB)
+
+    # De loonschaal zoals die in déze week gold; de schaal op `uzk` is de
+    # huidige en kan later gewijzigd zijn.
+    loonschaal: Mapped[str | None] = mapped_column(String(50))
+    kaartcode: Mapped[str | None] = mapped_column(String(50))
+    # {"100": 2280, "150": 120} en {"100": 1099.72, "150": 67.84}
+    minuten_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
+    bedrag_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
+    bedrag_totaal: Mapped[float | None] = mapped_column(Numeric(12, 2))
 
     match: Mapped[MatchPeriode] = relationship(back_populates="berekening")
 

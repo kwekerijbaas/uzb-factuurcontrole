@@ -29,5 +29,9 @@ class Settings(BaseSettings):
     # Wettelijk minimumloon per uur, voor de controle bij een loontabel-upload.
     minimumloon: str = "14.40"
 
+    # Hoe lang verwerkte weken bewaard blijven. Oudere weken worden opgeruimd
+    # zodra er een nieuwe week wordt verwerkt.
+    bewaartermijn_jaren: int = 2
+
 
 settings = Settings()

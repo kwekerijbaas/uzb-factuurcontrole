@@ -250,3 +250,100 @@ def voeg_factuurcontrole_toe(wb, controle) -> None:
 def bestandsnaam(uzb_naam: str, verwerking: WeekVerwerking) -> str:
     veilig = "".join(c if c.isalnum() else "_" for c in uzb_naam).strip("_")
     return f"UZB-overzicht_{veilig}_week_{verwerking.iso_week}_{verwerking.iso_jaar}.xlsx"
+
+
+def bouw_matchingsbestand(controle, bevindingen_tekst: str = "") -> bytes:
+    """Los matchingsbestand: de bewaarde week naast de ontvangen facturen."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Samenvatting"
+    ws["A1"] = (
+        f"Factuurcontrole — {controle.uzb_naam} week "
+        f"{controle.iso_week}/{controle.iso_jaar}"
+    )
+    ws["A1"].font = _TITEL
+    if controle.factuurnummers:
+        ws["A2"] = "Facturen: " + ", ".join(controle.factuurnummers)
+
+    _kop(ws, 4, ["", "Ons overzicht", "Factuur", "Verschil"])
+    for i, (label, ons, factuur, opmaak) in enumerate(
+        [
+            ("Uren", controle.uren_overzicht, controle.uren_factuur, _UUR),
+            ("Bedrag (€)", controle.bedrag_overzicht, controle.bedrag_factuur, _EURO),
+        ]
+    ):
+        rij = 5 + i
+        ws.cell(row=rij, column=1, value=label)
+        for kolom, waarde in enumerate([ons, factuur, factuur - ons], start=2):
+            cel = ws.cell(row=rij, column=kolom, value=float(waarde))
+            cel.number_format = opmaak
+    ws.cell(row=7, column=1, value="Medewerkers gekoppeld")
+    ws.cell(row=7, column=2, value=len(controle.koppelingen))
+    ws.cell(row=8, column=1, value="Bevindingen")
+    ws.cell(row=8, column=2, value=len(controle.bevindingen))
+    _breedtes(ws, [24, 15, 15, 13])
+
+    # --- Bevindingen ------------------------------------------------------ #
+    ws2 = wb.create_sheet("Bevindingen")
+    ws2["A1"] = f"Bevindingen ({len(controle.bevindingen)})"
+    ws2["A1"].font = _TITEL
+    _kop(ws2, 3, ["Soort", "Medewerker", "Uren ons", "Uren factuur", "Verschil",
+                  "Bedrag ons", "Bedrag factuur", "Verschil", "Toelichting"])
+    rij = 4
+    for bevinding in controle.bevindingen:
+        ws2.cell(row=rij, column=1, value=bevinding.soort)
+        ws2.cell(row=rij, column=2, value=bevinding.naam)
+        for kolom, waarde, opmaak in [
+            (3, bevinding.uren_overzicht, _UUR),
+            (4, bevinding.uren_factuur, _UUR),
+            (5, bevinding.uren_verschil, _UUR),
+            (6, bevinding.bedrag_overzicht, _EURO),
+            (7, bevinding.bedrag_factuur, _EURO),
+            (8, bevinding.bedrag_verschil, _EURO),
+        ]:
+            if waarde is not None:
+                cel = ws2.cell(row=rij, column=kolom, value=float(waarde))
+                cel.number_format = opmaak
+        ws2.cell(row=rij, column=9, value=bevinding.melding)
+        rij += 1
+    _breedtes(ws2, [20, 26, 10, 12, 10, 12, 13, 10, 62])
+
+    # --- Alle koppelingen ------------------------------------------------- #
+    ws3 = wb.create_sheet("Koppelingen")
+    ws3["A1"] = "Medewerker naast factuurregel"
+    ws3["A1"].font = _TITEL
+    _kop(ws3, 3, ["Medewerker", "Naam op factuur", "Loonschaal", "Uren ons",
+                  "Uren factuur", "Bedrag ons", "Bedrag factuur"])
+    rij = 4
+    for medewerker, kracht in sorted(controle.koppelingen, key=lambda p: p[0].naam):
+        ws3.cell(row=rij, column=1, value=medewerker.naam)
+        ws3.cell(row=rij, column=2, value=kracht.naam_ruw)
+        ws3.cell(row=rij, column=3, value=medewerker.loonschaal)
+        for kolom, waarde, opmaak in [
+            (4, medewerker.netto_uren, _UUR),
+            (5, kracht.uren, _UUR),
+            (6, medewerker.bedrag.totaal, _EURO),
+            (7, kracht.bedrag, _EURO),
+        ]:
+            cel = ws3.cell(row=rij, column=kolom, value=float(waarde))
+            cel.number_format = opmaak
+        rij += 1
+    _breedtes(ws3, [26, 28, 14, 10, 12, 12, 13])
+
+    # --- Bevindingenmail --------------------------------------------------- #
+    if bevindingen_tekst:
+        ws4 = wb.create_sheet("Bevindingenmail")
+        ws4["A1"] = "Concepttekst om door te sturen"
+        ws4["A1"].font = _TITEL
+        for i, regel in enumerate(bevindingen_tekst.split("\n"), start=3):
+            ws4.cell(row=i, column=1, value=regel)
+        _breedtes(ws4, [110])
+
+    wb.active = 0
+    return _naar_bytes(wb)
+
+
+def _naar_bytes(wb) -> bytes:
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()

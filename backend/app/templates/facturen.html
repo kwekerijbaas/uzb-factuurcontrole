@@ -1,0 +1,59 @@
+{% extends "basis.html" %}
+{% block titel %}Facturen — UF{% endblock %}
+{% block inhoud %}
+<h1>Factuurcontrole</h1>
+
+<div class="kaart">
+  <p>Leg de ontvangen facturen naast een eerder verwerkte week. De berekening van
+     die week is bewaard, dus SNOOP en Nitea hoef je niet opnieuw in te laden —
+     en er wordt gegarandeerd tegen dezelfde uitkomst vergeleken.</p>
+  <p class="hint">Verwerkte weken blijven twee jaar bewaard.</p>
+</div>
+
+<div class="kaart">
+  <h2>Facturen controleren</h2>
+  {% if weken %}
+  <form method="post" action="/facturen/controleer" enctype="multipart/form-data"
+        onsubmit="setTimeout(() =&gt; { this.reset(); document.getElementById('klaar').hidden = false; }, 1500)">
+    <label for="w">Week</label>
+    <select id="w" name="week" required>
+      {% for week in weken %}
+      <option value="{{ week.uzb_sleutel }}|{{ week.iso_jaar }}|{{ week.iso_week }}">
+        {{ week.uzb_naam }} — week {{ week.iso_week }}/{{ week.iso_jaar }}
+        ({{ week.medewerkers }} medewerkers, {{ '%.2f'|format(week.uren) }} u,
+        € {{ '%.2f'|format(week.bedrag) }})
+      </option>
+      {% endfor %}
+    </select>
+    <label for="b">Facturen (.pdf)</label>
+    <input id="b" type="file" name="bestanden" accept=".pdf" multiple required>
+    <p class="hint">Meerdere facturen tegelijk kan: houd Ctrl ingedrukt bij het
+       kiezen. Ze worden als één geheel naast de week gelegd.</p>
+    <button type="submit">Controleren en matchingsbestand downloaden</button>
+  </form>
+  <p id="klaar" hidden class="hint">Het matchingsbestand is gedownload en de
+     gekozen bestanden zijn gewist.</p>
+  {% else %}
+  <p class="fout">Er is nog geen week verwerkt. Ga eerst naar
+     <a href="/week">Week verwerken</a>.</p>
+  {% endif %}
+</div>
+
+{% if weken %}
+<div class="kaart">
+  <h2>Bewaarde weken ({{ weken|length }})</h2>
+  <table>
+    <tr><th>Uitzendbureau</th><th>Week</th><th>Medewerkers</th><th>Uren</th><th>Bedrag</th></tr>
+    {% for week in weken %}
+    <tr>
+      <td>{{ week.uzb_naam }}</td>
+      <td>{{ week.iso_week }}/{{ week.iso_jaar }}</td>
+      <td>{{ week.medewerkers }}</td>
+      <td>{{ '%.2f'|format(week.uren) }}</td>
+      <td>€ {{ '%.2f'|format(week.bedrag) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

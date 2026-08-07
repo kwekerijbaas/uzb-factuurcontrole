@@ -31,11 +31,18 @@ Per week, per uitzendbureau (UZB):
 
 ## 3. Uitvoer
 
-Per UZB een `.xlsx` met de tabbladen:
-- **Tarieven** — de gebruikte tarieven (uit de geldende tariefkaart).
-- **Per dag** — per medewerker per dag: begin/eind/pauze en uren per bucket + bedrag.
-- **Totaal week** — weektotaal per medewerker per bucket + bedrag. *(Werkblad dat als eerste opent.)*
-- **Afwijkingen** — aandachtspunten (bv. ontbrekende SNOOP-planning).
+Per UZB een `.xlsx` met de tabbladen **Totaal week** (opent als eerste),
+**Per dag**, **Tarieven** en **Afwijkingen**.
+
+Het resultaat wordt ook **bewaard** (`match_periode` + `berekende_uren`,
+inclusief loonschaal en bedrag). De factuur komt dagen tot weken later binnen;
+door de week te bewaren hoeven SNOOP en Nitea daarvoor niet opnieuw ingelezen te
+worden en wordt tegen exact dezelfde berekening vergeleken. Weken blijven twee
+jaar staan (`bewaartermijn_jaren`); oudere worden opgeruimd zodra er een nieuwe
+week wordt verwerkt.
+
+De factuurcontrole levert een **apart matchingsbestand** met de tabbladen
+**Samenvatting**, **Bevindingen**, **Koppelingen** en **Bevindingenmail**.
 
 ## 4. Toeslagberekening (CAO Glastuinbouw 2025–2026)
 

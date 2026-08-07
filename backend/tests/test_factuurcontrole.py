@@ -159,3 +159,30 @@ def test_bevindingenmail_bij_een_schone_controle():
         "Level One",
     )
     assert "Geen afwijkingen." in bevindingenmail([controle])
+
+
+# --------------------------------------------------------------------------- #
+# Matchingsbestand
+# --------------------------------------------------------------------------- #
+def test_matchingsbestand_bevat_de_vier_tabbladen():
+    import io
+
+    import openpyxl
+
+    from app.services.export import bouw_matchingsbestand
+
+    controle = controleer(
+        _week([_medewerker("Bartlomiej Janicki", "33.75", "1107.22")]),
+        _factuur([_kracht("B.D. Janicki (Bartlomiej)", "27.75", "892.16")]),
+        "Level One",
+    )
+    wb = openpyxl.load_workbook(
+        io.BytesIO(bouw_matchingsbestand(controle, bevindingenmail([controle])))
+    )
+    assert wb.sheetnames == [
+        "Samenvatting", "Bevindingen", "Koppelingen", "Bevindingenmail"
+    ]
+    assert wb.active.title == "Samenvatting"
+
+    koppelingen = [r for r in wb["Koppelingen"].iter_rows(min_row=4, values_only=True) if r[0]]
+    assert koppelingen[0][1] == "B.D. Janicki (Bartlomiej)"  # naam zoals op de factuur

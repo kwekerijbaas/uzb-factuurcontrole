@@ -202,3 +202,184 @@ def bekende_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
         select(Uzk).where(Uzk.uzb_id == uzb.id).where(Uzk.loonschaal_code.is_not(None))
     ).all()
     return {_sleutel(r.naam): r.loonschaal_code for r in rijen if r.loonschaal_code}
+
+
+# --------------------------------------------------------------------------- #
+# Weekresultaten bewaren en teruglezen
+# --------------------------------------------------------------------------- #
+def bewaar_weekresultaat(sessie: Session, uzb: Uzb, verwerking) -> int:
+    """Leg de uitkomst van een week vast.
+
+    Hierdoor kan de factuur later los worden gecontroleerd, zonder SNOOP en
+    Nitea opnieuw in te lezen -- de factuur komt immers dagen tot weken na de
+    week binnen. Opnieuw verwerken van dezelfde week vervangt het resultaat.
+    """
+    from app.models import BerekendeUren, MatchPeriode
+
+    bestaand = sessie.scalars(
+        select(MatchPeriode)
+        .join(Uzk, Uzk.id == MatchPeriode.uzk_id)
+        .where(Uzk.uzb_id == uzb.id)
+        .where(MatchPeriode.iso_jaar == verwerking.iso_jaar)
+        .where(MatchPeriode.iso_week == verwerking.iso_week)
+    ).all()
+    for rij in bestaand:
+        sessie.delete(rij)
+    sessie.flush()
+
+    for medewerker in verwerking.medewerkers:
+        uzk = onthoud_uzk(
+            sessie, uzb, medewerker.naam, medewerker.nitea_id, medewerker.loonschaal
+        )
+        match = MatchPeriode(
+            uzk_id=uzk.id,
+            iso_jaar=verwerking.iso_jaar,
+            iso_week=verwerking.iso_week,
+            status="gevalideerd",
+            afwijkingen=[
+                {"datum": a.datum.isoformat(), "soort": a.soort, "detail": a.detail}
+                for a in medewerker.afwijkingen
+            ],
+        )
+        sessie.add(match)
+        sessie.flush()
+        sessie.add(
+            BerekendeUren(
+                match_id=match.id,
+                netto_minuten=medewerker.resultaat.netto_minuten,
+                minuten_per_percentage={
+                    str(pct): minuten
+                    for pct, minuten in medewerker.resultaat.minuten_per_percentage.items()
+                },
+                loonschaal=medewerker.loonschaal,
+                kaartcode=medewerker.kaartcode,
+                minuten_per_categorie={
+                    r.categorie: r.minuten for r in medewerker.bedrag.regels
+                },
+                bedrag_per_categorie={
+                    r.categorie: str(r.bedrag) for r in medewerker.bedrag.regels
+                },
+                bedrag_totaal=medewerker.bedrag.totaal,
+            )
+        )
+    sessie.flush()
+    return len(verwerking.medewerkers)
+
+
+def bewaarde_weken(sessie: Session, uzb_sleutel: str | None = None) -> list[dict]:
+    """Overzicht van de weken waarvan een resultaat is bewaard."""
+    from app.models import BerekendeUren, MatchPeriode
+
+    query = (
+        select(
+            Uzb.naam,
+            MatchPeriode.iso_jaar,
+            MatchPeriode.iso_week,
+            func.count(MatchPeriode.id),
+            func.sum(BerekendeUren.netto_minuten),
+            func.sum(BerekendeUren.bedrag_totaal),
+        )
+        .join(Uzk, Uzk.id == MatchPeriode.uzk_id)
+        .join(Uzb, Uzb.id == Uzk.uzb_id)
+        .join(BerekendeUren, BerekendeUren.match_id == MatchPeriode.id)
+        .group_by(Uzb.naam, MatchPeriode.iso_jaar, MatchPeriode.iso_week)
+        .order_by(MatchPeriode.iso_jaar.desc(), MatchPeriode.iso_week.desc(), Uzb.naam)
+    )
+    if uzb_sleutel:
+        query = query.where(Uzb.naam == uzb_sleutel)
+
+    return [
+        {
+            "uzb_sleutel": naam,
+            "iso_jaar": jaar,
+            "iso_week": week,
+            "medewerkers": aantal,
+            "uren": (Decimal(minuten or 0) / 60).quantize(Decimal("0.01")),
+            "bedrag": Decimal(str(bedrag or 0)),
+        }
+        for naam, jaar, week, aantal, minuten, bedrag in sessie.execute(query)
+    ]
+
+
+def haal_weekresultaat(sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_week: int):
+    """Herbouw een bewaarde week zodat de factuurcontrole ermee kan rekenen."""
+    from app.models import BerekendeUren, MatchPeriode
+    from app.services.calc.types import WeekResultaat
+    from app.services.tarief.types import BedragRegel, BedragResultaat
+    from app.services.verwerking import MedewerkerResultaat, WeekVerwerking
+
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return None
+
+    rijen = sessie.execute(
+        select(Uzk, MatchPeriode, BerekendeUren)
+        .join(MatchPeriode, MatchPeriode.uzk_id == Uzk.id)
+        .join(BerekendeUren, BerekendeUren.match_id == MatchPeriode.id)
+        .where(Uzk.uzb_id == uzb.id)
+        .where(MatchPeriode.iso_jaar == iso_jaar)
+        .where(MatchPeriode.iso_week == iso_week)
+    ).all()
+    if not rijen:
+        return None
+
+    verwerking = WeekVerwerking(uzb_sleutel, iso_jaar, iso_week)
+    for uzk, _match, berekend in rijen:
+        regels = [
+            BedragRegel(
+                categorie=categorie,
+                bronnen=(),
+                minuten=(berekend.minuten_per_categorie or {}).get(categorie, 0),
+                tarief=Decimal("0"),
+                bedrag=Decimal(str(bedrag)),
+            )
+            for categorie, bedrag in (berekend.bedrag_per_categorie or {}).items()
+        ]
+        verwerking.medewerkers.append(
+            MedewerkerResultaat(
+                naam=uzk.naam,
+                nitea_id=uzk.externe_code,
+                loonschaal=berekend.loonschaal,
+                kaartcode=berekend.kaartcode,
+                resultaat=WeekResultaat(
+                    netto_minuten=berekend.netto_minuten,
+                    minuten_per_percentage={},
+                ),
+                bedrag=BedragResultaat(regels=regels),
+            )
+        )
+    verwerking.medewerkers.sort(key=lambda m: m.naam)
+    return verwerking
+
+
+def ruim_oude_weken_op(sessie: Session, jaren: int, vandaag: date | None = None) -> int:
+    """Verwijder weekresultaten ouder dan de bewaartermijn.
+
+    Wordt aangeroepen bij het verwerken van een week, zodat er geen aparte
+    schoonmaaktaak nodig is. Factuurregels die naar zo'n week verwijzen laten
+    hun koppeling los in plaats van de verwijdering te blokkeren.
+    """
+    from app.models import FactuurRegel, MatchPeriode
+
+    grens = (vandaag or date.today())
+    grens = grens.replace(year=grens.year - jaren)
+    grens_jaar, grens_week, _ = grens.isocalendar()
+
+    te_oud = (MatchPeriode.iso_jaar < grens_jaar) | (
+        (MatchPeriode.iso_jaar == grens_jaar) & (MatchPeriode.iso_week < grens_week)
+    )
+    matches = sessie.scalars(select(MatchPeriode).where(te_oud)).all()
+    if not matches:
+        return 0
+
+    ids = {m.id for m in matches}
+    for regel in sessie.scalars(
+        select(FactuurRegel).where(FactuurRegel.match_id.in_(ids))
+    ).all():
+        regel.match_id = None
+    sessie.flush()
+
+    for match in matches:
+        sessie.delete(match)
+    sessie.flush()
+    return len(matches)
