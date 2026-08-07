@@ -30,6 +30,11 @@ _KOLOMMEN = {
     "tariefuitzendbureau": "loonschaal",
 }
 
+_VERPLICHT = {"medewerker", "datum", "start", "eind"}
+# Hoeveel rijen er naar de kopregel wordt gezocht voordat het bestand als
+# onbruikbaar geldt.
+_MAX_KOPREGEL = 15
+
 
 def _norm_naam(naam: str) -> str:
     return re.sub(r"\s+", " ", str(naam)).strip()
@@ -84,19 +89,35 @@ class SnoopMedewerker:
 def lees_snoop(bron: str | Path | bytes) -> list[SnoopMedewerker]:
     """Parse een SNOOP-export naar één SnoopMedewerker per medewerker."""
     data = BytesIO(bron) if isinstance(bron, (bytes, bytearray)) else bron
-    wb = load_workbook(data, data_only=True, read_only=True)
-    ws = wb.active
-
-    rijen = ws.iter_rows(values_only=True)
-    header = next(rijen)
+    wb = load_workbook(data, data_only=True)
+    # De kopregel staat niet altijd op de eerste rij: exports beginnen soms met
+    # een titel of lege regels. Daarom wordt er per tabblad naar gezocht.
+    ws = None
     idx: dict[str, int] = {}
-    for i, cel in enumerate(header):
-        sleutel = re.sub(r"\s+", "", str(cel or "").lower())
-        if sleutel in _KOLOMMEN:
-            idx[_KOLOMMEN[sleutel]] = i
-    ontbreekt = {"medewerker", "datum", "start", "eind"} - idx.keys()
-    if ontbreekt:
-        raise ValueError(f"SNOOP mist verwachte kolommen: {sorted(ontbreekt)}")
+    rijen = iter(())
+    gezien: list[str] = []
+    for blad in wb.worksheets:
+        alle = list(blad.iter_rows(max_row=_MAX_KOPREGEL, values_only=True))
+        for nummer, header in enumerate(alle, start=1):
+            kandidaat = {
+                _KOLOMMEN[sleutel]: i
+                for i, cel in enumerate(header)
+                if (sleutel := re.sub(r"\s+", "", str(cel or "").lower())) in _KOLOMMEN
+            }
+            if _VERPLICHT <= kandidaat.keys():
+                ws, idx = blad, kandidaat
+                rijen = blad.iter_rows(min_row=nummer + 1, values_only=True)
+                break
+            gezien += [str(c).strip() for c in header if c and str(c).strip()]
+        if ws is not None:
+            break
+
+    if ws is None:
+        gevonden = ", ".join(dict.fromkeys(gezien)) or "geen"
+        raise ValueError(
+            "de kolomkoppen zijn niet herkend. Verwacht worden 'Medewerker', "
+            "'Datum', 'Starttijd' en 'Eindtijd'. Gevonden koppen: " + gevonden
+        )
 
     per_naam: dict[str, SnoopMedewerker] = {}
     schaal_stemmen: dict[str, Counter] = {}

@@ -248,3 +248,64 @@ def test_meldingen_belanden_op_het_afwijkingen_tabblad():
 def test_bestandsnaam_is_veilig():
     verwerking = verwerk_week("L1", 2026, 25, [], [], cao_toeslag_regels(), None, LEVEL_ONE)
     assert bestandsnaam("Level One", verwerking) == "UZB-overzicht_Level_One_week_25_2026.xlsx"
+
+
+# --------------------------------------------------------------------------- #
+# SNOOP-inlezer
+# --------------------------------------------------------------------------- #
+def _snoop_bestand(voorregels: list[list] | None = None) -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    for regel in voorregels or []:
+        ws.append(regel)
+    ws.append(
+        ["Registratienummer", "Medewerker", "Datum", "Starttijd", "Eindtijd",
+         "Werkelijke starttijd", "Werkelijke eindtijd", "Gewerkte uren", "Locatie",
+         "Werkgever op datum shift", "Type uitzendkracht", "Tarief uitzendbureau"]
+    )
+    ws.append(
+        ["1", "Marius Mic", "2026-06-15 00:00:00", "07:00", "15:00", None, None,
+         7.5, "EW5", "Level One", "Uitzendkracht", "B2 Flex"]
+    )
+    buffer = BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
+def test_snoop_met_titelregels_boven_de_kolomkoppen():
+    """Exports beginnen soms met een titel of lege regels; de kopregel staat
+    dan niet op rij 1."""
+    from app.services.ingest import lees_snoop
+
+    medewerkers = lees_snoop(
+        _snoop_bestand([["SNOOP export Kwekerij Baas"], [], ["periode week 25"]])
+    )
+    assert [m.naam for m in medewerkers] == ["Marius Mic"]
+    assert medewerkers[0].loonschaal == "B2 Flex"
+
+
+def test_snoop_zonder_titelregels():
+    from app.services.ingest import lees_snoop
+
+    assert len(lees_snoop(_snoop_bestand())) == 1
+
+
+def test_snoop_met_onbekende_kolommen_noemt_wat_er_wel_staat():
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    from app.services.ingest import lees_snoop
+
+    wb = Workbook()
+    wb.active.append(["Naam", "Bedrag"])
+    buffer = BytesIO()
+    wb.save(buffer)
+    with pytest.raises(ValueError) as fout:
+        lees_snoop(buffer.getvalue())
+    assert "Medewerker" in str(fout.value)  # wat verwacht wordt
+    assert "Naam" in str(fout.value)  # en wat er gevonden is
