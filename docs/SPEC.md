@@ -8,8 +8,9 @@
 > de CAO-toeslagberekening (§4) in `backend/app/services/calc/` (geseed vanuit
 > `backend/app/services/seed/`), en de tariefmapping + bedragberekening (§5)
 > in `backend/app/services/tarief/`.
-> **Nog te bouwen:** de tariefkaart-upload (§6) en de factuurcontrole (§7);
-> deze spec is de bron voor die bouw.
+> De tariefkaart-upload (§6) zit in `services/ingest/` en
+> `services/tarief/`; de factuurcontrole (§7) in
+> `services/ingest/factuur.py` en `services/factuurcontrole.py`.
 
 ## 1. Doel
 

@@ -85,6 +85,7 @@ def bouw_overzicht(
     verwerking: WeekVerwerking,
     uzb_naam: str,
     kaart: TariefKaart | None = None,
+    controle=None,
 ) -> bytes:
     wb = Workbook()
     categorieen = _categorieen(verwerking)
@@ -192,10 +193,58 @@ def bouw_overzicht(
         rij += 1
     _breedtes(ws4, [26, 12, 24, 80])
 
+    if controle is not None:
+        voeg_factuurcontrole_toe(wb, controle)
+
     wb.active = 0  # opent op 'Totaal week'
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
+
+
+def voeg_factuurcontrole_toe(wb, controle) -> None:
+    """Extra tabblad met de vergelijking tussen overzicht en factuur."""
+    ws = wb.create_sheet("Factuurcontrole")
+    ws["A1"] = (
+        f"Factuurcontrole — {controle.uzb_naam} week "
+        f"{controle.iso_week}/{controle.iso_jaar}"
+    )
+    ws["A1"].font = _TITEL
+    if controle.factuurnummers:
+        ws["A2"] = "Factuur: " + ", ".join(controle.factuurnummers)
+
+    _kop(ws, 4, ["", "Ons overzicht", "Factuur", "Verschil"])
+    for i, (label, ons, factuur) in enumerate(
+        [
+            ("Uren", controle.uren_overzicht, controle.uren_factuur),
+            ("Bedrag (€)", controle.bedrag_overzicht, controle.bedrag_factuur),
+        ]
+    ):
+        rij = 5 + i
+        ws.cell(row=rij, column=1, value=label)
+        for kolom, waarde in enumerate([ons, factuur, factuur - ons], start=2):
+            cel = ws.cell(row=rij, column=kolom, value=float(waarde))
+            cel.number_format = _UUR if label == "Uren" else _EURO
+
+    ws.cell(row=8, column=1, value=f"Bevindingen ({len(controle.bevindingen)})").font = _TITEL
+    _kop(ws, 9, ["Soort", "Medewerker", "Uren ons", "Uren factuur",
+                 "Bedrag ons", "Bedrag factuur", "Toelichting"])
+    rij = 10
+    for bevinding in controle.bevindingen:
+        ws.cell(row=rij, column=1, value=bevinding.soort)
+        ws.cell(row=rij, column=2, value=bevinding.naam)
+        for kolom, waarde, opmaak in [
+            (3, bevinding.uren_overzicht, _UUR),
+            (4, bevinding.uren_factuur, _UUR),
+            (5, bevinding.bedrag_overzicht, _EURO),
+            (6, bevinding.bedrag_factuur, _EURO),
+        ]:
+            if waarde is not None:
+                cel = ws.cell(row=rij, column=kolom, value=float(waarde))
+                cel.number_format = opmaak
+        ws.cell(row=rij, column=7, value=bevinding.melding)
+        rij += 1
+    _breedtes(ws, [22, 26, 11, 12, 12, 13, 70])
 
 
 def bestandsnaam(uzb_naam: str, verwerking: WeekVerwerking) -> str:

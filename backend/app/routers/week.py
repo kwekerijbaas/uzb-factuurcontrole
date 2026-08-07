@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.services.export import bestandsnaam, bouw_overzicht
+from app.services.factuurcontrole import bevindingenmail, controleer
 from app.services.ingest import lees_nitea, lees_snoop
+from app.services.ingest.factuur import lees_factuur
 from app.services.opslag import (
     bekende_loonschalen,
     borg_uzb,
@@ -63,6 +65,7 @@ async def verwerk(
     iso_week: int = Form(...),
     snoop_bestand: UploadFile = File(...),
     nitea_bestand: UploadFile = File(...),
+    factuur_bestand: UploadFile | None = File(None),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> Response:
@@ -122,7 +125,27 @@ async def verwerk(
         )
 
     naam = UZB_NAMEN[uzb_sleutel]
-    inhoud = bouw_overzicht(verwerking, naam, kaart)
+
+    # Optioneel: de UZB-factuur ernaast leggen (SPEC §7).
+    controle = None
+    if factuur_bestand is not None and factuur_bestand.filename:
+        rauw = await factuur_bestand.read()
+        if rauw:
+            try:
+                factuur = lees_factuur(rauw, uzb_sleutel)
+            except ValueError as fout:
+                raise HTTPException(
+                    status_code=400, detail=f"factuur: {fout}"
+                ) from fout
+            controle = controleer(verwerking, factuur, naam)
+            verwerking.meldingen.insert(
+                0,
+                f"Factuurcontrole: {len(controle.bevindingen)} bevinding(en); "
+                f"gefactureerd EUR {controle.bedrag_factuur:,.2f} tegenover "
+                f"EUR {controle.bedrag_overzicht:,.2f} berekend.",
+            )
+
+    inhoud = bouw_overzicht(verwerking, naam, kaart, controle)
     return Response(
         content=inhoud,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

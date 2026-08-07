@@ -205,7 +205,7 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 5. **Tariefkaart in de app** — CAO-loontabel- én tariefkaart-upload met
    ingangsdatum, afgeleide omrekenfactoren en validatie (SPEC §6). ✅
 6. **Web-laag** — inloggen, upload, resultaat en downloads. ✅
-7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ⏳
+7. **Factuurcontrole** (SPEC §7) + bevindingenmail-generator. ✅
 8. **Deploy** — Supabase-project aangemaakt, schema gemigreerd, RLS aan. ✅
    *Openstaand: e-mail-login aanzetten in Supabase, Render-service koppelen en
    de doorverwijspagina plaatsen. Geen DNS-werk nodig.* ⏳
