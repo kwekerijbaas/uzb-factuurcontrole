@@ -11,9 +11,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# App Service geeft de poort via $PORT door; lokaal is 8000 de standaard.
-ENV PORT=8000
-EXPOSE 8000
+# De hoster geeft de poort via $PORT door. Render gebruikt 10000 en scant de
+# poort uit EXPOSE; die twee moeten gelijk zijn, anders wordt de draaiende app
+# niet gevonden ("no open ports detected") terwijl uvicorn wel luistert.
+ENV PORT=10000
+EXPOSE 10000
 
-# Migraties draaien bij het starten, daarna de app.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# Migraties draaien bij het starten, daarna de app. `exec` maakt uvicorn het
+# hoofdproces, zodat het stopsignaal van de hoster aankomt en de container
+# netjes afsluit in plaats van hard te worden afgebroken.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

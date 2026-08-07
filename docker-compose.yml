@@ -24,7 +24,7 @@ services:
       # Lokaal zonder inloggen werken (in productie staat dit aan).
       AUTH_VEREIST: "false"
       COOKIE_SECURE: "false"
-    ports: ["8000:8000"]
+    ports: ["8000:10000"]
     volumes: ["./backend:/app"]
 
 volumes:
