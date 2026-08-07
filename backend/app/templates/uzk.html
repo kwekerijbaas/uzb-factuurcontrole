@@ -1,0 +1,49 @@
+{% extends "basis.html" %}
+{% block titel %}Uitzendkrachten — UF{% endblock %}
+{% block inhoud %}
+<h1>Uitzendkrachten</h1>
+
+<div class="kaart">
+  <p>Per uitzendbureau de bekende uitzendkrachten met hun loonschaal. Deze lijst
+     dient als terugval: staat iemand in een week wel in Nitea maar niet in
+     SNOOP, dan wordt hier de schaal opgehaald zodat er toch een tarief is.</p>
+  <p class="hint">De SNOOP-regel van de week zelf gaat altijd voor — een schaal
+     kan tussentijds wijzigen.</p>
+</div>
+
+<div class="kaart">
+  <h2>Lijst uploaden</h2>
+  <form method="post" action="/uzk/lijst" enctype="multipart/form-data">
+    <label for="u">Uitzendbureau</label>
+    <select id="u" name="uzb_sleutel" required>
+      {% for sleutel, naam in uzbs.items() %}<option value="{{ sleutel }}">{{ naam }}</option>{% endfor %}
+    </select>
+    <label for="b">Bestand (.xlsx)</label>
+    <input id="b" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">Een SNOOP-export over een langere periode. Bij een schaalwissel
+       telt de meest recente.</p>
+    <button type="submit">Lijst inladen</button>
+  </form>
+</div>
+
+{% for uzb in per_uzb %}
+<div class="kaart">
+  <h2>{{ uzb.naam }}</h2>
+  {% if uzb.aantal %}
+    <p>{{ uzb.aantal }} uitzendkrachten, waarvan {{ uzb.met_schaal }} met loonschaal.</p>
+    <table>
+      <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th></tr>
+      {% for k in uzb.krachten %}
+      <tr>
+        <td>{{ k.naam }}</td>
+        <td>{% if k.loonschaal_code %}{{ k.loonschaal_code }}{% else %}<span class="fout">geen</span>{% endif %}</td>
+        <td>{{ k.externe_code or '' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="leeg">Nog geen uitzendkrachten bekend.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}
