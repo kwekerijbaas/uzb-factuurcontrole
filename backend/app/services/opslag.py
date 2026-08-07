@@ -159,8 +159,15 @@ def factoren_op(sessie: Session, uzb_sleutel: str, dag: date) -> list[TariefFact
 # --------------------------------------------------------------------------- #
 # Uitzendkrachten en hun laatst bekende loonschaal
 # --------------------------------------------------------------------------- #
+def _net(naam: str) -> str:
+    """Naam zoals we hem tonen: dubbele spaties eruit, hoofdletters behouden."""
+    return re.sub(r"\s+", " ", str(naam or "")).strip()
+
+
 def _sleutel(naam: str) -> str:
-    return re.sub(r"\s+", " ", str(naam or "")).strip().lower()
+    """Naam om op te zoeken; SNOOP, Nitea en de lijsten verschillen in
+    hoofdlettergebruik en spaties."""
+    return _net(naam).lower()
 
 
 def onthoud_uzk(
@@ -181,7 +188,7 @@ def onthoud_uzk(
         select(Uzk).where(Uzk.uzb_id == uzb.id).where(func.lower(Uzk.naam) == _sleutel(naam))
     )
     if rij is None:
-        rij = Uzk(uzb_id=uzb.id, naam=_sleutel(naam), externe_code=externe_code,
+        rij = Uzk(uzb_id=uzb.id, naam=_net(naam), externe_code=externe_code,
                   loonschaal_code=loonschaal, actief=True)
         sessie.add(rij)
         sessie.flush()
@@ -190,6 +197,8 @@ def onthoud_uzk(
         rij.externe_code = externe_code
     if loonschaal:
         rij.loonschaal_code = loonschaal
+    if rij.naam != _net(naam) and rij.naam.islower():
+        rij.naam = _net(naam)  # eerder in kleine letters bewaard
     return rij
 
 
