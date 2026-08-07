@@ -122,7 +122,9 @@ async def verwerk(
 
     # Bewaar de uitkomst zodat de factuur later los gecontroleerd kan worden.
     bewaar_weekresultaat(sessie, uzb, verwerking)
-    ruim_oude_weken_op(sessie, settings.bewaartermijn_jaren)
+    ruim_oude_weken_op(
+        sessie, settings.bewaartermijn_jaren, behoud=(iso_jaar, iso_week)
+    )
     sessie.commit()
     if kaart is None:
         verwerking.meldingen.insert(

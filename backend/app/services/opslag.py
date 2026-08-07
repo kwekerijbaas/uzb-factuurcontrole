@@ -361,12 +361,21 @@ def haal_weekresultaat(sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_wee
     return verwerking
 
 
-def ruim_oude_weken_op(sessie: Session, jaren: int, vandaag: date | None = None) -> int:
+def ruim_oude_weken_op(
+    sessie: Session,
+    jaren: int,
+    vandaag: date | None = None,
+    behoud: tuple[int, int] | None = None,
+) -> int:
     """Verwijder weekresultaten ouder dan de bewaartermijn.
 
     Wordt aangeroepen bij het verwerken van een week, zodat er geen aparte
     schoonmaaktaak nodig is. Factuurregels die naar zo'n week verwijzen laten
     hun koppeling los in plaats van de verwijdering te blokkeren.
+
+    `behoud` beschermt de zojuist verwerkte week. Zonder die uitzondering zou
+    het narekenen van een oude week -- bijvoorbeeld bij een controle achteraf --
+    een resultaat opleveren dat meteen weer wordt weggegooid.
     """
     from app.models import FactuurRegel, MatchPeriode
 
@@ -377,6 +386,12 @@ def ruim_oude_weken_op(sessie: Session, jaren: int, vandaag: date | None = None)
     te_oud = (MatchPeriode.iso_jaar < grens_jaar) | (
         (MatchPeriode.iso_jaar == grens_jaar) & (MatchPeriode.iso_week < grens_week)
     )
+    if behoud is not None:
+        jaar, week = behoud
+        te_oud = te_oud & ~(
+            (MatchPeriode.iso_jaar == jaar) & (MatchPeriode.iso_week == week)
+        )
+
     matches = sessie.scalars(select(MatchPeriode).where(te_oud)).all()
     if not matches:
         return 0
