@@ -48,7 +48,33 @@ async def vereis_login(request: Request, call_next):
     return await call_next(request)
 
 
-_TITELS = {400: "Bestand niet verwerkt", 404: "Niet gevonden", 500: "Er ging iets mis"}
+_TITELS = {
+    400: "Bestand niet verwerkt",
+    403: "Geen toegang",
+    404: "Niet gevonden",
+    500: "Er ging iets mis",
+}
+
+# Starlette meldt deze in het Engels; de gebruiker leest Nederlands.
+_MELDINGEN = {
+    403: "Je hebt geen toegang tot deze pagina.",
+    404: "Deze pagina bestaat niet.",
+}
+
+
+# De pagina's met een formulier; de verwerk-adressen eronder bestaan alleen als
+# doel van dat formulier.
+_SECTIES = frozenset({"/week", "/facturen", "/tarieven", "/uzk", "/inloggen"})
+
+
+def _formulierpagina(pad: str) -> str:
+    """De pagina met het formulier dat bij een verwerk-adres hoort.
+
+    `/week/verwerk` hoort bij `/week`, `/tarieven/tariefkaart` bij `/tarieven`.
+    Een adres dat nergens bij hoort, wijst terug naar de startpagina.
+    """
+    sectie = "/" + pad.strip("/").split("/")[0]
+    return sectie if sectie in _SECTIES else "/"
 
 
 def _foutpagina(request: Request, status: int, melding: str, kenmerk: str = "") -> Response:
@@ -59,7 +85,9 @@ def _foutpagina(request: Request, status: int, melding: str, kenmerk: str = "") 
     """
     if "text/html" not in request.headers.get("accept", ""):
         return JSONResponse({"detail": melding}, status_code=status)
-    terug = request.headers.get("referer") or "/"
+    # Terug naar het formulier zelf, niet naar de vorige pagina: bij een fout op
+    # /week/verwerk is de referer datzelfde adres, en dan loopt 'Terug' rond.
+    terug = _formulierpagina(request.url.path)
     return templates.TemplateResponse(
         request=request,
         name="fout.html",
@@ -78,7 +106,17 @@ def _foutpagina(request: Request, status: int, melding: str, kenmerk: str = "") 
 async def http_fout(request: Request, fout: StarletteHTTPException) -> Response:
     if fout.status_code in (301, 302, 303, 307, 308) or fout.status_code == 401:
         return RedirectResponse("/inloggen", status_code=303)
-    return _foutpagina(request, fout.status_code, str(fout.detail))
+
+    # De verwerk-adressen bestaan alleen als doel van een formulier. Komt de
+    # browser er met een GET langs -- via de adresbalk, de geschiedenis of een
+    # herhaalde download -- dan is dat geen fout maar een omweg: terug naar het
+    # formulier is wat de gebruiker bedoelde. Anders eindigt hij op een
+    # doodlopende pagina met "Method Not Allowed".
+    if fout.status_code == 405 and request.method in ("GET", "HEAD"):
+        return RedirectResponse(_formulierpagina(request.url.path), status_code=303)
+
+    melding = _MELDINGEN.get(fout.status_code) or str(fout.detail)
+    return _foutpagina(request, fout.status_code, melding)
 
 
 @app.exception_handler(Exception)

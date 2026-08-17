@@ -144,3 +144,26 @@ def test_niet_browsers_krijgen_nog_steeds_json(monkeypatch):
     )
     assert antwoord.status_code == 400
     assert "verwisseld" in antwoord.json()["detail"]
+
+
+def test_verwerkadres_in_de_adresbalk_leidt_terug_naar_het_formulier(monkeypatch):
+    """/week/verwerk bestaat alleen als doel van het formulier. Komt de browser
+    er met een GET langs -- adresbalk, geschiedenis, of een download die Edge
+    opnieuw ophaalt -- dan gaf dat een doodlopende 'Method Not Allowed'."""
+    client = _client(monkeypatch)
+    for pad, formulier in [
+        ("/week/verwerk", "/week"),
+        ("/facturen/controleer", "/facturen"),
+        ("/tarieven/tariefkaart", "/tarieven"),
+        ("/uzk/lijst", "/uzk"),
+    ]:
+        antwoord = client.get(pad, headers=BROWSER, follow_redirects=False)
+        assert antwoord.status_code == 303, pad
+        assert antwoord.headers["location"] == formulier, pad
+
+
+def test_onbekende_pagina_meldt_dat_in_het_nederlands(monkeypatch):
+    antwoord = _client(monkeypatch).get("/bestaat-niet", headers=BROWSER)
+    assert antwoord.status_code == 404
+    assert "Deze pagina bestaat niet" in antwoord.text
+    assert "Not Found" not in antwoord.text
