@@ -109,10 +109,16 @@ async def upload_loontabel(
             )
     ingangsdatum = tabel.ingangsdatum
 
-    bevindingen = valideer_minimumloon(tabel, Decimal(settings.minimumloon))
     bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
+    sessie.flush()
+    # Toets de lonen zoals ze na deze upload gelden, niet alleen de geüploade
+    # tabel: een tabel overschrijft alleen de schalen die hij noemt, dus een
+    # fout in een oudere tabel blijft anders onzichtbaar.
+    geldend = loontabel_op(sessie, ingangsdatum) or tabel
+    bevindingen = valideer_minimumloon(geldend, Decimal(settings.minimumloon))
     sessie.commit()
 
+    overgenomen = len(geldend.lonen) - len(tabel.lonen)
     return templates.TemplateResponse(
         request=request,
         name="tarieven_resultaat.html",
@@ -122,6 +128,13 @@ async def upload_loontabel(
             "samenvatting": (
                 f"{len(tabel.lonen)} CAO-schalen, geldig vanaf "
                 f"{ingangsdatum:%d-%m-%Y}."
+                + (
+                    f" Nog {overgenomen} schalen houden hun loon uit een eerdere "
+                    "tabel; samen gelden er "
+                    f"{len(geldend.lonen)}."
+                    if overgenomen > 0
+                    else ""
+                )
             ),
             "waarschuwingen": waarschuwingen,
             "bevindingen": bevindingen,
@@ -272,6 +285,9 @@ async def upload_level_one(
         )
 
     bevindingen = valideer_tarieven("L1", export.tarieven)
+    # Ook hier de lonen toetsen zoals ze na deze upload gelden: de export noemt
+    # alleen de schalen van Level One, de rest komt uit een eerdere tabel.
+    bevindingen += valideer_minimumloon(lonen, Decimal(settings.minimumloon))
     kaart = TariefKaart(
         uzb_sleutel="L1",
         geldig_van=ingangsdatum,

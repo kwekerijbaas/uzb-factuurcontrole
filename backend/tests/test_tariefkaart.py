@@ -138,3 +138,21 @@ def test_lonen_op_voor_de_eerste_tabel_is_leeg():
 
     juli = Loontabel("juli", date(2026, 7, 1), {"B2": Decimal("14.99")})
     assert lonen_op([juli], date(2026, 6, 30)) is None
+
+
+def test_minimumloon_toetst_ook_de_overgenomen_schalen():
+    """Doordat tabellen per schaal stapelen, blijft een fout in een oudere tabel
+    doorwerken. In de tabel per 01-01-2026 stonden vijf trede-1-schalen op een
+    percentage in plaats van een loon (B1 op 1,35); de CAO-PDF van 01-08-2026
+    noemt trede 1 helemaal niet, dus zonder deze toets bleef dat onzichtbaar."""
+    from app.services.tarief import lonen_op, valideer_minimumloon
+
+    januari = Loontabel("januari", date(2026, 1, 1),
+                        {"B1": Decimal("1.35"), "B2": Decimal("14.71")})
+    augustus = Loontabel("augustus", date(2026, 8, 1), {"B2": Decimal("14.99")})
+
+    geldend = lonen_op([januari, augustus], date(2026, 8, 1))
+    bevindingen = valideer_minimumloon(geldend, Decimal("14.40"))
+    assert [b.kaartcode for b in bevindingen] == ["B1"]
+    # De geüploade tabel alleen zou niets melden.
+    assert valideer_minimumloon(augustus, Decimal("14.40")) == []
