@@ -115,6 +115,10 @@ class BedragRegel:
     minuten: int
     tarief: Decimal
     bedrag: Decimal
+    # Ingangsdatum van de tariefperiode; alleen gevuld als er binnen de week
+    # een nieuwe loontabel ingaat, zodat zichtbaar is waarom één categorie
+    # twee regels met verschillende tarieven heeft.
+    vanaf: date | None = None
 
     @property
     def uren(self) -> Decimal:
@@ -133,3 +137,82 @@ class BedragResultaat:
     @property
     def minuten(self) -> int:
         return sum(r.minuten for r in self.regels)
+
+
+@dataclass(frozen=True)
+class Schaalreeks:
+    """Het tarief van één kaartschaal in de tijd.
+
+    Een CAO-loontabel gaat in op een vaste datum, niet op een weekgrens: per
+    01-07-2026 en per 01-08-2026 valt die datum midden in een week. De uren van
+    vóór en ná die dag horen dan tegen verschillende tarieven te lopen -- anders
+    wordt een halve week tegen het verkeerde tarief afgerekend.
+
+    `periodes` is oplopend op ingangsdatum; de eerste begint uiterlijk op de
+    eerste dag van de week.
+    """
+
+    periodes: tuple[tuple[date, SchaalTarief | None], ...]
+
+    @classmethod
+    def constant(cls, schaal: SchaalTarief | None) -> "Schaalreeks":
+        """Eén tarief voor de hele periode."""
+        return cls(((date.min, schaal),))
+
+    def index_op(self, dag: date) -> int:
+        """Welke periode op `dag` geldt. Voor de eerste ingangsdatum geldt de
+        eerste periode: die is er per definitie al vóór de week begon."""
+        gekozen = 0
+        for i, (vanaf, _) in enumerate(self.periodes):
+            if vanaf <= dag:
+                gekozen = i
+        return gekozen
+
+    def op(self, dag: date) -> SchaalTarief | None:
+        return self.periodes[self.index_op(dag)][1] if self.periodes else None
+
+    @property
+    def is_constant(self) -> bool:
+        return len(self.periodes) <= 1
+
+
+@dataclass(frozen=True)
+class Kaartreeks:
+    """De tariefkaarten van één uitzendbureau in de tijd.
+
+    De app kiest de kaart per dag in plaats van per week, zodat een loontabel
+    die midden in de week ingaat vanaf díe dag geldt.
+    """
+
+    periodes: tuple[tuple[date, TariefKaart | None], ...] = ()
+
+    @classmethod
+    def van_kaart(cls, kaart: TariefKaart | None) -> "Kaartreeks":
+        return cls(((date.min, kaart),))
+
+    def op(self, dag: date) -> TariefKaart | None:
+        if not self.periodes:
+            return None
+        gekozen = self.periodes[0][1]
+        for vanaf, kaart in self.periodes:
+            if vanaf <= dag:
+                gekozen = kaart
+        return gekozen
+
+    def schalen_van(self, kaartcode: str | None) -> Schaalreeks:
+        """De tariefreeks van één kaartschaal, om een medewerker af te rekenen."""
+        return Schaalreeks(
+            tuple(
+                (vanaf, kaart.schaal(kaartcode) if kaart else None)
+                for vanaf, kaart in self.periodes
+            )
+        )
+
+    @property
+    def kaarten(self) -> list[TariefKaart]:
+        """De kaarten die in deze periode zijn gebruikt, op ingangsdatum."""
+        return [kaart for _, kaart in self.periodes if kaart is not None]
+
+    @property
+    def is_leeg(self) -> bool:
+        return all(kaart is None for _, kaart in self.periodes)

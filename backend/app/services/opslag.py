@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import CaoLoon, CaoLoontabel, Uzb, UzbTariefFactor, Uzk
-from app.services.tarief.kaart import Loontabel, TariefFactor
+from app.services.tarief.kaart import Loontabel, TariefFactor, lonen_op
 
 
 # --------------------------------------------------------------------------- #
@@ -67,14 +67,19 @@ def loontabellen(sessie: Session) -> list[Loontabel]:
 
 
 def loontabel_op(sessie: Session, dag: date) -> Loontabel | None:
-    """De loontabel die op `dag` gold: de laatste met ingangsdatum <= dag."""
-    rij = sessie.scalar(
+    """De lonen die op `dag` golden, per schaal.
+
+    Opgebouwd uit alle tabellen tot en met die dag: een nieuwe tabel overschrijft
+    alleen de schalen die hij zelf noemt (zie `lonen_op`). Gaat er per 1 juli
+    alleen iets omhoog voor B1 en B2, dan houden de andere schalen hun loon in
+    plaats van zonder tarief te komen zitten.
+    """
+    rijen = sessie.scalars(
         select(CaoLoontabel)
         .where(CaoLoontabel.ingangsdatum <= dag)
-        .order_by(CaoLoontabel.ingangsdatum.desc())
-        .limit(1)
-    )
-    return _naar_loontabel(rij) if rij else None
+        .order_by(CaoLoontabel.ingangsdatum)
+    ).all()
+    return lonen_op([_naar_loontabel(r) for r in rijen], dag)
 
 
 # --------------------------------------------------------------------------- #
@@ -216,6 +221,15 @@ def bekende_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
 # --------------------------------------------------------------------------- #
 # Weekresultaten bewaren en teruglezen
 # --------------------------------------------------------------------------- #
+def _opgeteld(regels, waarde):
+    """Eén getal per tariefcategorie, ook als die categorie meerdere
+    tariefperiodes kent."""
+    totaal: dict = {}
+    for regel in regels:
+        totaal[regel.categorie] = totaal.get(regel.categorie, 0) + waarde(regel)
+    return totaal
+
+
 def bewaar_weekresultaat(sessie: Session, uzb: Uzb, verwerking) -> int:
     """Leg de uitkomst van een week vast.
 
@@ -262,11 +276,17 @@ def bewaar_weekresultaat(sessie: Session, uzb: Uzb, verwerking) -> int:
                 },
                 loonschaal=medewerker.loonschaal,
                 kaartcode=medewerker.kaartcode,
-                minuten_per_categorie={
-                    r.categorie: r.minuten for r in medewerker.bedrag.regels
-                },
+                # Optellen, niet overschrijven: gaat er midden in de week
+                # een nieuwe loontabel in, dan heeft één categorie twee regels
+                # met verschillende tarieven.
+                minuten_per_categorie=_opgeteld(
+                    medewerker.bedrag.regels, lambda r: r.minuten
+                ),
                 bedrag_per_categorie={
-                    r.categorie: str(r.bedrag) for r in medewerker.bedrag.regels
+                    categorie: str(bedrag)
+                    for categorie, bedrag in _opgeteld(
+                        medewerker.bedrag.regels, lambda r: r.bedrag
+                    ).items()
                 },
                 bedrag_totaal=medewerker.bedrag.totaal,
             )

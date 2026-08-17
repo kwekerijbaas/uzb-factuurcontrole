@@ -163,3 +163,86 @@ def test_jeugdschaal_uit_snoop_wordt_de_kaartcode():
     assert LEVEL_ONE_JEUGD.kaartcode("C 18 jaar Jeugd") == "18C2"
     # Payroll- en flexschalen op hetzelfde tabblad houden hun eigen vertaling.
     assert LEVEL_ONE_JEUGD.kaartcode("B2 Flex") == "B2F"
+
+
+# --------------------------------------------------------------------------- #
+# Loontabel die midden in de week ingaat
+# --------------------------------------------------------------------------- #
+def _reeks(vanaf_nieuw, oud, nieuw):
+    from app.services.tarief import Schaalreeks
+
+    return Schaalreeks(((date(2026, 7, 27), oud), (vanaf_nieuw, nieuw)))
+
+
+B2_JULI = SchaalTarief("B2", {CAT_100: Decimal("28.68")})
+B2_AUG = SchaalTarief("B2", {CAT_100: Decimal("29.23")})
+
+
+def _week(dagen):
+    """Acht uur op elk van de gegeven dagen, allemaal 100%."""
+    from app.services.calc.types import TraceSegment, WeekResultaat
+
+    trace = [TraceSegment(d, 7 * 60, 15 * 60, Decimal("0"), "normaal") for d in dagen]
+    return WeekResultaat(
+        netto_minuten=480 * len(dagen),
+        minuten_per_percentage={Decimal("0"): 480 * len(dagen)},
+        trace=trace,
+    )
+
+
+def test_uren_lopen_tegen_het_tarief_van_hun_eigen_dag():
+    """Week 31/2026 loopt van maandag 27-07 tot zondag 02-08; de nieuwe CAO gaat
+    zaterdag 01-08 in. De uren van vóór die dag horen tegen het oude tarief."""
+    res = _week([date(2026, 7, 30), date(2026, 7, 31), date(2026, 8, 1)])
+    bedrag = bereken_bedrag(res, _reeks(date(2026, 8, 1), B2_JULI, B2_AUG), STERK_WERK)
+
+    per_tarief = {r.tarief: r.uren for r in bedrag.regels}
+    assert per_tarief == {Decimal("28.68"): Decimal("16"), Decimal("29.23"): Decimal("8")}
+    assert bedrag.totaal == Decimal("16") * Decimal("28.68") + Decimal("8") * Decimal("29.23")
+
+
+def test_de_ingangsdatum_staat_bij_de_regel():
+    """Zonder die datum is niet te verklaren waarom één categorie twee tarieven
+    heeft."""
+    res = _week([date(2026, 7, 30), date(2026, 8, 1)])
+    bedrag = bereken_bedrag(res, _reeks(date(2026, 8, 1), B2_JULI, B2_AUG), STERK_WERK)
+    assert [r.vanaf for r in bedrag.regels] == [date(2026, 7, 27), date(2026, 8, 1)]
+
+
+def test_een_week_binnen_een_periode_geeft_gewoon_een_regel():
+    res = _week([date(2026, 7, 28), date(2026, 7, 29)])
+    bedrag = bereken_bedrag(res, _reeks(date(2026, 8, 1), B2_JULI, B2_AUG), STERK_WERK)
+    assert len(bedrag.regels) == 1
+    assert bedrag.regels[0].tarief == Decimal("28.68")
+
+
+def test_weektotaal_blijft_behouden_over_de_periodegrens():
+    """De kwartier-afronding loopt over alle emmertjes tegelijk (SPEC §4); een
+    tariefwissel mag er geen minuten bij of af doen."""
+    from app.services.calc.types import TraceSegment, WeekResultaat
+
+    trace = [
+        TraceSegment(date(2026, 7, 31), 7 * 60, 15 * 60 + 7, Decimal("0"), "normaal"),
+        TraceSegment(date(2026, 8, 1), 7 * 60, 15 * 60 + 8, Decimal("0"), "normaal"),
+    ]
+    res = WeekResultaat(netto_minuten=975, minuten_per_percentage={}, trace=trace)
+    bedrag = bereken_bedrag(res, _reeks(date(2026, 8, 1), B2_JULI, B2_AUG), STERK_WERK)
+    assert sum(r.minuten for r in bedrag.regels) == 975
+
+
+def test_kaartreeks_levert_per_schaal_de_juiste_reeks():
+    from app.services.tarief import Kaartreeks, TariefKaart
+
+    juli = TariefKaart("SW", date(2026, 7, 1), None, {"B2": B2_JULI})
+    augustus = TariefKaart("SW", date(2026, 8, 1), None, {"B2": B2_AUG})
+    reeks = Kaartreeks(((date(2026, 7, 27), juli), (date(2026, 8, 1), augustus)))
+
+    assert reeks.op(date(2026, 7, 31)) is juli
+    assert reeks.op(date(2026, 8, 2)) is augustus
+    assert [k.geldig_van for k in reeks.kaarten] == [date(2026, 7, 1), date(2026, 8, 1)]
+    assert not reeks.is_leeg
+
+    schalen = reeks.schalen_van("B2")
+    assert schalen.op(date(2026, 7, 31)) is B2_JULI
+    assert schalen.op(date(2026, 8, 1)) is B2_AUG
+    assert reeks.schalen_van("Z9").op(date(2026, 8, 1)) is None

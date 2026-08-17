@@ -5,6 +5,7 @@ Flex en Seizoen) en 33 CAO-lonen. De 'oud'-kolom reproduceerde 391 van de 396
 waarden uit de geconsolideerde kaart per 01-01-2026.
 """
 
+from datetime import date
 from decimal import Decimal
 from io import BytesIO
 
@@ -117,3 +118,27 @@ def test_onbekende_kolomkoppen_worden_geweigerd():
 def test_ongeldige_kolomkeuze():
     with pytest.raises(ValueError, match="oud"):
         lees_level_one_export(BASIS, "allebei")
+
+
+@pytest.mark.parametrize(
+    "kop,verwacht",
+    [
+        ("Loon per 1/7/26", date(2026, 7, 1)),
+        ("Vast per 01-07-2026", date(2026, 7, 1)),
+        ("Flex per 1-8-26", date(2026, 8, 1)),
+        ("Loon oud", None),
+        ("Vast per 31/2/26", None),  # bestaat niet
+    ],
+)
+def test_ingangsdatum_uit_de_kolomkop(kop, verwacht):
+    """De ingangsdatum staat in het bestand; die hoeft niemand over te typen."""
+    from app.services.ingest.level_one import peildatum
+
+    assert peildatum(kop) == verwacht
+
+
+def test_export_kent_zijn_eigen_ingangsdatum():
+    export, _ = lees_level_one_export(BASIS, "nieuw")
+    assert export.ingangsdatum == date(2026, 7, 1)
+    oud, _ = lees_level_one_export(BASIS, "oud")
+    assert oud.ingangsdatum is None  # de oude kolom noemt geen datum

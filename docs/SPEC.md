@@ -162,10 +162,34 @@ tarief = CAO-uurloon x omrekenfactor
 - Een geüploade **loontabel** heeft een **`ingangsdatum`**. Vanaf die datum
   worden de tarieven tegen die lonen berekend; daarvóór blijft de vorige tabel
   gelden. Historische weken blijven dus kloppen.
-- Bij het verwerken van een week wordt de loontabel gekozen die gold op de
-  weekdatums (de laatste met `ingangsdatum ≤ weekmaandag`).
 - Bij een CAO-ronde uploadt de gebruiker dus **alleen de nieuwe lonen** — geen
   tarieven overtypen, geen codewijziging.
+
+### 6.1 Per dag, niet per week
+Een ingangsdatum valt zelden op een maandag: in 2026 is 1 juli een woensdag en
+1 augustus een zaterdag. De tariefkaart wordt daarom **per dag** bepaald, niet
+per week. Loopt er een ingangsdatum door de week heen, dan worden de minuten per
+tariefperiode geteld en tegen het tarief van díe periode afgerekend; één
+categorie levert dan twee regels op met elk hun eigen tarief en ingangsdatum.
+De kwartier-afronding loopt over alle perioden tegelijk, zodat het weektotaal
+gelijk blijft aan de Nitea-uren (§4).
+
+Gecontroleerd op week 27/2026 (ma 29-06 t/m zo 05-07), Level One B2 Flex,
+4 × 7,5 uur: 15 uur × € 28,94 (tabel 01-01) + 15 uur × € 29,49 (tabel 01-07)
+= **€ 876,45**. Vóór deze wijziging liep de hele week op € 28,94.
+
+### 6.2 Een tabel overschrijft alleen wat hij noemt
+Loontabellen **stapelen per schaal**. Gaat er per 01-07-2026 alleen voor B1 en
+B2 iets omhoog (het wettelijk minimumloon), dan hoeft die tabel alleen die twee
+schalen te bevatten; de rest houdt het loon uit de laatste tabel die ze wél
+noemde. Zonder die opbouw zouden alle niet-genoemde schalen vanaf die datum
+zonder loon — en dus zonder tarief — komen te zitten, wat een halve week
+stilzwijgend op nul zou zetten.
+
+### 6.3 De ingangsdatum komt uit het bestand
+De datum wordt niet overgetypt maar afgelezen: uit de kolomkop van de Level
+One-export (`Loon per 1/7/26`) en uit de tekst van de CAO-PDF. Het invulveld in
+het scherm is een terugval voor het geval het bestand hem niet noemt.
 
 **Waarom een factor en niet een tarieventabel:** de verhouding
 `tarief / uurloon` is per uitzendbureau stabiel. Gemeten op de kaart per

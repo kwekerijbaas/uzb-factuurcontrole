@@ -6,6 +6,7 @@ from .kaart import (
     TariefFactor,
     bouw_tariefkaart,
     kies_loontabel,
+    lonen_op,
     leid_factoren_af,
 )
 from .types import (
@@ -24,6 +25,8 @@ from .types import (
     SchaalTarief,
     TariefKaart,
     UzbConventies,
+    Kaartreeks,
+    Schaalreeks,
     kies_kaart,
 )
 from .validatie import (
@@ -49,12 +52,15 @@ __all__ = [
     "TariefFactor",
     "bouw_tariefkaart",
     "kies_loontabel",
+    "lonen_op",
     "leid_factoren_af",
     "BedragRegel",
     "BedragResultaat",
     "SchaalTarief",
     "TariefKaart",
     "UzbConventies",
+    "Kaartreeks",
+    "Schaalreeks",
     "kies_kaart",
     "conventies",
     "CONVENTIES",

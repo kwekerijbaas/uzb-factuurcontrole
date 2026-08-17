@@ -14,7 +14,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 from app.services.calc.engine import minuten_per_bron, rond_op_kwartier
-from app.services.tarief import TariefKaart
+from app.services.tarief import Kaartreeks, TariefKaart
 from app.services.verwerking import WeekVerwerking
 
 # Voor wie geen tarief heeft is er geen tariefcategorie; toon dan de toeslag-
@@ -40,13 +40,14 @@ _UUR = "0.00"
 _DAGEN = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 
 
-def _kop(ws, rij: int, koppen: list[str]) -> None:
+def _kop(ws, rij: int, koppen: list[str], bevries: bool = True) -> None:
     for kolom, tekst in enumerate(koppen, start=1):
         cel = ws.cell(row=rij, column=kolom, value=tekst)
         cel.font = _KOP
         cel.fill = _KOP_VULLING
         cel.alignment = Alignment(horizontal="center", wrap_text=True)
-    ws.freeze_panes = ws.cell(row=rij + 1, column=1)
+    if bevries:
+        ws.freeze_panes = ws.cell(row=rij + 1, column=1)
 
 
 def _breedtes(ws, breedtes: list[int]) -> None:
@@ -60,6 +61,20 @@ def _categorieen(verwerking: WeekVerwerking, conventies=None) -> list[str]:
         gezien.update(r.categorie for r in medewerker.bedrag.regels)
         gezien.update(_uren_zonder_tarief(medewerker))
     return sorted(gezien)
+
+
+def _uren_per_categorie(medewerker) -> dict[str, Decimal]:
+    """Uren per tariefcategorie, opgeteld over de tariefperiodes.
+
+    Gaat er midden in de week een nieuwe loontabel in, dan levert één categorie
+    twee regels op met verschillende tarieven; in het overzicht hoort dat één
+    getal te zijn."""
+    per_categorie: dict[str, Decimal] = {}
+    for regel in medewerker.bedrag.regels:
+        per_categorie[regel.categorie] = (
+            per_categorie.get(regel.categorie, Decimal("0")) + regel.uren
+        )
+    return per_categorie
 
 
 def _uren_zonder_tarief(medewerker) -> dict[str, Decimal]:
@@ -84,7 +99,7 @@ def _uren_zonder_tarief(medewerker) -> dict[str, Decimal]:
 def bouw_overzicht(
     verwerking: WeekVerwerking,
     uzb_naam: str,
-    kaart: TariefKaart | None = None,
+    kaart: TariefKaart | Kaartreeks | None = None,
     controle=None,
 ) -> bytes:
     wb = Workbook()
@@ -101,7 +116,7 @@ def bouw_overzicht(
 
     rij = 4
     for medewerker in verwerking.medewerkers:
-        per_categorie = {r.categorie: r.uren for r in medewerker.bedrag.regels}
+        per_categorie = _uren_per_categorie(medewerker)
         per_categorie.update(_uren_zonder_tarief(medewerker))
         ws.cell(row=rij, column=1, value=medewerker.naam)
         ws.cell(row=rij, column=2, value=medewerker.nitea_id)
@@ -155,24 +170,36 @@ def bouw_overzicht(
     ws3 = wb.create_sheet("Tarieven")
     ws3["A1"] = f"Gebruikte tarieven — {uzb_naam}"
     ws3["A1"].font = _TITEL
-    if kaart:
-        ws3["A2"] = (
-            f"Afgeleid uit de CAO-loontabel geldig vanaf {kaart.geldig_van:%d-%m-%Y}."
-        )
-        _kop(ws3, 4, ["Loonschaal"] + categorieen)
-        rij = 5
-        for code in sorted(kaart.schalen):
-            schaal = kaart.schalen[code]
-            ws3.cell(row=rij, column=1, value=code)
-            for i, categorie in enumerate(categorieen):
-                tarief = schaal.tarief(categorie)
-                if tarief is not None:
-                    cel = ws3.cell(row=rij, column=2 + i, value=float(tarief))
-                    cel.number_format = _EURO
-            rij += 1
-        _breedtes(ws3, [16] + [12] * len(categorieen))
-    else:
+    reeks = kaart if isinstance(kaart, Kaartreeks) else Kaartreeks.van_kaart(kaart)
+    rij = 2
+    if reeks.is_leeg:
         ws3["A3"] = "Geen tariefkaart beschikbaar voor deze week."
+    else:
+        # Eén blok per tariefperiode: gaat er midden in de week een nieuwe
+        # loontabel in, dan is per dag te zien welke tarieven zijn gebruikt.
+        for vanaf, periode_kaart in reeks.periodes:
+            if periode_kaart is None:
+                continue
+            wanneer = (
+                f"Uren vanaf {vanaf:%d-%m-%Y}: " if len(reeks.periodes) > 1 else ""
+            )
+            ws3.cell(row=rij, column=1, value=(
+                f"{wanneer}afgeleid uit de CAO-loontabel geldig vanaf "
+                f"{periode_kaart.geldig_van:%d-%m-%Y}."
+            ))
+            _kop(ws3, rij + 2, ["Loonschaal"] + categorieen, bevries=rij == 2)
+            rij += 3
+            for code in sorted(periode_kaart.schalen):
+                schaal = periode_kaart.schalen[code]
+                ws3.cell(row=rij, column=1, value=code)
+                for i, categorie in enumerate(categorieen):
+                    tarief = schaal.tarief(categorie)
+                    if tarief is not None:
+                        cel = ws3.cell(row=rij, column=2 + i, value=float(tarief))
+                        cel.number_format = _EURO
+                rij += 1
+            rij += 2
+        _breedtes(ws3, [30] + [12] * len(categorieen))
 
     # --- Afwijkingen ----------------------------------------------------- #
     ws4 = wb.create_sheet("Afwijkingen")

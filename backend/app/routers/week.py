@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -26,7 +26,12 @@ from app.services.opslag import (
     ruim_oude_weken_op,
 )
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
-from app.services.tarief import bouw_tariefkaart, conventies
+from app.services.tarief import (
+    Kaartreeks,
+    TariefKaart,
+    bouw_tariefkaart,
+    conventies,
+)
 from app.services.verwerking import ontbrekende_loonschalen, verwerk_week
 from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
@@ -38,6 +43,27 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 def maandag_van(iso_jaar: int, iso_week: int) -> date:
     return date.fromisocalendar(iso_jaar, iso_week, 1)
+
+
+def kaartreeks_van_week(sessie: Session, uzb_sleutel: str, maandag: date) -> Kaartreeks:
+    """De tariefkaart per dag van deze week.
+
+    Een CAO-loontabel gaat in op een vaste datum, niet op een weekgrens: in 2026
+    valt 1 juli op woensdag en 1 augustus op zaterdag. De kaart wordt daarom per
+    dag bepaald; zolang er niets wijzigt levert dat één periode op, en anders
+    lopen de uren van vóór en ná die dag tegen hun eigen tarief.
+    """
+    periodes: list[tuple[date, TariefKaart | None]] = []
+    for verschuiving in range(7):
+        dag = maandag + timedelta(days=verschuiving)
+        lonen = loontabel_op(sessie, dag)
+        factoren = factoren_op(sessie, uzb_sleutel, dag)
+        kaart = None
+        if lonen and factoren:
+            kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
+        if not periodes or periodes[-1][1] != kaart:
+            periodes.append((dag, kaart))
+    return Kaartreeks(tuple(periodes))
 
 
 @router.get("", response_class=HTMLResponse)
@@ -95,11 +121,7 @@ async def verwerk(
             ),
         )
 
-    lonen = loontabel_op(sessie, maandag)
-    factoren = factoren_op(sessie, uzb_sleutel, maandag)
-    kaart = None
-    if lonen and factoren:
-        kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
+    reeks = kaartreeks_van_week(sessie, uzb_sleutel, maandag)
 
     uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
     verwerking = verwerk_week(
@@ -109,7 +131,7 @@ async def verwerk(
         snoop=snoop,
         nitea=nitea,
         toeslag_regels=cao_toeslag_regels(),
-        kaart=kaart,
+        kaart=reeks,
         conventies=conventies(uzb_sleutel),
         feestdagen=feestdagen_cao_periode(),
         bekende_loonschalen=bekende_loonschalen(sessie, uzb_sleutel),
@@ -150,16 +172,27 @@ async def verwerk(
         sessie, settings.bewaartermijn_jaren, behoud=(iso_jaar, iso_week)
     )
     sessie.commit()
-    if kaart is None:
+    if reeks.is_leeg:
         verwerking.meldingen.insert(
             0,
             "Geen tariefkaart voor deze week: alleen uren berekend, geen bedragen. "
             "Upload eerst een CAO-loontabel en een tariefkaart.",
         )
+    elif len(reeks.periodes) > 1:
+        verwerking.meldingen.insert(
+            0,
+            "In deze week gaat een nieuwe loontabel in: "
+            + "; ".join(
+                f"vanaf {vanaf:%d-%m-%Y} de tarieven van "
+                + (f"{kaart.geldig_van:%d-%m-%Y}" if kaart else "(geen kaart)")
+                for vanaf, kaart in reeks.periodes
+            )
+            + ". De uren zijn per dag tegen de dan geldende tarieven afgerekend.",
+        )
 
     naam = UZB_NAMEN[uzb_sleutel]
 
-    inhoud = bouw_overzicht(verwerking, naam, kaart)
+    inhoud = bouw_overzicht(verwerking, naam, reeks)
     return Response(
         content=inhoud,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

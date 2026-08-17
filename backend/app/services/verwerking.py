@@ -17,7 +17,7 @@ from app.services.calc.types import Afwijking, WeekResultaat
 from app.services.ingest import NiteaMedewerker, SnoopMedewerker
 from app.services.tarief import (
     BedragResultaat,
-    SchaalTarief,
+    Kaartreeks,
     TariefKaart,
     UzbConventies,
     bereken_bedrag,
@@ -79,7 +79,7 @@ def verwerk_week(
     snoop: list[SnoopMedewerker],
     nitea: list[NiteaMedewerker],
     toeslag_regels: list,
-    kaart: TariefKaart | None,
+    kaart: TariefKaart | Kaartreeks | None,
     conventies: UzbConventies,
     feestdagen: frozenset[date] = frozenset(),
     parameters: WeekParameters | None = None,
@@ -99,6 +99,7 @@ def verwerk_week(
     stilzwijgend te laag uitkomt.
     """
     verwerking = WeekVerwerking(uzb_sleutel, iso_jaar, iso_week)
+    reeks = kaart if isinstance(kaart, Kaartreeks) else Kaartreeks.van_kaart(kaart)
     snoop_op_naam = {normaliseer_naam(s.naam): s for s in snoop}
     gezien: set[str] = set()
 
@@ -119,8 +120,9 @@ def verwerk_week(
         if not loonschaal and bekende_loonschalen:
             loonschaal = bekende_loonschalen.get(sleutel)
         kaartcode = conventies.kaartcode(loonschaal)
-        schaal: SchaalTarief | None = kaart.schaal(kaartcode) if kaart else None
-        if loonschaal and schaal is None:
+        schalen = reeks.schalen_van(kaartcode)
+        heeft_tarief = any(s is not None for _, s in schalen.periodes)
+        if loonschaal and not heeft_tarief and not reeks.is_leeg:
             verwerking.meldingen.append(
                 f"{medewerker.naam}: geen tarief voor loonschaal "
                 f"'{loonschaal}' (kaartcode {kaartcode}) -- geen bedrag berekend"
@@ -138,7 +140,7 @@ def verwerk_week(
                 loonschaal=loonschaal,
                 kaartcode=kaartcode,
                 resultaat=resultaat,
-                bedrag=bereken_bedrag(resultaat, schaal, conventies),
+                bedrag=bereken_bedrag(resultaat, schalen, conventies),
                 afwijkingen=resultaat.afwijkingen,
             )
         )

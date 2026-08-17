@@ -222,7 +222,7 @@ async def upload_tariefkaart(
 async def upload_level_one(
     request: Request,
     bestand: UploadFile = File(...),
-    ingangsdatum: date = Form(...),
+    ingangsdatum: date | None = Form(None),
     kolom: str = Form("nieuw"),
     ook_lonen: bool = Form(False),
     sessie: Session = Depends(get_session),
@@ -238,6 +238,19 @@ async def upload_level_one(
     inhoud = await lees_upload(bestand, "Level One-export", EXCEL)
     with leesfouten("Level One-export", bestand.filename):
         export, waarschuwingen = lees_level_one_export(inhoud, kolom)
+
+    # De ingangsdatum staat in de kolomkop ("Loon per 1/7/26"); die hoeft dus
+    # niet overgetypt te worden. Een ingevulde datum gaat wel voor, voor het
+    # geval de kop hem niet noemt of niet klopt.
+    ingangsdatum = ingangsdatum or export.ingangsdatum
+    if ingangsdatum is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Geen ingangsdatum gevonden. Die staat normaal in de kolomkop "
+                "(bijvoorbeeld 'Loon per 1/7/26'); vul hem anders zelf in."
+            ),
+        )
 
     if ook_lonen and export.lonen:
         tabel = Loontabel(

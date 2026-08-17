@@ -108,3 +108,33 @@ def test_kies_loontabel_volgt_ingangsdatum(dag, verwacht):
 
 def test_kies_loontabel_voor_ingangsdatum_is_leeg():
     assert kies_loontabel([CAO_JUL], date(2026, 1, 1)) is None
+
+
+# --------------------------------------------------------------------------- #
+# Een nieuwe tabel noemt niet alle schalen
+# --------------------------------------------------------------------------- #
+def test_lonen_op_stapelt_per_schaal():
+    """Per 01-07-2026 gaat alleen B1/B2 omhoog (wettelijk minimumloon). De
+    overige schalen horen hun loon te houden -- anders vallen ze vanaf die dag
+    zonder tarief, en dat zou een halve week stilzwijgend op nul zetten."""
+    from app.services.tarief import lonen_op
+
+    januari = Loontabel("CAO januari", date(2026, 1, 1),
+                        {"B2": Decimal("14.71"), "C2": Decimal("15.09")})
+    juli = Loontabel("minimumloon juli", date(2026, 7, 1), {"B2": Decimal("14.99")})
+
+    voor = lonen_op([januari, juli], date(2026, 6, 30))
+    assert (voor.loon("B2"), voor.loon("C2")) == (Decimal("14.71"), Decimal("15.09"))
+
+    na = lonen_op([januari, juli], date(2026, 7, 1))
+    assert na.loon("B2") == Decimal("14.99")
+    assert na.loon("C2") == Decimal("15.09")  # niet genoemd, dus ongewijzigd
+    assert na.ingangsdatum == date(2026, 7, 1)
+    assert na.naam == "minimumloon juli"
+
+
+def test_lonen_op_voor_de_eerste_tabel_is_leeg():
+    from app.services.tarief import lonen_op
+
+    juli = Loontabel("juli", date(2026, 7, 1), {"B2": Decimal("14.99")})
+    assert lonen_op([juli], date(2026, 6, 30)) is None

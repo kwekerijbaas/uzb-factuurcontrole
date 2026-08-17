@@ -3,10 +3,12 @@
 <div class="kaart">
   <h2>Level One-tariefexport uploaden</h2>
   <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
-    <label for="ld2">Ingangsdatum</label>
-    <input id="ld2" type="date" name="ingangsdatum" required>
     <label for="lb2">Bestand (.xlsx)</label>
     <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
+    <label for="ld2">Ingangsdatum (alleen als hij niet in het bestand staat)</label>
+    <input id="ld2" type="date" name="ingangsdatum">
+    <p class="hint">Leeg laten: de app leest de datum uit de kolomkop, zoals
+       &#39;Loon per 1/7/26&#39;.</p>
     <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
        kolommen voor Vast, Flex en Seizoen.</p>
     <label for="lk">Welke kolommen</label>
@@ -29,6 +31,11 @@
      De omrekenfactor ligt vast met het uitzendbureau; de lonen veranderen periodiek.</p>
   <p class="hint">Loonronde? Upload alleen de loontabel. Nieuwe kaart van een bureau
      (na onderhandeling)? Upload de tariefkaart, dan worden de factoren opnieuw bepaald.</p>
+  <p class="hint">Elke tabel geldt vanaf zijn eigen ingangsdatum, en een week
+     wordt <strong>per dag</strong> afgerekend — valt 1 juli of 1 augustus midden
+     in de week, dan lopen de uren ervóór en erná tegen hun eigen tarief. Een
+     nieuwe tabel hoeft alleen de gewijzigde schalen te bevatten; de rest houdt
+     het loon uit de vorige tabel.</p>
 </div>
 
 <div class="kaart">
@@ -36,7 +43,8 @@
   {% if actieve_loontabel %}
     <p>Actieve loontabel: <strong>{{ actieve_loontabel.naam }}</strong>
        (vanaf {{ actieve_loontabel.ingangsdatum.strftime('%d-%m-%Y') }},
-       {{ actieve_loontabel.lonen|length }} schalen).</p>
+       {{ actieve_loontabel.lonen|length }} schalen, inclusief de schalen die
+       een eerdere tabel al vastlegde).</p>
   {% else %}
     <p class="fout">Nog geen CAO-loontabel geladen — zonder lonen kunnen er geen bedragen berekend worden.</p>
   {% endif %}
@@ -83,10 +91,12 @@
 <div class="kaart">
   <h2>Level One-tariefexport uploaden</h2>
   <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
-    <label for="ld2">Ingangsdatum</label>
-    <input id="ld2" type="date" name="ingangsdatum" required>
     <label for="lb2">Bestand (.xlsx)</label>
     <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
+    <label for="ld2">Ingangsdatum (alleen als hij niet in het bestand staat)</label>
+    <input id="ld2" type="date" name="ingangsdatum">
+    <p class="hint">Leeg laten: de app leest de datum uit de kolomkop, zoals
+       &#39;Loon per 1/7/26&#39;.</p>
     <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
        kolommen voor Vast, Flex en Seizoen.</p>
     <label for="lk">Welke kolommen</label>

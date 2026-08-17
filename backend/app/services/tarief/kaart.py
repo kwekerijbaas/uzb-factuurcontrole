@@ -44,9 +44,33 @@ class Loontabel:
 
 
 def kies_loontabel(tabellen: list[Loontabel], dag: date) -> Loontabel | None:
-    """De loontabel die op `dag` gold: de laatste met ingangsdatum <= dag."""
+    """De loontabel die op `dag` als laatste inging."""
     geldig = [t for t in tabellen if t.ingangsdatum <= dag]
     return max(geldig, key=lambda t: t.ingangsdatum) if geldig else None
+
+
+def lonen_op(tabellen: list[Loontabel], dag: date) -> Loontabel | None:
+    """De lonen die op `dag` golden, per schaal opgebouwd uit alle tabellen.
+
+    Een nieuwe tabel hoeft niet alle schalen te noemen: gaat er per 01-07-2026
+    alleen voor B1 en B2 iets omhoog, dan blijft de rest staan op wat de laatste
+    tabel die ze wél noemde zei. Zonder die opbouw zouden alle niet-genoemde
+    schalen vanaf die datum zonder loon komen te staan -- en daarmee zonder
+    tarief, wat een halve week stilzwijgend op nul zou zetten.
+
+    De naam en ingangsdatum zijn die van de laatst ingegane tabel, zodat het
+    overzicht laat zien welke wijziging als laatste is doorgevoerd.
+    """
+    geldig = sorted(
+        (t for t in tabellen if t.ingangsdatum <= dag), key=lambda t: t.ingangsdatum
+    )
+    if not geldig:
+        return None
+    lonen: dict[str, Decimal] = {}
+    for tabel in geldig:
+        lonen.update(tabel.lonen)
+    laatste = geldig[-1]
+    return Loontabel(naam=laatste.naam, ingangsdatum=laatste.ingangsdatum, lonen=lonen)
 
 
 def bouw_tariefkaart(

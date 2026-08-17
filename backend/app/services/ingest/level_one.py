@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
@@ -55,6 +56,24 @@ _VORMEN = {"vast": "V", "flex": "F", "seizoen": "S"}
 
 _KOLOM = re.compile(r"^(vast|flex|seizoen|loon)\s+(oud|per\b.*)$", re.IGNORECASE)
 
+# "per 1/7/26", "per 01-07-2026" -- de ingangsdatum staat in de kolomkop zelf,
+# zodat die niet overgetypt hoeft te worden.
+_PEILDATUM = re.compile(r"per\s+(\d{1,2})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{2,4})")
+
+
+def peildatum(tekst: str | None) -> date | None:
+    """De ingangsdatum uit een kolomkop als 'Loon per 1/7/26'."""
+    m = _PEILDATUM.search(str(tekst or ""))
+    if not m:
+        return None
+    dag, maand, jaar = (int(g) for g in m.groups())
+    if jaar < 100:
+        jaar += 2000
+    try:
+        return date(jaar, maand, dag)
+    except ValueError:
+        return None
+
 
 @dataclass
 class LevelOneExport:
@@ -62,6 +81,9 @@ class LevelOneExport:
 
     tarieven: dict[str, dict[str, Decimal]] = field(default_factory=dict)
     lonen: dict[str, Decimal] = field(default_factory=dict)  # CAO-schaal -> uurloon
+    # Uit de kolomkop ("Loon per 1/7/26"); leeg bij de oude kolom, want die
+    # noemt zijn eigen ingangsdatum niet.
+    ingangsdatum: date | None = None
 
 
 def _bedrag(waarde) -> Decimal | None:
@@ -144,8 +166,15 @@ def lees_level_one_export(
                             f"contractvorm(en) {sorted(ontbreekt)} niet in het bestand"
                         )
                     if welke == "nieuw" and peilmomenten:
+                        export.ingangsdatum = peildatum(peilmomenten[0])
+                        gevonden = (
+                            f" (ingangsdatum {export.ingangsdatum:%d-%m-%Y})"
+                            if export.ingangsdatum
+                            else " -- ingangsdatum niet uit de kop af te leiden"
+                        )
                         waarschuwingen.append(
-                            f"nieuwe tarieven gelezen uit de kolommen '{peilmomenten[0]}'"
+                            "nieuwe tarieven gelezen uit de kolommen "
+                            f"'{peilmomenten[0]}'{gevonden}"
                         )
                 continue
 
