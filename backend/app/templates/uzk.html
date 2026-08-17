@@ -3,12 +3,17 @@
 {% block inhoud %}
 <h1>Uitzendkrachten</h1>
 
+{% if gewijzigd %}
+  <div class="kaart"><p>Loonschaal van <strong>{{ gewijzigd }}</strong> opgeslagen.</p></div>
+{% endif %}
+
 <div class="kaart">
-  <p>Per uitzendbureau de bekende uitzendkrachten met hun loonschaal. Deze lijst
-     dient als terugval: staat iemand in een week wel in Nitea maar niet in
-     SNOOP, dan wordt hier de schaal opgehaald zodat er toch een tarief is.</p>
+  <p>Per uitzendbureau de bekende uitzendkrachten met hun loonschaal. Zonder
+     loonschaal is er geen tarief, en dan wordt een week <strong>niet</strong>
+     verwerkt. Vul een ontbrekende schaal hieronder met de hand in.</p>
   <p class="hint">De SNOOP-regel van de week zelf gaat altijd voor — een schaal
-     kan tussentijds wijzigen.</p>
+     kan tussentijds wijzigen. Wat je hier invult geldt zolang SNOOP niets
+     anders meelevert.</p>
 </div>
 
 <div class="kaart">
@@ -26,13 +31,33 @@
 <div class="kaart">
   <h2>{{ uzb.naam }}</h2>
   {% if uzb.aantal %}
-    <p>{{ uzb.aantal }} uitzendkrachten, waarvan {{ uzb.met_schaal }} met loonschaal.</p>
+    {% set ontbreekt = uzb.aantal - uzb.met_schaal %}
+    <p>{{ uzb.aantal }} uitzendkrachten, waarvan {{ uzb.met_schaal }} met loonschaal.
+       {% if ontbreekt %}
+         <span class="fout">{{ ontbreekt }} zonder loonschaal — vul die eerst in.</span>
+       {% endif %}
+    </p>
+    {% if not uzb.heeft_kaart %}
+      <p class="waarschuwing">Nog geen tariefkaart voor dit bureau; een ingevulde
+         schaal wordt daarom niet getoetst.</p>
+    {% endif %}
+    <datalist id="schalen-{{ uzb.sleutel }}">
+      {% for schaal in uzb.schalen %}<option value="{{ schaal }}">{% endfor %}
+    </datalist>
     <table>
       <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th></tr>
       {% for k in uzb.krachten %}
       <tr>
         <td>{{ k.naam }}</td>
-        <td>{% if k.loonschaal_code %}{{ k.loonschaal_code }}{% else %}<span class="fout">geen</span>{% endif %}</td>
+        <td>
+          <form method="post" action="/uzk/{{ k.id }}/loonschaal" class="inline">
+            <input type="text" name="loonschaal" value="{{ k.loonschaal_code or '' }}"
+                   list="schalen-{{ uzb.sleutel }}" required
+                   aria-label="Loonschaal van {{ k.naam }}"
+                   {% if not k.loonschaal_code %}placeholder="nog invullen"{% endif %}>
+            <button type="submit">Opslaan</button>
+          </form>
+        </td>
         <td>{{ k.externe_code or '' }}</td>
       </tr>
       {% endfor %}

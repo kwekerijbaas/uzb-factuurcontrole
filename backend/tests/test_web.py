@@ -309,3 +309,47 @@ def test_snoop_met_onbekende_kolommen_noemt_wat_er_wel_staat():
         lees_snoop(buffer.getvalue())
     assert "Medewerker" in str(fout.value)  # wat verwacht wordt
     assert "Naam" in str(fout.value)  # en wat er gevonden is
+
+
+# --------------------------------------------------------------------------- #
+# Loonschaal verplicht
+# --------------------------------------------------------------------------- #
+def test_week_zonder_loonschaal_wordt_geweigerd():
+    """Zonder loonschaal is er geen tarief. Zo iemand telt wel mee in de uren,
+    waardoor het overzicht compleet lijkt terwijl het bedrag te laag is -- en
+    juist dat bedrag gaat naast de factuur. De week hoort dan niet verwerkt te
+    worden; eerst de schaal invullen bij Uitzendkrachten."""
+    from app.services.verwerking import ontbrekende_loonschalen
+
+    verwerking = verwerk_week(
+        "L1", 2026, 25,
+        [_snoop("Marius Mic"), _snoop("Julia Machura", None)],
+        [_nitea("Marius Mic"), _nitea("Julia Machura"), _nitea("Alex Dekker")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    # Julia staat wel in SNOOP maar zonder schaal; Alex staat er helemaal niet in.
+    assert ontbrekende_loonschalen(verwerking) == ["Alex Dekker", "Julia Machura"]
+
+
+def test_volledige_week_wordt_niet_geblokkeerd():
+    from app.services.verwerking import ontbrekende_loonschalen
+
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("Marius Mic")], [_nitea("Marius Mic")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    assert ontbrekende_loonschalen(verwerking) == []
+
+
+def test_terugval_op_de_bekende_schaal_telt_als_ingevuld():
+    """Een met de hand ingevulde schaal staat op de uitzendkracht, niet in
+    SNOOP; die moet de week net zo goed vrijgeven."""
+    from app.services.verwerking import ontbrekende_loonschalen
+
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [], [_nitea("Marius Mic")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+        bekende_loonschalen={"marius mic": "B2 Flex"},
+    )
+    assert ontbrekende_loonschalen(verwerking) == []
+    assert verwerking.medewerkers[0].bedrag.totaal == Decimal("231.52")

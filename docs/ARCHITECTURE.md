@@ -189,7 +189,11 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 
 1. Naar `baaskwekerij.nl/uf` en inloggen met een code per e-mail.
 2. Week kiezen; per UZB de **SNOOP (.xlsx)** en **Nitea (.pdf)** uploaden.
-3. App genereert de **urenoverzichten** (download per UZB).
+3. App genereert de **urenoverzichten** (download per UZB). Mist iemand een
+   loonschaal, dan wordt de week **niet** verwerkt: de melding noemt wie het
+   betreft. Vul de schaal in onder **Uitzendkrachten** (per persoon een
+   invulveld) en verwerk de week opnieuw. De namen uit die mislukte poging
+   staan er dan al, want die worden vóór de controle vastgelegd.
 4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
    afwijkingen + concept-**bevindingenmail**.
 5. Bij een CAO-/minimumloonwijziging: onder **Loontabellen** de nieuwe

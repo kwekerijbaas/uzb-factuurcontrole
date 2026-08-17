@@ -71,6 +71,23 @@ verschil met de planning zegt dus niets over de te factureren uren. SNOOP dient
 alleen als bron voor de loonschaal. Wie de planning tóch wil bewaken, zet
 `WeekParameters.vergelijk_planning` aan.
 
+### Loonschaal is verplicht
+Een week wordt **niet verwerkt** zolang iemand die erin gewerkt heeft geen
+loonschaal heeft. Zonder schaal is er geen tarief: de uren tellen dan wel mee
+en het bedrag niet, waardoor het overzicht compleet lijkt terwijl het totaal te
+laag is — en juist dat totaal gaat naast de factuur.
+
+De schaal komt in volgorde uit (1) de SNOOP-regel van de week zelf en (2) de
+laatst bekende schaal op de uitzendkracht. Die tweede is met de hand in te
+vullen onder **Uitzendkrachten**, en wordt getoetst aan de tariefkaart die
+vandaag geldt — een typefout zou anders alsnog een bedrag van nul opleveren.
+Namen worden vóór de controle vastgelegd, zodat wie een schaal mist meteen op
+die lijst staat.
+
+In de praktijk komt dit vooral door een naamverschil tussen SNOOP en Nitea
+(`Cristian` tegenover `Christian`, `Alex` tegenover `Alexander`): dan vindt de
+koppeling de SNOOP-regel niet en blijft de schaal leeg.
+
 ## 5. Tariefmapping per UZB
 
 Elke UZB heeft een eigen tabblad in de tariefkaart, een eigen code-mapping en

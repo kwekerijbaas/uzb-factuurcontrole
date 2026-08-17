@@ -61,6 +61,17 @@ class WeekVerwerking:
         return sum((m.bedrag.totaal for m in self.medewerkers), Decimal("0"))
 
 
+def ontbrekende_loonschalen(verwerking: WeekVerwerking) -> list[str]:
+    """Wie in deze week geen loonschaal heeft, op naam.
+
+    Zonder loonschaal is er geen tarief en dus geen bedrag. Zo iemand telt wel
+    mee in de uren, waardoor het overzicht compleet lijkt terwijl het totaal te
+    laag is -- en dat is precies wat er tegen een factuur naast wordt gelegd.
+    Daarom wordt een week met een ontbrekende schaal niet verwerkt.
+    """
+    return sorted(m.naam for m in verwerking.medewerkers if not m.loonschaal)
+
+
 def verwerk_week(
     uzb_sleutel: str,
     iso_jaar: int,

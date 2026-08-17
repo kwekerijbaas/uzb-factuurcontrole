@@ -27,13 +27,14 @@ from app.services.opslag import (
 )
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
 from app.services.tarief import bouw_tariefkaart, conventies
-from app.services.verwerking import verwerk_week
+from app.services.verwerking import ontbrekende_loonschalen, verwerk_week
 from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
 
 router = APIRouter(prefix="/week", tags=["week"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
+
 
 def maandag_van(iso_jaar: int, iso_week: int) -> date:
     return date.fromisocalendar(iso_jaar, iso_week, 1)
@@ -115,13 +116,33 @@ async def verwerk(
     )
 
     # Onthoud iedereen met zijn loonschaal, zodat een week waarin SNOOP
-    # onvolledig is alsnog een tarief kan vinden.
+    # onvolledig is alsnog een tarief kan vinden. Dit wordt vastgelegd vóór de
+    # controle hieronder: wie een schaal mist, hoort juist wél op de
+    # uitzendkrachtenlijst te staan, anders is er niets in te vullen.
     for medewerker in verwerking.medewerkers:
         onthoud_uzk(
             sessie, uzb, medewerker.naam, medewerker.nitea_id, medewerker.loonschaal
         )
     for bron in snoop:
         onthoud_uzk(sessie, uzb, bron.naam, None, bron.loonschaal)
+    sessie.commit()
+
+    zonder_schaal = ontbrekende_loonschalen(verwerking)
+    if zonder_schaal:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "melding": (
+                    f"Deze week is niet verwerkt: {len(zonder_schaal)} van de "
+                    f"{len(verwerking.medewerkers)} uitzendkrachten hebben geen "
+                    "loonschaal, en zonder loonschaal is er geen tarief. Vul de "
+                    "schaal in bij Uitzendkrachten en verwerk de week daarna "
+                    "opnieuw."
+                ),
+                "punten": zonder_schaal,
+                "actie": {"tekst": "Naar Uitzendkrachten", "href": "/uzk"},
+            },
+        )
 
     # Bewaar de uitkomst zodat de factuur later los gecontroleerd kan worden.
     bewaar_weekresultaat(sessie, uzb, verwerking)

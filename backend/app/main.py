@@ -77,14 +77,24 @@ def _formulierpagina(pad: str) -> str:
     return sectie if sectie in _SECTIES else "/"
 
 
-def _foutpagina(request: Request, status: int, melding: str, kenmerk: str = "") -> Response:
+def _foutpagina(request: Request, status: int, melding, kenmerk: str = "") -> Response:
     """Toon een fout als pagina; alleen niet-browsers krijgen JSON.
 
     Zonder dit krijgt de gebruiker de kale tekst 'Internal Server Error' of een
     stuk JSON te zien: geen navigatie terug, en geen idee wat er te doen valt.
+
+    `melding` mag ook een dict zijn met `melding`, `punten` (een opsomming, bv.
+    de namen die iets missen) en `actie` (tekst + href). Zo blijft een lange
+    lijst leesbaar in plaats van één lap tekst.
     """
     if "text/html" not in request.headers.get("accept", ""):
         return JSONResponse({"detail": melding}, status_code=status)
+    punten: list = []
+    actie = None
+    if isinstance(melding, dict):
+        punten = list(melding.get("punten") or [])
+        actie = melding.get("actie")
+        melding = melding.get("melding", "")
     # Terug naar het formulier zelf, niet naar de vorige pagina: bij een fout op
     # /week/verwerk is de referer datzelfde adres, en dan loopt 'Terug' rond.
     terug = _formulierpagina(request.url.path)
@@ -96,6 +106,8 @@ def _foutpagina(request: Request, status: int, melding: str, kenmerk: str = "") 
             "gebruiker": gebruiker_uit_cookie(request),
             "titel": _TITELS.get(status, "Fout"),
             "melding": melding,
+            "punten": punten,
+            "actie": actie,
             "kenmerk": kenmerk,
             "terug": terug,
         },
@@ -115,8 +127,10 @@ async def http_fout(request: Request, fout: StarletteHTTPException) -> Response:
     if fout.status_code == 405 and request.method in ("GET", "HEAD"):
         return RedirectResponse(_formulierpagina(request.url.path), status_code=303)
 
-    melding = _MELDINGEN.get(fout.status_code) or str(fout.detail)
-    return _foutpagina(request, fout.status_code, melding)
+    melding = fout.detail if isinstance(fout.detail, dict) else str(fout.detail)
+    return _foutpagina(
+        request, fout.status_code, _MELDINGEN.get(fout.status_code) or melding
+    )
 
 
 @app.exception_handler(Exception)
