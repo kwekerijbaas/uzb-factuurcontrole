@@ -56,6 +56,20 @@ LEVEL_ONE = UzbConventies(
     dag_grens_factureren=True,
 )
 
+# Level One jeugd-payroll — dezelfde toeslagafspraken als regulier Level One,
+# maar een eigen tariefkaart met een tarief per leeftijd. SNOOP schrijft de
+# schaal daar voluit ("B 17 jaar Jeugd"), de kaart als "17B2".
+LEVEL_ONE_JEUGD = UzbConventies(
+    sleutel="L1_JEUGD",
+    naam="Level One jeugd-payroll",
+    bron_naar_categorie=dict(LEVEL_ONE.bron_naar_categorie),
+    code_regels=(
+        (r"^([A-Za-z])\s*(\d{1,2})\s*jaar(?:\s+payroll)?\s+jeugd$", r"\2\g<1>2"),
+        *LEVEL_ONE.code_regels,
+    ),
+    dag_grens_factureren=LEVEL_ONE.dag_grens_factureren,
+)
+
 # Sterk Werk — geen dag-grens doorbelasten, feestdag als 150%, en een apart
 # tarief voor nachtdiensturen ('Totaal nachtuur').
 STERK_WERK = UzbConventies(
@@ -96,7 +110,7 @@ CERVOKORDAAT = UzbConventies(
 )
 
 CONVENTIES: dict[str, UzbConventies] = {
-    c.sleutel: c for c in (LEVEL_ONE, STERK_WERK, CERVOKORDAAT)
+    c.sleutel: c for c in (LEVEL_ONE, LEVEL_ONE_JEUGD, STERK_WERK, CERVOKORDAAT)
 }
 
 

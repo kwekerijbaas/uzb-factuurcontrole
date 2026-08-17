@@ -47,3 +47,19 @@ def test_rond_op_kwartier_verwijdert_sliver():
     assert Decimal("50") not in af  # sliver weggerond
     assert af[Decimal("0")] == 2280
     assert sum(af.values()) == 2280
+
+
+def test_dienst_zonder_pauze_telt_gewoon_mee():
+    """Nitea laat de pauzekolom leeg bij een korte dienst. Die regel eindigt dan
+    na de werktijd; voorheen matchte het patroon niet en verdween de dienst
+    ongemerkt uit het overzicht (week 26/2026: zes diensten bij Level One)."""
+    from app.services.ingest.nitea import _REGEL
+
+    m = _REGEL.match("6 87 - Marius Mic 27-06-2026 5:56 8:46 2:45")
+    assert m is not None
+    assert m.group("werk") == "2:45"
+    assert m.group("pauze") is None
+
+    met_pauze = _REGEL.match("1 87 - Marius Mic 22-06-2026 5:58 12:09 5:30 0:30")
+    assert met_pauze.group("werk") == "5:30"
+    assert met_pauze.group("pauze") == "0:30"

@@ -5,8 +5,9 @@ Regelindeling per gewerkte dag:
 bv. `1 87 - Marius Mic 15-06-2026 6:59 16:02 7:45 1:15`
 
 'Werk tijd' is de netto gewerkte tijd (pauze er al af); 'Pauze tijd' apart.
-Kop-/voetregels (titels, perioderegel, paginanummers) matchen het patroon niet
-en worden overgeslagen.
+Bij een korte dienst staat er geen pauze; die kolom is dan leeg en de regel
+eindigt na de werktijd. Kop-/voetregels (titels, perioderegel, paginanummers)
+matchen het patroon niet en worden overgeslagen.
 """
 
 from __future__ import annotations
@@ -28,8 +29,9 @@ _REGEL = re.compile(
     r"(?P<datum>\d{2}-\d{2}-\d{4})\s+"
     r"(?P<begin>\d{1,2}:\d{2})\s+"
     r"(?P<eind>\d{1,2}:\d{2})\s+"
-    r"(?P<werk>\d{1,2}:\d{2})\s+"
-    r"(?P<pauze>\d{1,2}:\d{2})\s*$"
+    r"(?P<werk>\d{1,2}:\d{2})"
+    # Zonder pauze eindigt de regel na de werktijd; die dienst telt gewoon mee.
+    r"(?:\s+(?P<pauze>\d{1,2}:\d{2}))?\s*$"
 )
 
 
@@ -68,7 +70,7 @@ def lees_nitea(bron: str | Path | bytes) -> list[NiteaMedewerker]:
                 begin = _tijd(m.group("begin"))
                 eind = _tijd(m.group("eind"))
                 werk = _hm_naar_min(m.group("werk"))
-                pauze = _hm_naar_min(m.group("pauze"))
+                pauze = _hm_naar_min(m.group("pauze") or "0:00")
 
                 mw = per_id.setdefault(nid, NiteaMedewerker(naam=naam, nitea_id=nid))
                 mw.registratie.append(

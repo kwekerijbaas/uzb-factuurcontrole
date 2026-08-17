@@ -151,3 +151,15 @@ def test_kies_kaart_volgt_ingangsdatum():
     assert kies_kaart(kaarten, date(2026, 6, 15)) is oud
     assert kies_kaart(kaarten, date(2026, 7, 2)) is nieuw
     assert kies_kaart(kaarten, date(2025, 12, 31)) is None
+
+
+def test_jeugdschaal_uit_snoop_wordt_de_kaartcode():
+    """SNOOP schrijft de jeugdschaal voluit ('B 17 jaar Jeugd'), de tariefkaart
+    als '17B2'. Zonder deze vertaling krijgen jeugduren geen tarief."""
+    from app.services.tarief import LEVEL_ONE_JEUGD
+
+    assert LEVEL_ONE_JEUGD.kaartcode("B 17 jaar Jeugd") == "17B2"
+    assert LEVEL_ONE_JEUGD.kaartcode("B 14 jaar jeugd") == "14B2"
+    assert LEVEL_ONE_JEUGD.kaartcode("C 18 jaar Jeugd") == "18C2"
+    # Payroll- en flexschalen op hetzelfde tabblad houden hun eigen vertaling.
+    assert LEVEL_ONE_JEUGD.kaartcode("B2 Flex") == "B2F"

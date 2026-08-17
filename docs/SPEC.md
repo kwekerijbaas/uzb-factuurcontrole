@@ -107,7 +107,14 @@ buckets × het bijbehorende tarief.
 
 ### 5.3 Level One — Jeugd (`L1_JEUGD`)
 - Jeugdschalen per leeftijd (bv. `B 15 jaar Jeugd`, `C2 18 jaar jeugd`).
+- **Code-mapping:** `"B 17 jaar Jeugd"` → `17B2` (leeftijd + letter + trede);
+  payroll- en flexschalen op hetzelfde tabblad volgen de L1-regels
+  (`"B2 Flex"` → `B2F`).
 - Aparte jeugd-tarieven; overige regels als L1 regulier.
+- SNOOP levert dit als **eigen export**, met `Werkgever op datum shift` =
+  `Level One Payroll Jeugd`. Die wordt als `L1_JEUGD` verwerkt en dus tegen de
+  jeugd-tariefkaart afgerekend. Alleen wanneer één export zowel regulier als
+  jeugd bevat, geldt de export als `L1`.
 
 ### 5.4 Sterk Werk (`SW`)
 - **Code-mapping:** `"B2 Sw"` → `B2` (suffix strippen).

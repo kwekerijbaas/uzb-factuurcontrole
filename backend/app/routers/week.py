@@ -35,10 +35,6 @@ from .tarieven import UZB_NAMEN
 router = APIRouter(prefix="/week", tags=["week"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
-# Het jeugd-payroll-tabblad hoort bij de Level One-conventies.
-CONVENTIE_SLEUTEL = {"L1": "L1", "L1_JEUGD": "L1", "SW": "SW", "CK": "CK"}
-
-
 def maandag_van(iso_jaar: int, iso_week: int) -> date:
     return date.fromisocalendar(iso_jaar, iso_week, 1)
 
@@ -113,7 +109,7 @@ async def verwerk(
         nitea=nitea,
         toeslag_regels=cao_toeslag_regels(),
         kaart=kaart,
-        conventies=conventies(CONVENTIE_SLEUTEL[uzb_sleutel]),
+        conventies=conventies(uzb_sleutel),
         feestdagen=feestdagen_cao_periode(),
         bekende_loonschalen=bekende_loonschalen(sessie, uzb_sleutel),
     )

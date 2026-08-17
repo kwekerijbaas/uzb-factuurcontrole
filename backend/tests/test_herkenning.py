@@ -26,7 +26,10 @@ def _mw(loonschaal=None, werkgever=None):
 @pytest.mark.parametrize(
     "werkgever,verwacht",
     [("Level One", "L1"), ("SterkWerk", "SW"), ("Sterk Werk", "SW"),
-     ("Cervokordaat", "CK"), ("Onbekend BV", None)],
+     ("Cervokordaat", "CK"), ("Onbekend BV", None),
+     # Zoals SNOOP ze werkelijk schrijft; de langste passende naam wint, anders
+     # zou jeugd-payroll als regulier Level One worden gelezen.
+     ("Level One Payroll", "L1_JEUGD"), ("Level One Payroll Jeugd", "L1_JEUGD")],
 )
 def test_werkgeverskolom_bepaalt_het_bureau(werkgever, verwacht):
     sleutel, _ = herken_uzb([_mw(werkgever=werkgever)])
@@ -93,7 +96,26 @@ def test_zonder_werkgeverskolom_telt_de_loonschaal_ook_hier():
     from app.services.ingest.herkenning import bepaal_uzb
 
     assert bepaal_uzb([_mw(loonschaal="B2 Sw")], NAMEN) == "SW"
-    assert bepaal_uzb([_mw(loonschaal="C6 Payroll")], NAMEN) == "L1"
+    assert bepaal_uzb([_mw(loonschaal="C6 Payroll")], NAMEN) == "L1_JEUGD"
+
+
+def test_onbekende_werkgeversnaam_valt_terug_op_de_loonschaal():
+    """Eén hernoemd bureau mag het bestand niet onbruikbaar maken."""
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    assert bepaal_uzb([_mw(werkgever="Uitzendbureau XYZ", loonschaal="B2 Sw")], NAMEN) == "SW"
+
+
+def test_jeugd_export_houdt_zijn_eigen_tariefkaart():
+    """De jeugd-export is een apart bestand met eigen tarieven; als 'L1'
+    verwerken zou de jeugduren tegen volwassentarieven waarderen."""
+    from app.services.ingest.herkenning import bepaal_uzb
+
+    jeugd = [_mw(werkgever="Level One Payroll Jeugd", loonschaal="B 17 jaar Jeugd")]
+    assert bepaal_uzb(jeugd, NAMEN) == "L1_JEUGD"
+    # In één export samen blijft het een Level One-bestand.
+    gemengd = jeugd + [_mw(werkgever="Level One", loonschaal="B2 Flex")]
+    assert bepaal_uzb(gemengd, NAMEN) == "L1"
 
 
 def test_export_met_twee_bureaus_wordt_geweigerd():

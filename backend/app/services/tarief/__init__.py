@@ -33,7 +33,14 @@ from .validatie import (
     valideer_uniforme_factor,
     vergelijk_factoren,
 )
-from .uzb import CERVOKORDAAT, CONVENTIES, LEVEL_ONE, STERK_WERK, conventies
+from .uzb import (
+    CERVOKORDAAT,
+    CONVENTIES,
+    LEVEL_ONE,
+    LEVEL_ONE_JEUGD,
+    STERK_WERK,
+    conventies,
+)
 
 __all__ = [
     "bereken_bedrag",
@@ -51,6 +58,7 @@ __all__ = [
     "kies_kaart",
     "conventies",
     "CONVENTIES",
+    "LEVEL_ONE_JEUGD",
     "LEVEL_ONE",
     "STERK_WERK",
     "CERVOKORDAAT",

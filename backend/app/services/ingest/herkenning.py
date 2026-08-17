@@ -14,11 +14,15 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-# genormaliseerde werkgeversnaam -> UZB-sleutel
+# genormaliseerde werkgeversnaam -> UZB-sleutel. SNOOP noteert varianten die
+# elkaar overlappen ("Level One", "Level One Payroll", "Level One Payroll
+# Jeugd"), dus wint de langste die past -- anders zou het jeugd-payroll als
+# regulier Level One worden gelezen.
 _WERKGEVERS = {
     "levelone": "L1",
     "levelonejeugd": "L1_JEUGD",
     "levelonepayroll": "L1_JEUGD",
+    "levelonepayrolljeugd": "L1_JEUGD",
     "sterkwerk": "SW",
     "cervokordaat": "CK",
 }
@@ -42,6 +46,21 @@ def _norm(waarde: str | None) -> str:
     return re.sub(r"[^a-z]", "", str(waarde or "").lower())
 
 
+def _sleutel_van_werkgever(naam: str | None) -> str | None:
+    """Zoek de UZB-sleutel bij een werkgeversnaam uit SNOOP.
+
+    Op de langste passende naam, zodat een toevoeging aan de naam ("Level One"
+    -> "Level One Payroll Jeugd") het bestand niet onherkenbaar maakt.
+    """
+    genormaliseerd = _norm(naam)
+    if not genormaliseerd:
+        return None
+    for kandidaat in sorted(_WERKGEVERS, key=len, reverse=True):
+        if genormaliseerd.startswith(kandidaat):
+            return _WERKGEVERS[kandidaat]
+    return None
+
+
 def herken_uzb(medewerkers) -> tuple[str | None, str | None]:
     """Bepaal uit welke bron dit bestand komt.
 
@@ -51,10 +70,14 @@ def herken_uzb(medewerkers) -> tuple[str | None, str | None]:
     werkgevers = Counter(
         str(m.werkgever).strip() for m in medewerkers if getattr(m, "werkgever", None)
     )
-    if werkgevers:
-        naam, _ = werkgevers.most_common(1)[0]
-        return _WERKGEVERS.get(_norm(naam)), naam
+    for naam, _ in werkgevers.most_common():
+        sleutel = _sleutel_van_werkgever(naam)
+        if sleutel is not None:
+            return sleutel, naam
 
+    # Onbekende werkgeversnaam: het achtervoegsel van de loonschaal verraadt het
+    # bureau ook. Zonder deze terugval zou één hernoemd bureau het bestand
+    # onbruikbaar maken.
     suffixen = Counter()
     for medewerker in medewerkers:
         delen = str(medewerker.loonschaal or "").split()
@@ -75,9 +98,12 @@ def bepaal_uzb(medewerkers, uzb_namen: dict[str, str]) -> str:
     werkgevers = {
         str(m.werkgever).strip() for m in medewerkers if getattr(m, "werkgever", None)
     }
-    herkend = {_WERKGEVERS.get(_norm(w)) for w in werkgevers} - {None}
-    # Level One regulier en jeugd-payroll staan in dezelfde export.
-    if herkend <= {"L1", "L1_JEUGD"} and herkend:
+    herkend = {_sleutel_van_werkgever(w) for w in werkgevers} - {None}
+    # Staan regulier en jeugd-payroll in één export, dan is het een Level
+    # One-bestand. Een export met alleen jeugd-payroll blijft L1_JEUGD: dat
+    # heeft een eigen tariefkaart, en tegen de reguliere tarieven afrekenen zou
+    # de jeugduren fors te hoog waarderen.
+    if herkend == {"L1", "L1_JEUGD"}:
         herkend = {"L1"}
     if len(herkend) > 1:
         namen = ", ".join(sorted(uzb_namen.get(h, h) for h in herkend))
@@ -95,7 +121,7 @@ def bepaal_uzb(medewerkers, uzb_namen: dict[str, str]) -> str:
             "kolom 'Werkgever op datum shift' is meegeëxporteerd, of dat de "
             "loonschalen zijn ingevuld."
         )
-    return "L1" if sleutel == "L1_JEUGD" else sleutel
+    return sleutel
 
 
 def controleer_uzb(medewerkers, verwacht: str, uzb_namen: dict[str, str]) -> None:
