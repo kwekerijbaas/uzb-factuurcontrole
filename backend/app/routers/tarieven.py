@@ -37,6 +37,7 @@ from app.services.tarief import (
     vergelijk_factoren,
 )
 from app.services.tarief.uzb import CONVENTIES
+from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
 router = APIRouter(prefix="/tarieven", tags=["tarieven"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
@@ -93,9 +94,9 @@ async def upload_loontabel(
     schaal- en een loonkolom kan ook. Bij een PDF worden de omschrijving en de
     ingangsdatum uit het document gehaald als ze niet zijn ingevuld.
     """
-    inhoud = await bestand.read()
-    is_pdf = (bestand.filename or "").lower().endswith(".pdf") or inhoud[:5] == b"%PDF-"
-    try:
+    inhoud = await lees_upload(bestand, "loontabel", PDF | EXCEL)
+    is_pdf = inhoud.startswith(PDF.kentekens)
+    with leesfouten("loontabel", bestand.filename):
         if is_pdf:
             tabel, waarschuwingen = lees_cao_pdf(inhoud, naam or None, ingangsdatum)
         else:
@@ -106,8 +107,6 @@ async def upload_loontabel(
             tabel, waarschuwingen = lees_loontabel(
                 inhoud, naam or bestand.filename or "CAO-loontabel", ingangsdatum
             )
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=str(fout)) from fout
     ingangsdatum = tabel.ingangsdatum
 
     bevindingen = valideer_minimumloon(tabel, Decimal(settings.minimumloon))
@@ -145,11 +144,9 @@ async def upload_tariefkaart(
     uitzendbureau vergeleken met de vorige versie, zodat een onbedoelde
     wijziging opvalt.
     """
-    inhoud = await bestand.read()
-    try:
+    inhoud = await lees_upload(bestand, "tariefkaart", EXCEL)
+    with leesfouten("tariefkaart", bestand.filename):
         bladen, waarschuwingen = lees_tariefkaart(inhoud)
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=str(fout)) from fout
 
     if ook_lonen:
         tabel, loon_waarschuwingen = lees_cao_loontabel(
@@ -238,11 +235,9 @@ async def upload_level_one(
     Seizoen. Alleen de tarieven van Level One worden bijgewerkt; de andere
     uitzendbureaus blijven ongemoeid.
     """
-    inhoud = await bestand.read()
-    try:
+    inhoud = await lees_upload(bestand, "Level One-export", EXCEL)
+    with leesfouten("Level One-export", bestand.filename):
         export, waarschuwingen = lees_level_one_export(inhoud, kolom)
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=str(fout)) from fout
 
     if ook_lonen and export.lonen:
         tabel = Loontabel(

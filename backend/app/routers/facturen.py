@@ -21,6 +21,8 @@ from app.services.factuurcontrole import bevindingenmail, controleer
 from app.services.ingest.factuur import Factuur, lees_factuur
 from app.services.opslag import bewaarde_weken, haal_weekresultaat
 
+from app.uploads import PDF, lees_upload, leesfouten
+
 from .tarieven import UZB_NAMEN
 
 router = APIRouter(prefix="/facturen", tags=["facturen"])
@@ -71,15 +73,9 @@ async def controleer_facturen(
     for bestand in bestanden:
         if not bestand or not bestand.filename:
             continue
-        rauw = await bestand.read()
-        if not rauw:
-            continue
-        try:
+        rauw = await lees_upload(bestand, f"factuur '{bestand.filename}'", PDF)
+        with leesfouten(f"factuur '{bestand.filename}'", bestand.filename):
             deel = lees_factuur(rauw, uzb_sleutel)
-        except ValueError as fout:
-            raise HTTPException(
-                status_code=400, detail=f"{bestand.filename}: {fout}"
-            ) from fout
         if samen is None:
             samen = deel
         else:

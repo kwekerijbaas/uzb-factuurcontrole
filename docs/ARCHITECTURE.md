@@ -196,6 +196,20 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
    CAO-loontabel met **ingangsdatum** uploaden (zie SPEC §6). De tarieven van
    alle uitzendbureaus bewegen vanaf die datum automatisch mee — verder niets.
 
+## 6b. Foutmeldingen nakijken
+
+Uploads worden op bestandstype gecontroleerd vóórdat ze worden ingelezen: de
+extensie zegt niets (die is te hernoemen), de eerste bytes wel. Een verkeerd
+gekozen bestand — de SNOOP-export in het Nitea-veld, een oud `.xls`, een
+factuur in plaats van een urenoverzicht — geeft daardoor een **400 met een
+leesbare melding** in plaats van een kale `Internal Server Error`.
+
+Gaat er tóch iets onverwachts mis, dan toont de app een pagina met een
+**kenmerk** van acht tekens. Datzelfde kenmerk staat met de volledige traceback
+in het log van de hoster (Render → service → *Logs*, zoek op het kenmerk).
+Vraag gebruikers dat kenmerk door te geven; zonder is een melding "het werkt
+niet" niet terug te vinden.
+
 ## 7. Bouwvolgorde & status
 
 1. **Spec + architectuur** vastgelegd (`docs/`). ✅

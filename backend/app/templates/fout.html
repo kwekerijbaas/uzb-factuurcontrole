@@ -1,0 +1,13 @@
+{% extends "basis.html" %}
+{% block titel %}{{ titel }} — UF{% endblock %}
+{% block inhoud %}
+<h1>{{ titel }}</h1>
+<div class="kaart">
+  <p class="fout">{{ melding }}</p>
+  {% if kenmerk %}
+    <p class="hint">Kenmerk {{ kenmerk }} — noem dit als je hier melding van maakt;
+       de details staan onder dat kenmerk in het log.</p>
+  {% endif %}
+  <p><a href="{{ terug }}">Terug</a></p>
+</div>
+{% endblock %}

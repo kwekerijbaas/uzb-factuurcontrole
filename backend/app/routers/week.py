@@ -28,6 +28,7 @@ from app.services.opslag import (
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
 from app.services.tarief import bouw_tariefkaart, conventies
 from app.services.verwerking import verwerk_week
+from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
 
@@ -79,16 +80,22 @@ async def verwerk(
     except ValueError as fout:
         raise HTTPException(status_code=400, detail=f"ongeldige week: {fout}") from fout
 
-    try:
-        snoop = lees_snoop(await snoop_bestand.read())
+    rauwe_snoop = await lees_upload(snoop_bestand, "SNOOP-export", EXCEL)
+    rauwe_nitea = await lees_upload(nitea_bestand, "Nitea-overzicht", PDF)
+
+    with leesfouten("SNOOP-export", snoop_bestand.filename):
+        snoop = lees_snoop(rauwe_snoop)
         uzb_sleutel = bepaal_uzb(snoop, UZB_NAMEN)
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=f"SNOOP-bestand: {fout}") from fout
-    nitea = lees_nitea(await nitea_bestand.read())
+    with leesfouten("Nitea-overzicht", nitea_bestand.filename):
+        nitea = lees_nitea(rauwe_nitea)
     if not nitea:
         raise HTTPException(
             status_code=400,
-            detail="Geen registratieregels in het Nitea-bestand herkend.",
+            detail=(
+                f"Geen registratieregels herkend in '{nitea_bestand.filename}'. "
+                "Verwacht wordt het Nitea-overzicht 'Medewerker uren'; een "
+                "factuur of ander rapport heeft die regels niet."
+            ),
         )
 
     lonen = loontabel_op(sessie, maandag)

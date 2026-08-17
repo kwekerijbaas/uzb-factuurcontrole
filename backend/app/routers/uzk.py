@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -17,6 +17,8 @@ from app.models import Uzk
 from app.services.ingest.herkenning import bepaal_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import borg_uzb, onthoud_uzk, uzb_op_sleutel
+
+from app.uploads import EXCEL, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
 
@@ -71,12 +73,10 @@ async def upload_lijst(
     loonschaal per uitzendkracht, zodat weken waarin SNOOP iemand niet bevat
     toch een tarief krijgen. Bij een schaalwissel telt de meest recente.
     """
-    inhoud = await bestand.read()
-    try:
+    inhoud = await lees_upload(bestand, "uitzendkrachtenlijst", EXCEL)
+    with leesfouten("uitzendkrachtenlijst", bestand.filename):
         regels, waarschuwingen = lees_uzk_lijst(inhoud)
         uzb_sleutel = bepaal_uzb(regels, UZB_NAMEN)
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=str(fout)) from fout
 
     uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
     for regel in regels:
