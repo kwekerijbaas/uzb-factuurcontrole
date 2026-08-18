@@ -39,6 +39,32 @@ _UUR = "0.00"
 
 _DAGEN = ("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag")
 
+# Wat er moet gebeuren om een afwijking op te lossen, per soort. De meldingen
+# (onderaan het tabblad) dragen hun vervolgstap al in de tekst zelf.
+_AFWIJKING_ACTIE = {
+    "registratie_inconsistent": (
+        "Controleer in Nitea of de onderbreking klopt. Zo niet: registratie "
+        "laten corrigeren en de week opnieuw verwerken; klopt hij wel, dan is "
+        "er niets te doen -- de uren zijn al juist geteld."
+    ),
+    "geen_registratie": (
+        "Wel gepland, niet geklokt. Niet gewerkt: niets doen. Vergeten te "
+        "klokken: Nitea laten aanvullen en de week opnieuw verwerken."
+    ),
+    "geen_planning": (
+        "Gewerkt zonder planning. Controleer of de dienst terecht was; de uren "
+        "tellen gewoon mee."
+    ),
+    "uren_verschil": (
+        "Planning en registratie verschillen. Nitea is leidend; alleen "
+        "controleren als het verschil onverwacht groot is."
+    ),
+    "tijd_verschil": (
+        "Begin- of eindtijd wijkt af van de planning. Nitea is leidend; alleen "
+        "controleren bij structurele afwijkingen."
+    ),
+}
+
 
 def _kop(ws, rij: int, koppen: list[str], bevries: bool = True) -> None:
     for kolom, tekst in enumerate(koppen, start=1):
@@ -205,7 +231,7 @@ def bouw_overzicht(
     ws4 = wb.create_sheet("Afwijkingen")
     ws4["A1"] = "Afwijkingen en aandachtspunten"
     ws4["A1"].font = _TITEL
-    _kop(ws4, 3, ["Medewerker", "Datum", "Soort", "Toelichting"])
+    _kop(ws4, 3, ["Medewerker", "Datum", "Soort", "Toelichting", "Wat te doen"])
     rij = 4
     for medewerker in verwerking.medewerkers:
         for afwijking in medewerker.afwijkingen:
@@ -213,12 +239,13 @@ def bouw_overzicht(
             ws4.cell(row=rij, column=2, value=afwijking.datum).number_format = "dd-mm-yyyy"
             ws4.cell(row=rij, column=3, value=afwijking.soort)
             ws4.cell(row=rij, column=4, value=afwijking.detail)
+            ws4.cell(row=rij, column=5, value=_AFWIJKING_ACTIE.get(afwijking.soort, ""))
             rij += 1
     for melding in verwerking.meldingen:
         ws4.cell(row=rij, column=3, value="melding")
         ws4.cell(row=rij, column=4, value=melding)
         rij += 1
-    _breedtes(ws4, [26, 12, 24, 80])
+    _breedtes(ws4, [26, 12, 24, 70, 60])
 
     if controle is not None:
         voeg_factuurcontrole_toe(wb, controle)
@@ -255,7 +282,7 @@ def voeg_factuurcontrole_toe(wb, controle) -> None:
 
     ws.cell(row=8, column=1, value=f"Bevindingen ({len(controle.bevindingen)})").font = _TITEL
     _kop(ws, 9, ["Soort", "Medewerker", "Uren ons", "Uren factuur",
-                 "Bedrag ons", "Bedrag factuur", "Toelichting"])
+                 "Bedrag ons", "Bedrag factuur", "Toelichting", "Wat te doen"])
     rij = 10
     for bevinding in controle.bevindingen:
         ws.cell(row=rij, column=1, value=bevinding.soort)
@@ -270,8 +297,9 @@ def voeg_factuurcontrole_toe(wb, controle) -> None:
                 cel = ws.cell(row=rij, column=kolom, value=float(waarde))
                 cel.number_format = opmaak
         ws.cell(row=rij, column=7, value=bevinding.melding)
+        ws.cell(row=rij, column=8, value=bevinding.actie)
         rij += 1
-    _breedtes(ws, [22, 26, 11, 12, 12, 13, 70])
+    _breedtes(ws, [22, 26, 11, 12, 12, 13, 60, 55])
 
 
 def bestandsnaam(uzb_naam: str, verwerking: WeekVerwerking) -> str:
@@ -315,7 +343,8 @@ def bouw_matchingsbestand(controle, bevindingen_tekst: str = "") -> bytes:
     ws2["A1"] = f"Bevindingen ({len(controle.bevindingen)})"
     ws2["A1"].font = _TITEL
     _kop(ws2, 3, ["Soort", "Medewerker", "Uren ons", "Uren factuur", "Verschil",
-                  "Bedrag ons", "Bedrag factuur", "Verschil", "Toelichting"])
+                  "Bedrag ons", "Bedrag factuur", "Verschil", "Toelichting",
+                  "Wat te doen"])
     rij = 4
     for bevinding in controle.bevindingen:
         ws2.cell(row=rij, column=1, value=bevinding.soort)
@@ -332,8 +361,9 @@ def bouw_matchingsbestand(controle, bevindingen_tekst: str = "") -> bytes:
                 cel = ws2.cell(row=rij, column=kolom, value=float(waarde))
                 cel.number_format = opmaak
         ws2.cell(row=rij, column=9, value=bevinding.melding)
+        ws2.cell(row=rij, column=10, value=bevinding.actie)
         rij += 1
-    _breedtes(ws2, [20, 26, 10, 12, 10, 12, 13, 10, 62])
+    _breedtes(ws2, [20, 26, 10, 12, 10, 12, 13, 10, 55, 50])
 
     # --- Alle koppelingen ------------------------------------------------- #
     ws3 = wb.create_sheet("Koppelingen")

@@ -40,6 +40,9 @@ class Bevinding:
     bedrag_overzicht: Decimal | None = None
     bedrag_factuur: Decimal | None = None
     melding: str = ""
+    # Wat er moet gebeuren om dit op te lossen -- zonder vervolgstap blijft een
+    # bevinding een constatering waar niemand iets mee doet.
+    actie: str = ""
 
     @property
     def uren_verschil(self) -> Decimal | None:
@@ -243,6 +246,17 @@ def controleer(
                         "weekoverzicht; de dag(en) die maar aan één kant staan "
                         "of langer duren, zijn het verschil."
                     ),
+                    actie=(
+                        f"Leg het verschil met de dagen erbij voor aan {uzb_naam} "
+                        f"en vraag om creditering van {abs(uren_af):.2f} u."
+                        if uren_af > 0
+                        else (
+                            f"Meld het verschil aan {uzb_naam}; de ontbrekende "
+                            f"{abs(uren_af):.2f} u volgen dan als nafactuur."
+                        )
+                    )
+                    + " Blijkt juist de Nitea-registratie fout, laat die dan "
+                    "corrigeren en verwerk de week opnieuw.",
                 )
             )
         elif abs(bedrag_af) > _CENT_TOLERANTIE:
@@ -267,6 +281,12 @@ def controleer(
                         "de tarieven wel, dan zit het verschil in de "
                         "toeslagverdeling (nacht/avond/zaterdag)."
                     ),
+                    actie=(
+                        f"Klopt ons tarief, vraag {uzb_naam} dan om een "
+                        "gecorrigeerde factuur op de juiste loonschaal of "
+                        "tariefkaart. Staat de loonschaal bij óns fout, pas hem "
+                        "aan bij Uitzendkrachten en verwerk de week opnieuw."
+                    ),
                 )
             )
 
@@ -288,6 +308,11 @@ def controleer(
                     "spelling); staat hij er echt niet op, dan volgt dit meestal "
                     "als nafacturatie -- controleer de factuur van de week erna."
                 ),
+                actie=(
+                    "Nu niets betalen. Controleer de eerstvolgende factuur van "
+                    f"{uzb_naam}; ontbreken de uren daar ook, vraag dan alsnog "
+                    "om facturatie."
+                ),
             )
         )
 
@@ -307,6 +332,13 @@ def controleer(
                     + " Waar te vinden: controleer in Nitea of deze persoon die "
                     "week geklokt heeft; zo niet, dan hoort deze regel niet op "
                     "de factuur."
+                ),
+                actie=(
+                    "Is het een spellingsverschil, laat de naam dan bij "
+                    f"{uzb_naam} of in Nitea gelijktrekken. Niet geklokt en ook "
+                    f"niet gewerkt: keur de regel af en vraag {uzb_naam} om "
+                    "creditering. Wel gewerkt maar niet geklokt: laat Nitea "
+                    "aanvullen en verwerk de week opnieuw."
                 ),
             )
         )
@@ -367,6 +399,8 @@ def bevindingenmail(controles: list[Controle]) -> str:
             regels.append(f"   {_LABELS[soort]}:")
             for bevinding in groep:
                 regels.append(f"     - {bevinding.naam}: {bevinding.melding}")
+                if bevinding.actie:
+                    regels.append(f"       Actie: {bevinding.actie}")
         regels.append("")
 
     regels += [

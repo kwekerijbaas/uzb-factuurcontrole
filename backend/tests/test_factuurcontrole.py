@@ -186,3 +186,41 @@ def test_matchingsbestand_bevat_de_vier_tabbladen():
 
     koppelingen = [r for r in wb["Koppelingen"].iter_rows(min_row=4, values_only=True) if r[0]]
     assert koppelingen[0][1] == "B.D. Janicki (Bartlomiej)"  # naam zoals op de factuur
+
+
+# --------------------------------------------------------------------------- #
+# Elke bevinding draagt zijn vervolgstap
+# --------------------------------------------------------------------------- #
+def test_elke_bevinding_heeft_een_actie():
+    """Zonder vervolgstap blijft een bevinding een constatering waar niemand
+    iets mee doet; de actie noemt het bureau en wat er moet gebeuren."""
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur(
+        [
+            _kracht("K. Sliwa (Kamil)", "42", "1080"),  # uren wijken af
+            _kracht("Onbekende Persoon", "8", "200"),   # niet in overzicht
+        ]
+    )
+    controle = controleer(verwerking, factuur, "Level One")
+
+    per_soort = {b.soort: b for b in controle.bevindingen}
+    assert all(b.actie for b in controle.bevindingen)
+    assert "creditering van 2.00 u" in per_soort[SOORT_UREN].actie
+    assert "Level One" in per_soort[SOORT_UREN].actie
+    assert "creditering" in per_soort[SOORT_NIET_IN_OVERZICHT].actie
+
+
+def test_actie_bij_te_weinig_gefactureerd_vraagt_om_nafactuur():
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur([_kracht("K. Sliwa", "36", "900")])
+    controle = controleer(verwerking, factuur, "Level One")
+    bevinding = next(b for b in controle.bevindingen if b.soort == SOORT_UREN)
+    assert "nafactuur" in bevinding.actie
+
+
+def test_mail_noemt_de_actie():
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur([_kracht("K. Sliwa", "42", "1080")])
+    controle = controleer(verwerking, factuur, "Level One")
+    mail = bevindingenmail([controle])
+    assert "Actie:" in mail
