@@ -5,16 +5,9 @@
 <div class="kaart">
   <form method="post" action="/week/verwerk" enctype="multipart/form-data"
         onsubmit="setTimeout(() =&gt; { this.reset(); document.getElementById('klaar').hidden = false; }, 1500)">
-    <div class="rij">
-      <div>
-        <label for="jaar">Jaar</label>
-        <input id="jaar" type="number" name="iso_jaar" value="{{ iso_jaar }}" required>
-      </div>
-      <div>
-        <label for="week">Weeknummer</label>
-        <input id="week" type="number" name="iso_week" min="1" max="53" value="{{ iso_week }}" required>
-      </div>
-    </div>
+    <p class="hint">Het weeknummer hoef je niet in te vullen: dat wordt uit de
+       datums in de bestanden afgeleid. Horen de twee bestanden niet bij
+       dezelfde week, dan wordt de upload geweigerd.</p>
     <label for="snoop">SNOOP-export (.xlsx)</label>
     <input id="snoop" type="file" name="snoop_bestand" accept=".xlsx" required>
     <p class="hint">Loonschaal per medewerker. Het uitzendbureau wordt hieruit

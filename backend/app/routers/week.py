@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ from app.services.opslag import (
     bewaar_weekresultaat,
     borg_uzb,
     factoren_op,
+    handmatige_loonschalen,
     loontabel_op,
     onthoud_uzk,
     ruim_oude_weken_op,
@@ -43,6 +44,52 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 def maandag_van(iso_jaar: int, iso_week: int) -> date:
     return date.fromisocalendar(iso_jaar, iso_week, 1)
+
+
+def bepaal_week(nitea, snoop) -> tuple[int, int]:
+    """Leid het weeknummer af uit de bestanden zelf.
+
+    Een getypt weeknummer ging te vaak fout: de week werd dan onder het
+    verkeerde nummer bewaard en dook zo op in de factuurcontrole. De datums
+    staan gewoon in de bestanden -- Nitea is leidend, en de SNOOP-export moet
+    dezelfde week beslaan, anders zijn er bestanden van verschillende weken
+    gecombineerd.
+    """
+    nitea_weken = {
+        regel.datum.isocalendar()[:2]
+        for medewerker in nitea
+        for regel in medewerker.registratie
+    }
+    if len(nitea_weken) != 1:
+        weken = ", ".join(f"{w}/{j}" for j, w in sorted(nitea_weken)) or "geen"
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Het Nitea-overzicht beslaat niet precies één week "
+                f"(gevonden: {weken}). Exporteer per week één overzicht."
+            ),
+        )
+    iso_jaar, iso_week = next(iter(nitea_weken))
+
+    snoop_weken = {
+        regel.datum.isocalendar()[:2]
+        for medewerker in snoop
+        for regel in medewerker.planning
+    }
+    if snoop_weken and snoop_weken != {(iso_jaar, iso_week)}:
+        anders = ", ".join(
+            f"{w}/{j}" for j, w in sorted(snoop_weken - {(iso_jaar, iso_week)})
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"De bestanden horen niet bij elkaar: het Nitea-overzicht is "
+                f"van week {iso_week}/{iso_jaar}, de SNOOP-export bevat (ook) "
+                f"week {anders}. Kies de SNOOP- en Nitea-bestanden van "
+                "dezelfde week."
+            ),
+        )
+    return iso_jaar, iso_week
 
 
 def kaartreeks_van_week(sessie: Session, uzb_sleutel: str, maandag: date) -> Kaartreeks:
@@ -86,8 +133,6 @@ def formulier(
 
 @router.post("/verwerk")
 async def verwerk(
-    iso_jaar: int = Form(...),
-    iso_week: int = Form(...),
     snoop_bestand: UploadFile = File(...),
     nitea_bestand: UploadFile = File(...),
     sessie: Session = Depends(get_session),
@@ -95,14 +140,10 @@ async def verwerk(
 ) -> Response:
     """Verwerk één week en geef het urenoverzicht als download terug.
 
-    Het uitzendbureau wordt uit de SNOOP-export afgeleid; die noteert het in de
-    kolom "Werkgever op datum shift".
+    Zowel het uitzendbureau als het weeknummer worden uit de bestanden zelf
+    afgeleid; een getypt weeknummer ging te vaak fout en zette de week onder
+    het verkeerde nummer vast.
     """
-    try:
-        maandag = maandag_van(iso_jaar, iso_week)
-    except ValueError as fout:
-        raise HTTPException(status_code=400, detail=f"ongeldige week: {fout}") from fout
-
     rauwe_snoop = await lees_upload(snoop_bestand, "SNOOP-export", EXCEL)
     rauwe_nitea = await lees_upload(nitea_bestand, "Nitea-overzicht", PDF)
 
@@ -121,6 +162,8 @@ async def verwerk(
             ),
         )
 
+    iso_jaar, iso_week = bepaal_week(nitea, snoop)
+    maandag = maandag_van(iso_jaar, iso_week)
     reeks = kaartreeks_van_week(sessie, uzb_sleutel, maandag)
 
     uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
@@ -135,6 +178,7 @@ async def verwerk(
         conventies=conventies(uzb_sleutel),
         feestdagen=feestdagen_cao_periode(),
         bekende_loonschalen=bekende_loonschalen(sessie, uzb_sleutel),
+        handmatige_loonschalen=handmatige_loonschalen(sessie, uzb_sleutel),
     )
 
     # Onthoud iedereen met zijn loonschaal, zodat een week waarin SNOOP

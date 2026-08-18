@@ -159,6 +159,10 @@ class Uzk(Base, TijdstempelMixin):
     externe_code: Mapped[str | None] = mapped_column(String(100))  # id in Nitea
     naam: Mapped[str] = mapped_column(String(200), nullable=False)
     loonschaal_code: Mapped[str | None] = mapped_column(String(50))
+    # Met de hand ingevuld in het scherm. Zo'n schaal wordt niet stilzwijgend
+    # overschreven door een bestand: bij een verschil volgt een melding, en
+    # alleen een bewuste keuze neemt de bestandswaarde over.
+    schaal_handmatig: Mapped[bool] = mapped_column(Boolean, default=False)
     actief: Mapped[bool] = mapped_column(Boolean, default=True)
 
     uzb: Mapped[Uzb] = relationship(back_populates="uzks")

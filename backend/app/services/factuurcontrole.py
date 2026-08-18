@@ -153,6 +153,42 @@ def koppel(
     )
 
 
+def _gewerkt(medewerker: MedewerkerResultaat) -> str:
+    """"gewerkt op ma 22-06 t/m vr 26-06" -- wijst meteen naar de juiste dagen."""
+    dagen = sorted({s.datum for s in medewerker.resultaat.trace})
+    if not dagen:
+        return "geen dagen in de registratie"
+    if len(dagen) == 1:
+        return f"gewerkt op {dagen[0]:%d-%m}"
+    return f"gewerkt op {dagen[0]:%d-%m} t/m {dagen[-1]:%d-%m}, {len(dagen)} dagen"
+
+
+def _uurprijs(bedrag: Decimal, uren: Decimal) -> str:
+    return f"{bedrag / uren:.2f}" if uren else "-"
+
+
+def _lijkt_op(factuur_naam: str, verwerking: WeekVerwerking) -> str:
+    """Zoek de meest gelijkende naam uit ons overzicht.
+
+    Een niet-koppelbare factuurregel is meestal een spellingsverschil
+    (Cristian/Christian, Alex/Alexander); de vermoedelijke match erbij noemen
+    scheelt uitzoekwerk.
+    """
+    beste, score = None, 0
+    for medewerker in verwerking.medewerkers:
+        s = fuzz.token_sort_ratio(
+            str(factuur_naam).lower(), medewerker.naam.lower()
+        )
+        if s > score:
+            beste, score = medewerker, s
+    if beste is not None and score >= 55:
+        return (
+            f" De naam lijkt op '{beste.naam}' uit ons overzicht -- "
+            "waarschijnlijk een spellingsverschil tussen factuur en Nitea."
+        )
+    return ""
+
+
 def controleer(
     verwerking: WeekVerwerking, factuur: Factuur, uzb_naam: str
 ) -> Controle:
@@ -189,6 +225,7 @@ def controleer(
         bedrag_af = kracht.bedrag - medewerker.bedrag.totaal
 
         if abs(uren_af) > _UUR_TOLERANTIE:
+            richting = "meer" if uren_af > 0 else "minder"
             controle.bevindingen.append(
                 Bevinding(
                     soort=SOORT_UREN,
@@ -198,8 +235,13 @@ def controleer(
                     bedrag_overzicht=medewerker.bedrag.totaal,
                     bedrag_factuur=kracht.bedrag,
                     melding=(
-                        f"gefactureerd {kracht.uren:.2f} u tegenover "
-                        f"{medewerker.netto_uren:.2f} u volgens Nitea"
+                        f"de factuur rekent {abs(uren_af):.2f} u {richting} dan "
+                        f"Nitea registreerde ({kracht.uren:.2f} tegenover "
+                        f"{medewerker.netto_uren:.2f}, {_gewerkt(medewerker)}). "
+                        "Waar te vinden: leg de dagregels van deze persoon op de "
+                        "factuur naast het tabblad 'Per dag' van het "
+                        "weekoverzicht; de dag(en) die maar aan één kant staan "
+                        "of langer duren, zijn het verschil."
                     ),
                 )
             )
@@ -213,8 +255,17 @@ def controleer(
                     bedrag_overzicht=medewerker.bedrag.totaal,
                     bedrag_factuur=kracht.bedrag,
                     melding=(
-                        f"uren kloppen, bedrag wijkt {bedrag_af:+.2f} af — "
-                        "controleer loonschaal of toeslagverdeling"
+                        f"de uren kloppen maar het bedrag wijkt EUR "
+                        f"{abs(bedrag_af):.2f} af: de factuur rekent gemiddeld "
+                        f"EUR {_uurprijs(kracht.bedrag, kracht.uren)}/u, wij "
+                        f"EUR {_uurprijs(medewerker.bedrag.totaal, medewerker.netto_uren)}/u "
+                        f"op loonschaal {medewerker.loonschaal or 'onbekend'}. "
+                        "Waar te vinden: vergelijk het uurtarief op de "
+                        "factuurregel met het tabblad 'Tarieven' van het "
+                        "weekoverzicht -- wijkt het af, dan hanteert het bureau "
+                        "een andere loonschaal of een oude tariefkaart; kloppen "
+                        "de tarieven wel, dan zit het verschil in de "
+                        "toeslagverdeling (nacht/avond/zaterdag)."
                     ),
                 )
             )
@@ -231,7 +282,11 @@ def controleer(
                 uren_overzicht=medewerker.netto_uren,
                 bedrag_overzicht=medewerker.bedrag.totaal,
                 melding=(
-                    f"{medewerker.netto_uren:.2f} u gewerkt, staat niet op de factuur"
+                    f"{medewerker.netto_uren:.2f} u gewerkt ({_gewerkt(medewerker)}) "
+                    "maar deze persoon ontbreekt op de factuur. Waar te vinden: "
+                    "zoek de naam op de factuur (ook op initialen of een andere "
+                    "spelling); staat hij er echt niet op, dan volgt dit meestal "
+                    "als nafacturatie -- controleer de factuur van de week erna."
                 ),
             )
         )
@@ -246,7 +301,12 @@ def controleer(
                 uren_factuur=kracht.uren,
                 bedrag_factuur=kracht.bedrag,
                 melding=(
-                    f"{kracht.uren:.2f} u gefactureerd, komt niet voor in onze registratie"
+                    f"{kracht.uren:.2f} u gefactureerd, maar deze naam komt niet "
+                    "voor in de Nitea-registratie van deze week."
+                    + _lijkt_op(kracht.naam_ruw, verwerking)
+                    + " Waar te vinden: controleer in Nitea of deze persoon die "
+                    "week geklokt heeft; zo niet, dan hoort deze regel niet op "
+                    "de factuur."
                 ),
             )
         )

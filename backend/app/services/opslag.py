@@ -196,7 +196,9 @@ def onthoud_uzk(
     De loonschaal komt uit SNOOP en staat daar niet altijd in: wie wel in Nitea
     zit maar niet in de planning, kreeg voorheen geen tarief en dus een bedrag
     van nul. Door de schaal per uitzendkracht te bewaren kan een volgende week
-    daarop terugvallen. Een lege schaal overschrijft nooit een bekende.
+    daarop terugvallen. Een lege schaal overschrijft nooit een bekende, en een
+    handmatig ingevulde schaal wordt door een bestand niet overschreven -- dat
+    kan alleen via een bewuste keuze in het scherm (`zet_loonschaal`).
     """
     rij = sessie.scalar(
         select(Uzk).where(Uzk.uzb_id == uzb.id).where(func.lower(Uzk.naam) == _sleutel(naam))
@@ -209,11 +211,40 @@ def onthoud_uzk(
         return rij
     if externe_code and not rij.externe_code:
         rij.externe_code = externe_code
-    if loonschaal:
+    if loonschaal and not rij.schaal_handmatig:
         rij.loonschaal_code = loonschaal
     if rij.naam != _net(naam) and rij.naam.islower():
         rij.naam = _net(naam)  # eerder in kleine letters bewaard
     return rij
+
+
+def zet_loonschaal(rij: Uzk, loonschaal: str, handmatig: bool) -> None:
+    """Bewuste schaalwijziging vanuit het scherm.
+
+    `handmatig=True` bij een met de hand ingevulde waarde: die is daarna tegen
+    bestanden beschermd. `handmatig=False` wanneer de gebruiker juist kiest de
+    bestandswaarde over te nemen; daarmee vervalt de bescherming weer.
+    """
+    rij.loonschaal_code = loonschaal
+    rij.schaal_handmatig = handmatig
+
+
+def handmatige_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
+    """De met de hand ingevulde schalen, op genormaliseerde naam.
+
+    Deze winnen bij het verwerken van een week van de SNOOP-waarde: ze zijn
+    juist ingevuld omdat het bestand het fout of niet had.
+    """
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return {}
+    rijen = sessie.scalars(
+        select(Uzk)
+        .where(Uzk.uzb_id == uzb.id)
+        .where(Uzk.schaal_handmatig.is_(True))
+        .where(Uzk.loonschaal_code.is_not(None))
+    ).all()
+    return {_sleutel(r.naam): r.loonschaal_code for r in rijen}
 
 
 def bekende_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
@@ -302,6 +333,29 @@ def bewaar_weekresultaat(sessie: Session, uzb: Uzb, verwerking) -> int:
         )
     sessie.flush()
     return len(verwerking.medewerkers)
+
+
+def verwijder_weekresultaat(
+    sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_week: int
+) -> int:
+    """Verwijder een bewaarde week, bv. per ongeluk onder het verkeerde
+    weeknummer verwerkt. Retourneert het aantal verwijderde medewerkers."""
+    from app.models import MatchPeriode
+
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return 0
+    rijen = sessie.scalars(
+        select(MatchPeriode)
+        .join(Uzk, Uzk.id == MatchPeriode.uzk_id)
+        .where(Uzk.uzb_id == uzb.id)
+        .where(MatchPeriode.iso_jaar == iso_jaar)
+        .where(MatchPeriode.iso_week == iso_week)
+    ).all()
+    for rij in rijen:
+        sessie.delete(rij)
+    sessie.flush()
+    return len(rijen)
 
 
 def bewaarde_weken(sessie: Session, uzb_sleutel: str | None = None) -> list[dict]:

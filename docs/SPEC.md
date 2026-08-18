@@ -88,6 +88,21 @@ In de praktijk komt dit vooral door een naamverschil tussen SNOOP en Nitea
 (`Cristian` tegenover `Christian`, `Alex` tegenover `Alexander`): dan vindt de
 koppeling de SNOOP-regel niet en blijft de schaal leeg.
 
+**Handmatig ingevulde schalen zijn beschermd.** Een met de hand ingevulde
+schaal (gemarkeerd met ✎) wint bij het verwerken van de SNOOP-waarde en wordt
+door bestanden niet stilzwijgend overschreven. Wijkt een bestand ervan af, dan
+volgt een melding per geval: bij de weekverwerking op het Afwijkingen-tabblad,
+bij de lijst-upload als keuze op het resultaatscherm ("bestand overnemen" of
+"handmatig laten staan"). Pas wie bewust de bestandswaarde overneemt, vervalt
+de bescherming.
+
+**Het weeknummer komt uit de bestanden.** Nitea is leidend; het overzicht moet
+precies één ISO-week beslaan en de SNOOP-export moet dezelfde week dekken,
+anders wordt de upload geweigerd. Een getypt weeknummer ging te vaak fout en
+zette de week onder het verkeerde nummer vast. Een tóch verkeerd bewaarde week
+is te verwijderen op de Factuurcontrole-pagina; opnieuw verwerken zet hem goed
+terug.
+
 ## 5. Tariefmapping per UZB
 
 Elke UZB heeft een eigen tabblad in de tariefkaart, een eigen code-mapping en

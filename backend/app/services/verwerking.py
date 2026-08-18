@@ -84,6 +84,7 @@ def verwerk_week(
     feestdagen: frozenset[date] = frozenset(),
     parameters: WeekParameters | None = None,
     bekende_loonschalen: dict[str, str] | None = None,
+    handmatige_loonschalen: dict[str, str] | None = None,
 ) -> WeekVerwerking:
     """Bereken voor elke geregistreerde medewerker de uren en het bedrag.
 
@@ -97,6 +98,11 @@ def verwerk_week(
     loonschaal (`bekende_loonschalen`). Zonder die terugval zouden de gewerkte
     uren wel meetellen maar het bedrag nul zijn, waardoor het weekgemiddelde
     stilzwijgend te laag uitkomt.
+
+    Een **handmatig** ingevulde schaal (`handmatige_loonschalen`) wint juist van
+    SNOOP: die is ingevuld omdat het bestand het fout of niet had. Wijkt SNOOP
+    af, dan komt daar een melding van, zodat een schaalwijziging bij het bureau
+    niet ongemerkt blijft hangen achter een oude handmatige waarde.
     """
     verwerking = WeekVerwerking(uzb_sleutel, iso_jaar, iso_week)
     reeks = kaart if isinstance(kaart, Kaartreeks) else Kaartreeks.van_kaart(kaart)
@@ -116,9 +122,18 @@ def verwerk_week(
             parameters or WeekParameters(),
         )
 
-        loonschaal = planning_bron.loonschaal if planning_bron else None
+        snoop_schaal = planning_bron.loonschaal if planning_bron else None
+        handmatig = (handmatige_loonschalen or {}).get(sleutel)
+        loonschaal = handmatig or snoop_schaal
         if not loonschaal and bekende_loonschalen:
             loonschaal = bekende_loonschalen.get(sleutel)
+        if handmatig and snoop_schaal and snoop_schaal != handmatig:
+            verwerking.meldingen.append(
+                f"{medewerker.naam}: SNOOP noemt loonschaal '{snoop_schaal}', "
+                f"maar handmatig is '{handmatig}' ingesteld -- de week is met "
+                f"'{handmatig}' gerekend. Klopt de SNOOP-waarde, neem die dan "
+                "over bij Uitzendkrachten."
+            )
         kaartcode = conventies.kaartcode(loonschaal)
         schalen = reeks.schalen_van(kaartcode)
         heeft_tarief = any(s is not None for _, s in schalen.periodes)

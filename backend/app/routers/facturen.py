@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -19,7 +19,11 @@ from app.db import get_session
 from app.services.export import bouw_matchingsbestand
 from app.services.factuurcontrole import bevindingenmail, controleer
 from app.services.ingest.factuur import Factuur, lees_factuur
-from app.services.opslag import bewaarde_weken, haal_weekresultaat
+from app.services.opslag import (
+    bewaarde_weken,
+    haal_weekresultaat,
+    verwijder_weekresultaat,
+)
 
 from app.uploads import PDF, lees_upload, leesfouten
 
@@ -32,6 +36,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 @router.get("", response_class=HTMLResponse)
 def overzicht(
     request: Request,
+    verwijderd: str = "",
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
@@ -41,7 +46,38 @@ def overzicht(
     return templates.TemplateResponse(
         request=request,
         name="facturen.html",
-        context={"gebruiker": gebruiker, "weken": weken},
+        context={"gebruiker": gebruiker, "weken": weken, "verwijderd": verwijderd},
+    )
+
+
+@router.post("/verwijder", response_model=None)
+def verwijder_week(
+    week: str = Form(...),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """Verwijder een bewaarde week.
+
+    Nodig wanneer een week onder het verkeerde nummer is verwerkt: opnieuw
+    verwerken vervangt alleen hetzelfde nummer, dus het foute resultaat bleef
+    anders staan -- en dook op in de weekkeuze van de factuurcontrole.
+    """
+    try:
+        uzb_sleutel, jaar, weeknummer = week.split("|")
+        iso_jaar, iso_week = int(jaar), int(weeknummer)
+    except ValueError as fout:
+        raise HTTPException(status_code=400, detail="ongeldige weekkeuze") from fout
+
+    aantal = verwijder_weekresultaat(sessie, uzb_sleutel, iso_jaar, iso_week)
+    sessie.commit()
+    if not aantal:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Geen bewaard resultaat voor week {iso_week}/{iso_jaar}.",
+        )
+    naam = UZB_NAMEN.get(uzb_sleutel, uzb_sleutel)
+    return RedirectResponse(
+        f"/facturen?verwijderd={iso_week}/{iso_jaar}%20({naam})", status_code=303
     )
 
 

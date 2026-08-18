@@ -17,6 +17,13 @@
 </div>
 
 <div class="kaart">
+  <label for="zoek">Zoek een uitzendkracht</label>
+  <input id="zoek" type="search" placeholder="Typ een (deel van een) naam..."
+         autocomplete="off">
+  <p class="hint" id="zoekstand" hidden></p>
+</div>
+
+<div class="kaart">
   <h2>Lijst uploaden</h2>
   <form method="post" action="/uzk/lijst" enctype="multipart/form-data">
     <label for="b">Bestand (.xlsx)</label>
@@ -47,8 +54,10 @@
     <table>
       <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th></tr>
       {% for k in uzb.krachten %}
-      <tr>
-        <td>{{ k.naam }}</td>
+      <tr data-naam="{{ k.naam|lower }}">
+        <td>{{ k.naam }}{% if k.schaal_handmatig %}
+          <span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig</span>
+        {% endif %}</td>
         <td>
           <form method="post" action="/uzk/{{ k.id }}/loonschaal" class="inline">
             <input type="text" name="loonschaal" value="{{ k.loonschaal_code or '' }}"
@@ -67,4 +76,29 @@
   {% endif %}
 </div>
 {% endfor %}
+
+<script>
+  // Filtert de tabellen op naam terwijl je typt; kaarten zonder treffers
+  // verdwijnen zodat de gezochte persoon meteen in beeld staat.
+  const zoek = document.getElementById("zoek");
+  const stand = document.getElementById("zoekstand");
+  zoek.addEventListener("input", () => {
+    const term = zoek.value.trim().toLowerCase();
+    let treffers = 0;
+    document.querySelectorAll("tr[data-naam]").forEach(rij => {
+      const past = !term || rij.dataset.naam.includes(term);
+      rij.hidden = !past;
+      if (past && term) treffers++;
+    });
+    document.querySelectorAll(".kaart").forEach(kaart => {
+      const rijen = kaart.querySelectorAll("tr[data-naam]");
+      if (rijen.length) {
+        kaart.hidden = term && ![...rijen].some(r => !r.hidden);
+      }
+    });
+    stand.hidden = !term;
+    stand.textContent = term
+      ? `${treffers} uitzendkracht${treffers === 1 ? "" : "en"} gevonden.` : "";
+  });
+</script>
 {% endblock %}

@@ -24,6 +24,7 @@ from app.services.opslag import (
     loontabel_op,
     onthoud_uzk,
     uzb_op_sleutel,
+    zet_loonschaal,
 )
 from app.services.tarief import bouw_tariefkaart, conventies
 from app.uploads import EXCEL, lees_upload, leesfouten
@@ -97,6 +98,7 @@ def overzicht(
 def wijzig_loonschaal(
     uzk_id: uuid.UUID,
     loonschaal: str = Form(...),
+    bron: str = Form("handmatig"),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> Response:
@@ -106,6 +108,10 @@ def wijzig_loonschaal(
     de week niet verwerkt. De ingevoerde schaal wordt getoetst aan de
     tariefkaart die vandaag geldt: een typefout zou anders stilzwijgend een
     bedrag van nul opleveren, precies wat deze controle moet voorkomen.
+
+    `bron` is "handmatig" (de waarde is daarna tegen bestanden beschermd) of
+    "bestand" (de gebruiker neemt bewust de bestandswaarde over; de
+    bescherming vervalt dan weer).
     """
     kracht = sessie.get(Uzk, uzk_id)
     if kracht is None:
@@ -136,7 +142,7 @@ def wijzig_loonschaal(
                 },
             )
 
-    kracht.loonschaal_code = waarde
+    zet_loonschaal(kracht, waarde, handmatig=bron != "bestand")
     sessie.commit()
     return RedirectResponse(f"/uzk?gewijzigd={quote(kracht.naam)}", status_code=303)
 
@@ -160,8 +166,25 @@ async def upload_lijst(
         uzb_sleutel = bepaal_uzb(regels, UZB_NAMEN)
 
     uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
+    # Een handmatig ingevulde schaal wordt niet stilzwijgend overschreven
+    # (`onthoud_uzk` laat hem staan). Wijkt het bestand ervan af, dan wordt dat
+    # hier per geval voorgelegd: bestand overnemen, of handmatig laten staan.
+    conflicten = []
     for regel in regels:
-        onthoud_uzk(sessie, uzb, regel.naam, regel.externe_code, regel.loonschaal)
+        rij = onthoud_uzk(sessie, uzb, regel.naam, regel.externe_code, regel.loonschaal)
+        if (
+            rij.schaal_handmatig
+            and regel.loonschaal
+            and regel.loonschaal != rij.loonschaal_code
+        ):
+            conflicten.append(
+                {
+                    "id": rij.id,
+                    "naam": rij.naam,
+                    "handmatig": rij.loonschaal_code,
+                    "uit_bestand": regel.loonschaal,
+                }
+            )
     sessie.commit()
 
     met_schaal = sum(1 for r in regels if r.loonschaal)
@@ -169,7 +192,7 @@ async def upload_lijst(
     zonder = [r.naam for r in regels if not r.loonschaal]
     return templates.TemplateResponse(
         request=request,
-        name="tarieven_resultaat.html",
+        name="uzk_resultaat.html",
         context={
             "gebruiker": gebruiker,
             "titel": f"Uitzendkrachten {UZB_NAMEN[uzb_sleutel]} bijgewerkt",
@@ -184,6 +207,6 @@ async def upload_lijst(
                 )
             ),
             "waarschuwingen": waarschuwingen,
-            "bevindingen": [],
+            "conflicten": conflicten,
         },
     )

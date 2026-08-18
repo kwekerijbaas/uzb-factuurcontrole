@@ -3,6 +3,10 @@
 {% block inhoud %}
 <h1>Factuurcontrole</h1>
 
+{% if verwijderd %}
+  <div class="kaart"><p>Week {{ verwijderd }} is verwijderd.</p></div>
+{% endif %}
+
 <div class="kaart">
   <p>Leg de ontvangen facturen naast een eerder verwerkte week. De berekening van
      die week is bewaard, dus SNOOP en Nitea hoef je niet opnieuw in te laden —
@@ -43,7 +47,7 @@
 <div class="kaart">
   <h2>Bewaarde weken ({{ weken|length }})</h2>
   <table>
-    <tr><th>Uitzendbureau</th><th>Week</th><th>Medewerkers</th><th>Uren</th><th>Bedrag</th></tr>
+    <tr><th>Uitzendbureau</th><th>Week</th><th>Medewerkers</th><th>Uren</th><th>Bedrag</th><th></th></tr>
     {% for week in weken %}
     <tr>
       <td>{{ week.uzb_naam }}</td>
@@ -51,9 +55,20 @@
       <td>{{ week.medewerkers }}</td>
       <td>{{ '%.2f'|format(week.uren) }}</td>
       <td>€ {{ '%.2f'|format(week.bedrag) }}</td>
+      <td>
+        <form method="post" action="/facturen/verwijder" class="inline"
+              onsubmit="return confirm('Week {{ week.iso_week }}/{{ week.iso_jaar }} van {{ week.uzb_naam }} verwijderen? Opnieuw verwerken kan altijd.')">
+          <input type="hidden" name="week"
+                 value="{{ week.uzb_sleutel }}|{{ week.iso_jaar }}|{{ week.iso_week }}">
+          <button type="submit">Verwijderen</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </table>
+  <p class="hint">Verkeerde week verwerkt? Verwijder hem hier; de bestanden
+     opnieuw uploaden bij Week verwerken zet hem goed terug. Het weeknummer
+     wordt daarbij uit de bestanden zelf afgeleid.</p>
 </div>
 {% endif %}
 {% endblock %}
