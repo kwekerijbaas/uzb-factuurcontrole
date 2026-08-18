@@ -14,8 +14,12 @@
              pattern="[0-9]*" placeholder="123456" required autofocus>
       <button type="submit">Inloggen</button>
     </form>
-    <p class="hint">Geen e-mail ontvangen? Kijk in ongewenste post, of
-       <a href="/inloggen">vraag een nieuwe code aan</a>.</p>
+    <p class="hint">De e-mail kan een paar minuten onderweg zijn; kijk ook in
+       ongewenste post. <strong>Vraag niet meteen een nieuwe code aan</strong> —
+       elke nieuwe code maakt de vorige ongeldig, dus wie een verse aanvraagt
+       terwijl de mail nog onderweg is, typt straks een vervallen code in.
+       Komt er na vijf minuten echt niets,
+       <a href="/inloggen">vraag dan een nieuwe aan</a>.</p>
   {% else %}
     <form method="post" action="/inloggen">
       <label for="email">Werk-e-mailadres</label>
