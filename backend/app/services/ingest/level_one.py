@@ -56,23 +56,53 @@ _VORMEN = {"vast": "V", "flex": "F", "seizoen": "S"}
 
 _KOLOM = re.compile(r"^(vast|flex|seizoen|loon)\s+(oud|per\b.*)$", re.IGNORECASE)
 
-# "per 1/7/26", "per 01-07-2026" -- de ingangsdatum staat in de kolomkop zelf,
-# zodat die niet overgetypt hoeft te worden.
-_PEILDATUM = re.compile(r"per\s+(\d{1,2})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{2,4})")
+# De ingangsdatum staat in de kolomkop zelf, zodat die niet overgetypt hoeft te
+# worden. Level One schrijft hem op twee manieren: "per 1/7/26" en "per 1 jul".
+_MAANDEN = {
+    "jan": 1, "feb": 2, "mrt": 3, "maa": 3, "apr": 4, "mei": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dec": 12,
+}
+_CIJFERDATUM = re.compile(r"per\s+(\d{1,2})\s*[-/]\s*(\d{1,2})\s*[-/]\s*(\d{2,4})")
+_NAAMDATUM = re.compile(
+    r"per\s+(\d{1,2})\s+([a-z]{3,})\.?\s*(\d{2,4})?", re.IGNORECASE
+)
 
 
-def peildatum(tekst: str | None) -> date | None:
-    """De ingangsdatum uit een kolomkop als 'Loon per 1/7/26'."""
-    m = _PEILDATUM.search(str(tekst or ""))
-    if not m:
-        return None
-    dag, maand, jaar = (int(g) for g in m.groups())
-    if jaar < 100:
-        jaar += 2000
-    try:
-        return date(jaar, maand, dag)
-    except ValueError:
-        return None
+def _samen(dag: int, maand: int, jaar: int | None, vandaag: date) -> date | None:
+    """Maak er een datum van; zonder jaartal het dichtstbijzijnde jaar.
+
+    "per 1 jul" noemt geen jaar. Van vorig, dit en volgend jaar wordt dat
+    gekozen waar die dag het dichtst bij vandaag ligt -- zoals een mens hem ook
+    leest. Het scherm toont de uitkomst, zodat een verkeerde gok opvalt vóór er
+    weken mee worden verwerkt.
+    """
+    if jaar is not None:
+        jaar = jaar + 2000 if jaar < 100 else jaar
+        kandidaten = [jaar]
+    else:
+        kandidaten = [vandaag.year - 1, vandaag.year, vandaag.year + 1]
+    mogelijk = []
+    for kandidaat in kandidaten:
+        try:
+            mogelijk.append(date(kandidaat, maand, dag))
+        except ValueError:
+            continue
+    return min(mogelijk, key=lambda d: abs((d - vandaag).days)) if mogelijk else None
+
+
+def peildatum(tekst: str | None, vandaag: date | None = None) -> date | None:
+    """De ingangsdatum uit een kolomkop als 'Loon per 1/7/26' of 'Loon per 1 jul'."""
+    tekst = str(tekst or "")
+    vandaag = vandaag or date.today()
+    if (m := _CIJFERDATUM.search(tekst)) is not None:
+        dag, maand, jaar = (int(g) for g in m.groups())
+        return _samen(dag, maand, jaar, vandaag)
+    if (m := _NAAMDATUM.search(tekst)) is not None:
+        maand = _MAANDEN.get(m.group(2)[:3].lower())
+        if maand is not None:
+            jaar = int(m.group(3)) if m.group(3) else None
+            return _samen(int(m.group(1)), maand, jaar, vandaag)
+    return None
 
 
 @dataclass
@@ -84,6 +114,10 @@ class LevelOneExport:
     # Uit de kolomkop ("Loon per 1/7/26"); leeg bij de oude kolom, want die
     # noemt zijn eigen ingangsdatum niet.
     ingangsdatum: date | None = None
+
+
+def _cel(rij, kolom: int | None):
+    return rij[kolom] if kolom is not None and kolom < len(rij) else None
 
 
 def _bedrag(waarde) -> Decimal | None:
@@ -112,16 +146,25 @@ def _categorie(component, percentage) -> str | None:
     return None
 
 
-def _kolommen(header) -> tuple[dict[str, dict[str, int]], list[str]]:
+def _kolommen(header) -> tuple[dict[str, dict[str, int]], list[str], dict[str, int]]:
     """Vind per contractvorm (en voor het loon) de kolom 'oud' en 'nieuw'.
 
-    Retourneert ook de gevonden peildatum-omschrijvingen, zodat de gebruiker
-    kan controleren dat de juiste kolom is gekozen.
+    Retourneert ook de gevonden peildatum-omschrijvingen -- zodat de gebruiker
+    kan controleren welke kolom is gelezen -- en de plaats van 'Code',
+    'Component' en 'Percentage'. Die laatste worden opgezocht in plaats van
+    vastgelegd: Level One levert de export niet altijd met evenveel lege
+    tussenkolommen, en op een vaste positie rekenen levert dan een bestand op
+    waarin geen enkele tariefregel wordt gevonden.
     """
     posities: dict[str, dict[str, int]] = {}
     peilmomenten: list[str] = []
+    vaste: dict[str, int] = {}
     for i, cel in enumerate(header):
-        m = _KOLOM.match(re.sub(r"\s+", " ", str(cel or "")).strip())
+        tekst = re.sub(r"\s+", " ", str(cel or "")).strip()
+        kern = tekst.lower().rstrip(".")
+        if kern in ("code", "component", "percentage") and kern not in vaste:
+            vaste[kern] = i
+        m = _KOLOM.match(tekst)
         if not m:
             continue
         soort = m.group(1).lower()
@@ -129,7 +172,7 @@ def _kolommen(header) -> tuple[dict[str, dict[str, int]], list[str]]:
         posities.setdefault(soort, {})[welke] = i
         if welke == "nieuw" and m.group(2) not in peilmomenten:
             peilmomenten.append(m.group(2))
-    return posities, peilmomenten
+    return posities, peilmomenten, vaste
 
 
 def lees_level_one_export(
@@ -153,11 +196,12 @@ def lees_level_one_export(
 
     for ws in wb.worksheets:
         posities: dict[str, dict[str, int]] = {}
+        vaste: dict[str, int] = {}
         schaal: str | None = None
 
         for rij in ws.iter_rows(values_only=True):
             if not posities:
-                posities, peilmomenten = _kolommen(rij)
+                posities, peilmomenten, vaste = _kolommen(rij)
                 if posities:
                     gevonden_kolommen = True
                     ontbreekt = set(_VORMEN) - set(posities)
@@ -178,7 +222,7 @@ def lees_level_one_export(
                         )
                 continue
 
-            if (code := _schaal_uit_code(rij[1] if len(rij) > 1 else None)) is not None:
+            if (code := _schaal_uit_code(_cel(rij, vaste.get("code", 1)))) is not None:
                 schaal = code
                 if "loon" in posities and (kolom := posities["loon"].get(welke)) is not None:
                     if kolom < len(rij) and (loon := _bedrag(rij[kolom])) is not None:
@@ -188,7 +232,7 @@ def lees_level_one_export(
             if schaal is None:
                 continue
             categorie = _categorie(
-                rij[8] if len(rij) > 8 else None, rij[9] if len(rij) > 9 else None
+                _cel(rij, vaste.get("component")), _cel(rij, vaste.get("percentage"))
             )
             if categorie is None:
                 continue

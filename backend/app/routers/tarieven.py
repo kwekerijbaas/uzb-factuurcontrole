@@ -298,8 +298,16 @@ async def upload_level_one(
     factoren, zonder_loon = leid_factoren_af(kaart, lonen, koppeling)
 
     uzb = borg_uzb(sessie, "L1", UZB_NAMEN["L1"])
-    verschillen = vergelijk_factoren("L1", factoren_op(sessie, "L1", ingangsdatum), factoren)
-    bewaar_factoren(sessie, uzb, factoren, ingangsdatum)
+    # De export bevat soms alleen de gewijzigde schalen; alles afsluiten zou de
+    # rest vanaf deze datum zonder tarief zetten. Vergelijken gebeurt met de
+    # factoren zoals ze na de upload gelden, zodat de ongemoeide schalen niet
+    # ten onrechte als 'vervallen' in het verschiloverzicht komen.
+    oude_factoren = factoren_op(sessie, "L1", ingangsdatum)
+    bewaar_factoren(sessie, uzb, factoren, ingangsdatum, volledig=False)
+    sessie.flush()
+    verschillen = vergelijk_factoren(
+        "L1", oude_factoren, factoren_op(sessie, "L1", ingangsdatum)
+    )
     sessie.commit()
 
     return templates.TemplateResponse(

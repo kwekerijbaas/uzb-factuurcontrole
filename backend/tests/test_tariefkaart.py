@@ -156,3 +156,66 @@ def test_minimumloon_toetst_ook_de_overgenomen_schalen():
     assert [b.kaartcode for b in bevindingen] == ["B1"]
     # De geüploade tabel alleen zou niets melden.
     assert valideer_minimumloon(augustus, Decimal("14.40")) == []
+
+
+def test_trede_een_volgt_trede_twee():
+    """De CAO-loontabel per 01-08-2026 laat de regel voor trede 1 leeg; wie
+    daarop staat wordt gelijk aan trede 2 beloond. Zonder deze terugval zou B1
+    zonder loon en dus zonder tarief komen te zitten."""
+    tabel = Loontabel("CAO", date(2026, 8, 1),
+                      {"B2": Decimal("14.99"), "C2": Decimal("15.41"),
+                       "G10": Decimal("23.65"), "H11": Decimal("26.85")})
+    assert tabel.loon("B1") == Decimal("14.99")
+    assert tabel.loon("C1") == Decimal("15.41")
+    # tredes 10 en 11 zijn geen trede 1
+    assert tabel.loon("G10") == Decimal("23.65")
+    assert tabel.loon("H11") == Decimal("26.85")
+    assert tabel.loon("Z1") is None
+
+
+def test_een_ingevuld_trede_een_loon_gaat_voor():
+    tabel = Loontabel("CAO", date(2026, 1, 1),
+                      {"B1": Decimal("14.50"), "B2": Decimal("14.71")})
+    assert tabel.loon("B1") == Decimal("14.50")
+
+
+def test_gedeeltelijke_factorupload_laat_de_rest_doorlopen():
+    """Level One levert soms een export met alleen de gewijzigde schalen. Alles
+    afsluiten zou iedere andere schaal vanaf die datum zonder tarief zetten --
+    de export van juli 2026 bevatte alleen B2 en B3, tegenover 99 kaartcodes."""
+    from app.services.opslag import bewaar_factoren
+
+    class _Rij:
+        def __init__(self, kaartcode, categorie, geldig_van, geldig_tot=None):
+            self.kaartcode, self.categorie = kaartcode, categorie
+            self.geldig_van, self.geldig_tot = geldig_van, geldig_tot
+
+    bestaand = [
+        _Rij("B2F", CAT_100, date(2026, 1, 1)),
+        _Rij("C6F", CAT_100, date(2026, 1, 1)),
+    ]
+    verwijderd, toegevoegd = [], []
+
+    class _Sessie:
+        def scalars(self, _):
+            class R:
+                @staticmethod
+                def all():
+                    return bestaand
+            return R()
+        def delete(self, rij):
+            verwijderd.append(rij)
+        def add(self, rij):
+            toegevoegd.append(rij)
+        def flush(self):
+            pass
+
+    class _Uzb:
+        id = None
+
+    nieuw = [TariefFactor("B2F", "B2", CAT_100, Decimal("1.9640"))]
+    bewaar_factoren(_Sessie(), _Uzb(), nieuw, date(2026, 7, 1), volledig=False)
+
+    assert bestaand[0].geldig_tot == date(2026, 6, 30)  # B2F vervangen
+    assert bestaand[1].geldig_tot is None  # C6F loopt gewoon door
+    assert len(toegevoegd) == 1

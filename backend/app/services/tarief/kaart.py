@@ -12,6 +12,7 @@ tarieven overgetypt hoeven te worden.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -19,6 +20,9 @@ from decimal import ROUND_HALF_UP, Decimal
 from .types import SchaalTarief, TariefKaart
 
 _CENT = Decimal("0.01")
+
+# "B1" t/m "H1" -- niet "G10"/"H11", dat zijn tredes 10 en 11.
+_TREDE_EEN = re.compile(r"^([A-H])1$")
 
 
 @dataclass(frozen=True)
@@ -40,7 +44,18 @@ class Loontabel:
     lonen: dict[str, Decimal] = field(default_factory=dict)  # schaal_code -> uurloon
 
     def loon(self, schaal_code: str) -> Decimal | None:
-        return self.lonen.get(schaal_code)
+        """Het uurloon van een CAO-schaal.
+
+        Trede 1 valt terug op trede 2: in de CAO-loontabel is de regel voor
+        trede 1 leeg gelaten, wie daarop staat wordt gelijk aan trede 2 beloond.
+        Zonder die terugval zou B1 zonder loon -- en dus zonder tarief -- komen
+        te zitten.
+        """
+        loon = self.lonen.get(schaal_code)
+        if loon is not None:
+            return loon
+        m = _TREDE_EEN.match(str(schaal_code or ""))
+        return self.lonen.get(f"{m.group(1)}2") if m else None
 
 
 def kies_loontabel(tabellen: list[Loontabel], dag: date) -> Loontabel | None:

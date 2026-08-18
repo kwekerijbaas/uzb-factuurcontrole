@@ -103,18 +103,27 @@ def bewaar_factoren(
     uzb: Uzb,
     factoren: list[TariefFactor],
     geldig_van: date,
+    volledig: bool = True,
 ) -> int:
     """Zet een nieuwe versie van de factoren weg vanaf `geldig_van`.
 
     Lopende versies worden afgesloten op de dag ervoor, zodat eerdere weken hun
     oorspronkelijke tarieven houden. Een al bestaande versie met exact dezelfde
     ingangsdatum wordt overschreven.
+
+    `volledig=False` vervangt alleen de combinaties die in deze upload staan; de
+    rest loopt door. Nodig omdat een uitzendbureau soms een export met alleen de
+    gewijzigde schalen levert -- alles afsluiten zou dan iedere andere schaal
+    vanaf die datum zonder tarief zetten, en dus zonder bedrag.
     """
     bestaand = sessie.scalars(
         select(UzbTariefFactor).where(UzbTariefFactor.uzb_id == uzb.id)
     ).all()
+    vervangen = {(f.kaartcode, f.categorie) for f in factoren}
 
     for rij in bestaand:
+        if not volledig and (rij.kaartcode, rij.categorie) not in vervangen:
+            continue
         if rij.geldig_van == geldig_van:
             sessie.delete(rij)
         elif rij.geldig_van < geldig_van and rij.geldig_tot is None:

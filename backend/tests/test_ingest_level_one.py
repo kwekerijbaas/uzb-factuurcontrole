@@ -142,3 +142,41 @@ def test_export_kent_zijn_eigen_ingangsdatum():
     assert export.ingangsdatum == date(2026, 7, 1)
     oud, _ = lees_level_one_export(BASIS, "oud")
     assert oud.ingangsdatum is None  # de oude kolom noemt geen datum
+
+
+def test_export_zonder_lege_tussenkolom():
+    """Level One levert de export niet altijd met evenveel lege tussenkolommen.
+    Op een vaste positie rekenen leverde dan een bestand op waarin geen enkele
+    tariefregel werd gevonden (BAAS_01072026.xlsx, juli 2026)."""
+    kop = [
+        "Relatie", "Code", "Nr.", None,
+        "Loon oud", "Loon per 1 jul", "EF",
+        "Component", "Percentage",
+        "Vast oud", "Vast per 1 jul", None, None,
+        "Flex oud", "Flex per 1 jul", None, None,
+        "Seizoen oud", "Seizoen per 1 jul",
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(kop)
+    ws.append(["A. Baas", "GTB B2", "291902", None, 14.71, 14.99, None, "Toevoegen", None])
+    ws.append(
+        [None, None, None, None, None, None, None, "Loon normale uren", 100,
+         28.03, 28.51, None, None, 28.94, 29.44, None, None, 29.25, 29.77]
+    )
+    buffer = BytesIO()
+    wb.save(buffer)
+
+    export, _ = lees_level_one_export(buffer.getvalue(), "nieuw")
+    assert export.lonen["B2"] == Decimal("14.99")
+    assert export.tarieven["B2F"][CAT_100] == Decimal("29.44")
+
+
+def test_kolomkop_zonder_jaartal():
+    """'per 1 jul' noemt geen jaar; dan wordt het dichtstbijzijnde jaar gekozen
+    en op het scherm getoond, zodat een verkeerde gok opvalt."""
+    from app.services.ingest.level_one import peildatum
+
+    assert peildatum("Loon per 1 jul", date(2026, 8, 18)) == date(2026, 7, 1)
+    assert peildatum("Loon per 1 jul", date(2027, 2, 1)) == date(2027, 7, 1)
+    assert peildatum("Loon per 1 juli 2026", date(2030, 1, 1)) == date(2026, 7, 1)

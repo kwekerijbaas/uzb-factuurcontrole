@@ -65,8 +65,15 @@ def test_alleen_ingevulde_vakjes_worden_ingelezen():
     enkele schaal opleveren."""
     tabel, _ = lees_cao_pdf(VOLLEDIG)
     assert not [code for code in tabel.lonen if code[1:] == "1"]
-    assert tabel.loon("B1") is None
     assert tabel.loon("C15") is None  # jeugd staat als 15C, niet als C15
+
+
+def test_trede_een_wordt_gelijk_aan_trede_twee_beloond():
+    """De lege regel voor trede 1 betekent niet 'geen loon' maar 'gelijk aan
+    trede 2'; opgegeven door Kwekerij Baas bij de CAO per 01-08-2026."""
+    tabel, _ = lees_cao_pdf(VOLLEDIG)
+    assert "B1" not in tabel.lonen  # niet opgeslagen
+    assert tabel.loon("B1") == tabel.loon("B2")  # wel opvraagbaar
 
 
 def test_rechts_uitgelijnde_treden_landen_in_de_juiste_kolom():

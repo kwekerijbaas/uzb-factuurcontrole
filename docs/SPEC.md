@@ -186,10 +186,32 @@ noemde. Zonder die opbouw zouden alle niet-genoemde schalen vanaf die datum
 zonder loon — en dus zonder tarief — komen te zitten, wat een halve week
 stilzwijgend op nul zou zetten.
 
-### 6.3 De ingangsdatum komt uit het bestand
+### 6.3 Trede 1 volgt trede 2
+De CAO-loontabel laat de regel voor trede 1 leeg. Wie daarop staat wordt gelijk
+aan trede 2 beloond (opgave Kwekerij Baas, augustus 2026), dus `B1` valt terug
+op `B2`. Zonder die terugval zou een uitzendkracht op B1 zonder loon en dus
+zonder tarief komen te zitten.
+
+### 6.4 Een gedeeltelijke tariefexport sluit de rest niet af
+Level One levert soms alleen de gewijzigde schalen (de export per 01-07-2026
+bevatte B2 en B3, tegenover 99 kaartcodes). De omrekenfactoren die er niet in
+staan lopen daarom door in plaats van te worden afgesloten; alleen de
+combinaties in de upload worden vervangen. Het verschiloverzicht vergelijkt met
+de factoren zoals ze ná de upload gelden, zodat ongemoeide schalen niet ten
+onrechte als 'vervallen' worden gemeld.
+
+### 6.5 De ingangsdatum komt uit het bestand
 De datum wordt niet overgetypt maar afgelezen: uit de kolomkop van de Level
-One-export (`Loon per 1/7/26`) en uit de tekst van de CAO-PDF. Het invulveld in
-het scherm is een terugval voor het geval het bestand hem niet noemt.
+One-export en uit de tekst van de CAO-PDF. Level One schrijft die kop op twee
+manieren — `Loon per 1/7/26` en `Loon per 1 jul`. Bij die tweede ontbreekt het
+jaartal; dan wordt van vorig, dit en volgend jaar het dichtstbijzijnde gekozen
+en de uitkomst op het scherm getoond, zodat een verkeerde gok opvalt vóór er
+weken mee worden verwerkt. Het invulveld in het scherm blijft als terugval.
+
+De kolommen `Code`, `Component` en `Percentage` worden in de kopregel opgezocht
+in plaats van op een vaste plek verwacht: Level One levert de export niet altijd
+met evenveel lege tussenkolommen, en op een vaste positie rekenen leverde een
+bestand op waarin geen enkele tariefregel werd gevonden.
 
 **Waarom een factor en niet een tarieventabel:** de verhouding
 `tarief / uurloon` is per uitzendbureau stabiel. Gemeten op de kaart per
