@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from pathlib import Path
 
@@ -156,8 +157,16 @@ async def onverwachte_fout(request: Request, fout: Exception) -> Response:
 
 @app.get("/gezondheid", include_in_schema=False)
 def gezondheid() -> dict[str, str]:
-    """Voor de health check van de hoster; bewust zonder login."""
-    return {"status": "ok"}
+    """Voor de health check van de hoster; bewust zonder login.
+
+    De versie is de git-commit die draait (Render zet RENDER_GIT_COMMIT).
+    Daarmee is na een push te zien of de nieuwe versie al live staat, zonder
+    toegang tot het Render-dashboard.
+    """
+    return {
+        "status": "ok",
+        "versie": os.environ.get("RENDER_GIT_COMMIT", "onbekend")[:8],
+    }
 
 
 @app.get("/", response_class=HTMLResponse)

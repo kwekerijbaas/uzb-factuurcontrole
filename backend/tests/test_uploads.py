@@ -167,3 +167,11 @@ def test_onbekende_pagina_meldt_dat_in_het_nederlands(monkeypatch):
     assert antwoord.status_code == 404
     assert "Deze pagina bestaat niet" in antwoord.text
     assert "Not Found" not in antwoord.text
+
+
+def test_gezondheid_toont_de_draaiende_versie(monkeypatch):
+    """Render zet RENDER_GIT_COMMIT; via /gezondheid is dan zonder dashboard te
+    zien of een push al live staat."""
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "e0cf62752d7c2c61d12f475047296991a7b893e2")
+    antwoord = _client(monkeypatch).get("/gezondheid")
+    assert antwoord.json() == {"status": "ok", "versie": "e0cf6275"}
