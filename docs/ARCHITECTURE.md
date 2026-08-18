@@ -139,6 +139,11 @@ en voor Auth, nooit voor data-toegang via de REST-API.
 
 ## 4c. E-mailbezorging (Resend)
 
+**Status: geconfigureerd en getest op 18-08-2026** — inlogcodes komen van
+`uf@send.kwekerijbaas.nl` via Resend (API-sleutel `uf-urencontrole`, alleen
+Sending access). De stappen hieronder blijven staan als draaiboek voor het
+geval de koppeling ooit opnieuw gezet moet worden.
+
 De ingebouwde mailserver van Supabase is bedoeld om te proberen (enkele mails
 per uur) en niet voor dagelijks gebruik. De inlogcodes gaan daarom via Resend.
 
