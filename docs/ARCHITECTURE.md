@@ -73,15 +73,21 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
 ## 4. Adres van de app
 
-De app draait op het standaardadres van Render (`<naam>.onrender.com`).
-**`baaskwekerij.nl/uf`** is de ingang die Ola en Jacob gebruiken en stuurt
-daarheen door; wat erachter zit merken ze niet.
+De app draait op **`https://uf-urencontrole.onrender.com`** en dat blijft zo —
+besloten augustus 2026: `uf.kwekerijbaas.nl` bleek niet bruikbaar, en het
+Render-adres werkt en staat al in de instructiemails aan het team. Optioneel
+kan `baaskwekerij.nl/uf` als doorverwijzing dienen (zie hieronder); nodig is
+dat niet.
 
-Bewust geen eigen subdomein: dat scheelt een DNS-record en een certificaat, en
-het omzeilt de beperkingen die de gratis laag op eigen domeinen kan hebben. Wil
-je het later toch, dan volstaat bij TransIP (domein `baaskwekerij.nl`) een
-record `uf` van type `CNAME` naar `<naam>.onrender.com.` plus **Custom Domains**
-in Render — verder verandert er niets.
+Mocht een eigen subdomein later alsnog gewenst zijn, dan volstaat een
+`CNAME`-record naar `uf-urencontrole.onrender.com.` plus **Custom Domains** in
+Render — verder verandert er niets.
+
+> **Opruimen:** in de DNS van `kwekerijbaas.nl` staat nog een record
+> `uf` → `...azurestaticapps.net`, een restant van het gestrande Azure-plan.
+> Verwijder dat record: het wijst naar een niet-bestaande Azure-app, en een
+> CNAME naar een opgeheven clouddienst kan door een derde worden geclaimd
+> (subdomein-overname). Er hangt niets meer aan.
 
 **Twee domeinen, let op het verschil:** `kwekerijbaas.nl` (e-mail, en
 `send.kwekerijbaas.nl` voor de inlogmail) en `baaskwekerij.nl` (website). De
