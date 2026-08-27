@@ -257,6 +257,25 @@ class RegistratieRegel(Base):
     run: Mapped[RegistratieRun] = relationship(back_populates="regels")
 
 
+class UzbTariefHandmatig(Base, Scd2Mixin, TijdstempelMixin):
+    """Handmatig ingevoerd tarief voor één kaartschaal en tariefcategorie.
+
+    Voor schalen die op de tariefkaart van het uitzendbureau ontbreken (de
+    Level One-kaart mist de E-schalen): zonder dit blijven die uren op EUR 0
+    staan tot het bureau een nieuwe kaart levert. Een handmatig tarief wint
+    van de afgeleide kaart en beweegt -- anders dan een factor -- níét mee met
+    de CAO-lonen; het blijft staan tot het wordt beëindigd of vervangen.
+    """
+
+    __tablename__ = "uzb_tarief_handmatig"
+
+    id: Mapped[uuid.UUID] = _pk()
+    uzb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uzb.id"), nullable=False)
+    kaartcode: Mapped[str] = mapped_column(String(50), nullable=False)
+    categorie: Mapped[str] = mapped_column(String(20), nullable=False)
+    tarief: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+
+
 class MatchPeriode(Base, TijdstempelMixin):
     """Eén weekcontrole (uzk × week). Enige schrijfbare werkeenheid."""
 

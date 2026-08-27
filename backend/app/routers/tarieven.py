@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -20,12 +21,16 @@ from app.services.ingest.level_one import lees_level_one_export
 from app.services.ingest.loontabel import lees_loontabel
 from app.services.tarief.kaart import Loontabel
 from app.services.opslag import (
+    alle_handmatige_tarieven,
     bewaar_factoren,
+    bewaar_handmatig_tarief,
     bewaar_loontabel,
     borg_uzb,
     factoren_op,
     loontabel_op,
     loontabellen,
+    verdwenen_schalen,
+    verwijder_handmatig_tarief,
 )
 from app.services.tarief import (
     SchaalTarief,
@@ -53,6 +58,7 @@ UZB_NAMEN = {
 @router.get("", response_class=HTMLResponse)
 def overzicht(
     request: Request,
+    gewijzigd: str = "",
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
@@ -74,8 +80,90 @@ def overzicht(
             "loontabellen": tabellen,
             "per_uzb": per_uzb,
             "actieve_loontabel": loontabel_op(sessie, vandaag),
+            "handmatige_tarieven": alle_handmatige_tarieven(sessie),
+            "uzbs": UZB_NAMEN,
+            "gewijzigd": gewijzigd,
         },
     )
+
+
+# Categorieën die in het formulier kunnen worden ingevuld; de veldnaam is de
+# categoriecode met een t ervoor (t100, tfeestdag, ...).
+_HANDMATIG_CATEGORIEEN = ("100", "135", "150", "200", "feestdag", "nachtuur")
+
+
+@router.post("/handmatig", response_model=None)
+def voeg_handmatig_tarief_toe(
+    uzb: str = Form(...),
+    kaartcode: str = Form(...),
+    geldig_van: date = Form(...),
+    t100: str = Form(""),
+    t135: str = Form(""),
+    t150: str = Form(""),
+    t200: str = Form(""),
+    tfeestdag: str = Form(""),
+    tnachtuur: str = Form(""),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """Handmatig tarief voor één kaartschaal invoeren.
+
+    Voor schalen die op de kaart van het uitzendbureau ontbreken (de Level
+    One-kaart mist de E-schalen): zonder tarief blijven die uren op EUR 0
+    staan. Een handmatig tarief wint van de afgeleide kaart en beweegt niet
+    mee met de CAO-lonen -- bij een loonronde dus even nakijken.
+    """
+    if uzb not in UZB_NAMEN:
+        raise HTTPException(status_code=400, detail="Onbekend uitzendbureau.")
+    code = " ".join(kaartcode.split()).upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Vul een kaartcode in, bv. E5F.")
+
+    ingevuld: dict[str, Decimal] = {}
+    for categorie, ruw in zip(
+        _HANDMATIG_CATEGORIEEN, (t100, t135, t150, t200, tfeestdag, tnachtuur)
+    ):
+        tekst = ruw.replace("€", "").replace(",", ".").strip()
+        if not tekst:
+            continue
+        try:
+            tarief = Decimal(tekst)
+        except Exception as fout:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{ruw}' bij {categorie}% is geen bedrag.",
+            ) from fout
+        if not Decimal("1") < tarief < Decimal("200"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"EUR {tarief} bij {categorie} ligt buiten het aannemelijke "
+                    "bereik voor een uurtarief."
+                ),
+            )
+        ingevuld[categorie] = tarief
+    if not ingevuld:
+        raise HTTPException(
+            status_code=400,
+            detail="Vul minstens één tarief in (in elk geval het 100%-tarief).",
+        )
+
+    rij = borg_uzb(sessie, uzb, UZB_NAMEN[uzb])
+    bewaar_handmatig_tarief(sessie, rij, code, ingevuld, geldig_van)
+    sessie.commit()
+    return RedirectResponse("/tarieven?gewijzigd=handmatig", status_code=303)
+
+
+@router.post("/handmatig/verwijder", response_model=None)
+def verwijder_handmatig(
+    tarief_id: uuid.UUID = Form(...),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    if not verwijder_handmatig_tarief(sessie, tarief_id):
+        raise HTTPException(status_code=404, detail="Dit tarief bestaat niet meer.")
+    sessie.commit()
+    return RedirectResponse("/tarieven?gewijzigd=handmatig", status_code=303)
 
 
 @router.post("/loontabel", response_class=HTMLResponse)
@@ -109,6 +197,15 @@ async def upload_loontabel(
             )
     ingangsdatum = tabel.ingangsdatum
 
+    verdwenen = verdwenen_schalen(sessie, tabel)
+    if verdwenen:
+        waarschuwingen.append(
+            f"Deze upload vervangt de tabel van {tabel.ingangsdatum:%d-%m-%Y} en "
+            f"laat {len(verdwenen)} schalen zonder loon achter: "
+            + ", ".join(verdwenen)
+            + ". Waarschijnlijk is het bestand maar deels ingelezen -- "
+            "controleer dat, of upload de vorige tabel opnieuw."
+        )
     bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
     sessie.flush()
     # Toets de lonen zoals ze na deze upload gelden, niet alleen de geüploade
@@ -166,6 +263,13 @@ async def upload_tariefkaart(
             inhoud, f"CAO-lonen bij tariefkaart {ingangsdatum:%d-%m-%Y}", ingangsdatum
         )
         waarschuwingen += loon_waarschuwingen
+        verdwenen = verdwenen_schalen(sessie, tabel)
+        if verdwenen:
+            waarschuwingen.append(
+                f"Let op: deze lonen vervangen de tabel van "
+                f"{tabel.ingangsdatum:%d-%m-%Y}; {len(verdwenen)} schalen "
+                "blijven zonder loon achter: " + ", ".join(verdwenen)
+            )
         bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
         sessie.flush()
 
@@ -271,6 +375,13 @@ async def upload_level_one(
             ingangsdatum=ingangsdatum,
             lonen=dict(export.lonen),
         )
+        verdwenen = verdwenen_schalen(sessie, tabel)
+        if verdwenen:
+            waarschuwingen.append(
+                f"Let op: deze lonen vervangen de tabel van "
+                f"{tabel.ingangsdatum:%d-%m-%Y}; {len(verdwenen)} schalen "
+                "blijven zonder loon achter: " + ", ".join(verdwenen)
+            )
         bewaar_loontabel(sessie, tabel, bron_bestand=bestand.filename)
         sessie.flush()
 

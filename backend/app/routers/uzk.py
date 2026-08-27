@@ -20,13 +20,12 @@ from app.services.ingest.herkenning import bepaal_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import (
     borg_uzb,
-    factoren_op,
-    loontabel_op,
+    kaart_op,
     onthoud_uzk,
     uzb_op_sleutel,
     zet_loonschaal,
 )
-from app.services.tarief import bouw_tariefkaart, conventies
+from app.services.tarief import conventies
 from app.uploads import EXCEL, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
@@ -36,13 +35,9 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 
 def _kaart_van(sessie: Session, uzb_sleutel: str, dag: date):
-    """De tariefkaart die vandaag geldt, om een ingevulde schaal te toetsen."""
-    lonen = loontabel_op(sessie, dag)
-    factoren = factoren_op(sessie, uzb_sleutel, dag)
-    if not lonen or not factoren:
-        return None
-    kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
-    return kaart
+    """De tariefkaart die vandaag geldt (inclusief handmatige tarieven), om een
+    ingevulde schaal te toetsen."""
+    return kaart_op(sessie, uzb_sleutel, dag)
 
 
 def _bekend(sessie: Session) -> list[dict]:

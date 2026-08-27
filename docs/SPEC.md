@@ -215,7 +215,21 @@ combinaties in de upload worden vervangen. Het verschiloverzicht vergelijkt met
 de factoren zoals ze ná de upload gelden, zodat ongemoeide schalen niet ten
 onrechte als 'vervallen' worden gemeld.
 
-### 6.5 De ingangsdatum komt uit het bestand
+### 6.5 Handmatige tarieven
+Voor kaartcodes die op de kaart van het bureau ontbreken (de Level One-kaart
+mist de E-schalen) kan op de Lonen & tarieven-pagina per kaartcode en categorie
+een **handmatig tarief** worden ingevoerd, met ingangsdatum (SCD2). Handmatig
+**wint** van de afgeleide kaart en telt mee in de schaal-toets bij
+Uitzendkrachten. Let op: een handmatig tarief beweegt **niet** mee met een
+CAO-loonronde — bij elke nieuwe loontabel de lijst nalopen, en de regel
+verwijderen zodra het bureau een kaart levert waar de schaal wél op staat.
+
+Een loontabel-upload met een **al bestaande ingangsdatum** vervangt die tabel
+volledig; laat de upload schalen verdwijnen (half ingelezen bestand), dan
+meldt het resultaatscherm welke. De CAO-PDF van 01-01-2026 werd zo maar voor
+28 van de 87 schalen ingelezen; de overige 54 zijn op 19-08-2026 hersteld.
+
+### 6.6 De ingangsdatum komt uit het bestand
 De datum wordt niet overgetypt maar afgelezen: uit de kolomkop van de Level
 One-export en uit de tekst van de CAO-PDF. Level One schrijft die kop op twee
 manieren — `Loon per 1/7/26` en `Loon per 1 jul`. Bij die tweede ontbreekt het

@@ -14,13 +14,36 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import CaoLoon, CaoLoontabel, Uzb, UzbTariefFactor, Uzk
+from app.models import (
+    CaoLoon,
+    CaoLoontabel,
+    Uzb,
+    UzbTariefFactor,
+    UzbTariefHandmatig,
+    Uzk,
+)
 from app.services.tarief.kaart import Loontabel, TariefFactor, lonen_op
 
 
 # --------------------------------------------------------------------------- #
 # Loontabellen
 # --------------------------------------------------------------------------- #
+def verdwenen_schalen(sessie: Session, tabel: Loontabel) -> list[str]:
+    """Welke schalen deze upload laat verdwijnen.
+
+    Een upload met dezelfde ingangsdatum vervangt de hele tabel. Leest de
+    inlezer een bestand maar half (de CAO-PDF van januari leverde 28 van de 87
+    schalen op), dan verdwijnen de overige stilletjes -- en elke schaal zonder
+    loon is een schaal zonder tarief. Aanroepen vóór `bewaar_loontabel`.
+    """
+    bestaand = sessie.scalar(
+        select(CaoLoontabel).where(CaoLoontabel.ingangsdatum == tabel.ingangsdatum)
+    )
+    if bestaand is None:
+        return []
+    return sorted({loon.schaal_code for loon in bestaand.lonen} - set(tabel.lonen))
+
+
 def bewaar_loontabel(
     sessie: Session,
     tabel: Loontabel,
@@ -168,6 +191,134 @@ def factoren_op(sessie: Session, uzb_sleutel: str, dag: date) -> list[TariefFact
         )
         for r in rijen
     ]
+
+
+# --------------------------------------------------------------------------- #
+# Handmatige tarieven
+# --------------------------------------------------------------------------- #
+def bewaar_handmatig_tarief(
+    sessie: Session,
+    uzb: Uzb,
+    kaartcode: str,
+    tarieven: dict[str, Decimal],
+    geldig_van: date,
+) -> int:
+    """Leg handmatige tarieven vast voor één kaartschaal, per categorie.
+
+    Een lopende regel voor dezelfde combinatie wordt afgesloten op de dag
+    ervoor, zodat eerdere weken hun tarief houden; dezelfde ingangsdatum
+    overschrijft.
+    """
+    bestaand = sessie.scalars(
+        select(UzbTariefHandmatig)
+        .where(UzbTariefHandmatig.uzb_id == uzb.id)
+        .where(UzbTariefHandmatig.kaartcode == kaartcode)
+    ).all()
+    for rij in bestaand:
+        if rij.categorie not in tarieven:
+            continue
+        if rij.geldig_van == geldig_van:
+            sessie.delete(rij)
+        elif rij.geldig_van < geldig_van and rij.geldig_tot is None:
+            rij.geldig_tot = date.fromordinal(geldig_van.toordinal() - 1)
+    sessie.flush()
+
+    for categorie, tarief in tarieven.items():
+        sessie.add(
+            UzbTariefHandmatig(
+                uzb_id=uzb.id,
+                kaartcode=kaartcode,
+                categorie=categorie,
+                tarief=tarief,
+                geldig_van=geldig_van,
+                geldig_tot=None,
+            )
+        )
+    sessie.flush()
+    return len(tarieven)
+
+
+def handmatige_tarieven_op(
+    sessie: Session, uzb_sleutel: str, dag: date
+) -> dict[str, dict[str, Decimal]]:
+    """De handmatige tarieven die op `dag` gelden: kaartcode -> categorie -> tarief."""
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return {}
+    rijen = sessie.scalars(
+        select(UzbTariefHandmatig)
+        .where(UzbTariefHandmatig.uzb_id == uzb.id)
+        .where(UzbTariefHandmatig.geldig_van <= dag)
+        .where(
+            (UzbTariefHandmatig.geldig_tot.is_(None))
+            | (UzbTariefHandmatig.geldig_tot >= dag)
+        )
+    ).all()
+    per_code: dict[str, dict[str, Decimal]] = {}
+    for rij in rijen:
+        per_code.setdefault(rij.kaartcode, {})[rij.categorie] = Decimal(str(rij.tarief))
+    return per_code
+
+
+def alle_handmatige_tarieven(sessie: Session) -> list[dict]:
+    """Voor het beheerscherm: alle regels, lopend en beëindigd."""
+    rijen = sessie.execute(
+        select(UzbTariefHandmatig, Uzb.naam)
+        .join(Uzb, Uzb.id == UzbTariefHandmatig.uzb_id)
+        .order_by(Uzb.naam, UzbTariefHandmatig.kaartcode, UzbTariefHandmatig.geldig_van)
+    ).all()
+    return [
+        {
+            "id": rij.id,
+            "uzb_sleutel": uzb_naam,
+            "kaartcode": rij.kaartcode,
+            "categorie": rij.categorie,
+            "tarief": Decimal(str(rij.tarief)),
+            "geldig_van": rij.geldig_van,
+            "geldig_tot": rij.geldig_tot,
+        }
+        for rij, uzb_naam in rijen
+    ]
+
+
+def verwijder_handmatig_tarief(sessie: Session, tarief_id: uuid.UUID) -> bool:
+    rij = sessie.get(UzbTariefHandmatig, tarief_id)
+    if rij is None:
+        return False
+    sessie.delete(rij)
+    sessie.flush()
+    return True
+
+
+def kaart_op(sessie: Session, uzb_sleutel: str, dag: date):
+    """De tariefkaart die op `dag` geldt: afgeleid uit lonen x factoren, met de
+    handmatige tarieven eroverheen.
+
+    Handmatig wint van afgeleid: zo'n tarief is juist ingevoerd omdat de kaart
+    het niet of fout heeft. Alle plekken die een kaart nodig hebben (week
+    verwerken, schaal-toets bij Uitzendkrachten) horen déze functie te
+    gebruiken, anders telt een handmatig tarief op de ene plek wel en op de
+    andere niet.
+    """
+    from app.services.tarief import bouw_tariefkaart
+    from app.services.tarief.types import SchaalTarief, TariefKaart
+
+    lonen = loontabel_op(sessie, dag)
+    factoren = factoren_op(sessie, uzb_sleutel, dag)
+    kaart = None
+    if lonen and factoren:
+        kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
+
+    handmatig = handmatige_tarieven_op(sessie, uzb_sleutel, dag)
+    if not handmatig:
+        return kaart
+    if kaart is None:
+        kaart = TariefKaart(uzb_sleutel=uzb_sleutel, geldig_van=dag, schalen={})
+    for kaartcode, tarieven in handmatig.items():
+        bestaande = dict(kaart.schalen.get(kaartcode, SchaalTarief(kaartcode, {})).tarieven)
+        bestaande.update(tarieven)
+        kaart.schalen[kaartcode] = SchaalTarief(kaartcode, bestaande)
+    return kaart
 
 
 # --------------------------------------------------------------------------- #

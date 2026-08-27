@@ -1,28 +1,10 @@
 {% extends "basis.html" %}
-{% block titel %}Lonen &amp; tarieven — UF
-<div class="kaart">
-  <h2>Level One-tariefexport uploaden</h2>
-  <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
-    <label for="lb2">Bestand (.xlsx)</label>
-    <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
-    <label for="ld2">Ingangsdatum (alleen als hij niet in het bestand staat)</label>
-    <input id="ld2" type="date" name="ingangsdatum">
-    <p class="hint">Leeg laten: de app leest de datum uit de kolomkop, zoals
-       &#39;Loon per 1/7/26&#39;.</p>
-    <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
-       kolommen voor Vast, Flex en Seizoen.</p>
-    <label for="lk">Welke kolommen</label>
-    <select id="lk" name="kolom">
-      <option value="nieuw">de nieuwe tarieven</option>
-      <option value="oud">de oude tarieven (ter controle)</option>
-    </select>
-    <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
-    <button type="submit">Level One-tarieven verwerken</button>
-  </form>
-</div>
-{% endblock %}
+{% block titel %}Lonen &amp; tarieven — UF{% endblock %}
 {% block inhoud %}
 <h1>Lonen &amp; tarieven</h1>
+{% if gewijzigd == 'handmatig' %}
+  <div class="kaart"><p>Handmatige tarieven bijgewerkt.</p></div>
+{% endif %}
 
 <div class="kaart">
   <h2>Hoe de tarieven tot stand komen</h2>
@@ -107,5 +89,81 @@
     <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
     <button type="submit">Level One-tarieven verwerken</button>
   </form>
+</div>
+<div class="kaart">
+  <h2>Handmatige tarieven</h2>
+  <p>Voor loonschalen die <strong>niet op de tariefkaart</strong> van het bureau
+     staan (zoals de E-schalen bij Level One): zonder tarief blijven die uren op
+     € 0 staan. Wat je hier invult wint van de kaart en geldt vanaf de
+     ingangsdatum.</p>
+  <p class="hint">Een handmatig tarief beweegt <strong>niet</strong> mee met een
+     CAO-loonronde. Controleer deze lijst dus even bij elke nieuwe loontabel, of
+     verwijder de regel zodra het bureau een kaart levert waar de schaal wél op
+     staat.</p>
+
+  <form method="post" action="/tarieven/handmatig">
+    <div class="rij">
+      <div>
+        <label for="hm-uzb">Uitzendbureau</label>
+        <select id="hm-uzb" name="uzb" required>
+          {% for sleutel, naam in uzbs.items() %}
+          <option value="{{ sleutel }}">{{ naam }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="hm-code">Kaartcode</label>
+        <input id="hm-code" name="kaartcode" placeholder="bv. E5F" required>
+      </div>
+      <div>
+        <label for="hm-van">Geldig vanaf</label>
+        <input id="hm-van" type="date" name="geldig_van" required>
+      </div>
+    </div>
+    <div class="rij">
+      <div><label for="t100">Tarief 100%</label>
+        <input id="t100" name="t100" inputmode="decimal" placeholder="34,56"></div>
+      <div><label for="t150">150%</label>
+        <input id="t150" name="t150" inputmode="decimal"></div>
+      <div><label for="t200">200%</label>
+        <input id="t200" name="t200" inputmode="decimal"></div>
+      <div><label for="tfeestdag">Feestdag</label>
+        <input id="tfeestdag" name="tfeestdag" inputmode="decimal"></div>
+      <div><label for="t135">135% (CK)</label>
+        <input id="t135" name="t135" inputmode="decimal"></div>
+      <div><label for="tnachtuur">Nachtuur (SW)</label>
+        <input id="tnachtuur" name="tnachtuur" inputmode="decimal"></div>
+    </div>
+    <p class="hint">Vul minimaal het 100%-tarief in; laat leeg wat niet van
+       toepassing is. De kaartcode is de code op de kaart: bv. E5F (Level One
+       Flex), E5V (Vast), B2 (Sterk Werk), 14B2 (jeugd 14 jaar).</p>
+    <button type="submit">Tarief opslaan</button>
+  </form>
+
+  {% if handmatige_tarieven %}
+  <table>
+    <tr><th>Bureau</th><th>Kaartcode</th><th>Categorie</th><th>Tarief</th>
+        <th>Geldig</th><th></th></tr>
+    {% for h in handmatige_tarieven %}
+    <tr>
+      <td>{{ uzbs.get(h.uzb_sleutel, h.uzb_sleutel) }}</td>
+      <td>{{ h.kaartcode }}</td>
+      <td>{{ h.categorie }}</td>
+      <td>€ {{ '%.2f'|format(h.tarief) }}</td>
+      <td>{{ h.geldig_van.strftime('%d-%m-%Y') }} —
+          {{ h.geldig_tot.strftime('%d-%m-%Y') if h.geldig_tot else 'heden' }}</td>
+      <td>
+        <form method="post" action="/tarieven/handmatig/verwijder" class="inline"
+              onsubmit="return confirm('Handmatig tarief {{ h.kaartcode }} {{ h.categorie }} verwijderen?')">
+          <input type="hidden" name="tarief_id" value="{{ h.id }}">
+          <button type="submit">Verwijderen</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="leeg">Nog geen handmatige tarieven.</p>
+  {% endif %}
 </div>
 {% endblock %}

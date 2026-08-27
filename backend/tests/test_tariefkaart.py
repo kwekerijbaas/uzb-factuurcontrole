@@ -219,3 +219,23 @@ def test_gedeeltelijke_factorupload_laat_de_rest_doorlopen():
     assert bestaand[0].geldig_tot == date(2026, 6, 30)  # B2F vervangen
     assert bestaand[1].geldig_tot is None  # C6F loopt gewoon door
     assert len(toegevoegd) == 1
+
+
+def test_handmatig_tarief_wint_en_vult_de_kaart_aan():
+    """De Level One-kaart mist de E-schalen; zonder handmatig tarief blijven
+    die uren op EUR 0. Handmatig wint ook van een afgeleid tarief."""
+    from app.services.tarief.types import SchaalTarief, TariefKaart
+
+    kaart = TariefKaart("L1", date(2026, 1, 1), None,
+                        {"B2F": SchaalTarief("B2F", {CAT_100: Decimal("28.94")})})
+    handmatig = {"E5V": {CAT_100: Decimal("34.79"), CAT_150: Decimal("38.55")},
+                 "B2F": {CAT_100: Decimal("30.00")}}
+    # zelfde samenvoeging als opslag.kaart_op
+    for code, tarieven in handmatig.items():
+        bestaande = dict(kaart.schalen.get(code, SchaalTarief(code, {})).tarieven)
+        bestaande.update(tarieven)
+        kaart.schalen[code] = SchaalTarief(code, bestaande)
+
+    assert kaart.schaal("E5V").tarief(CAT_100) == Decimal("34.79")
+    assert kaart.schaal("E5V").tarief(CAT_150) == Decimal("38.55")
+    assert kaart.schaal("B2F").tarief(CAT_100) == Decimal("30.00")  # handmatig wint

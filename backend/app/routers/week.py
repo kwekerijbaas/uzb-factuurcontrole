@@ -20,19 +20,13 @@ from app.services.opslag import (
     bekende_loonschalen,
     bewaar_weekresultaat,
     borg_uzb,
-    factoren_op,
     handmatige_loonschalen,
-    loontabel_op,
+    kaart_op,
     onthoud_uzk,
     ruim_oude_weken_op,
 )
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
-from app.services.tarief import (
-    Kaartreeks,
-    TariefKaart,
-    bouw_tariefkaart,
-    conventies,
-)
+from app.services.tarief import Kaartreeks, TariefKaart, conventies
 from app.services.verwerking import ontbrekende_loonschalen, verwerk_week
 from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
@@ -103,11 +97,7 @@ def kaartreeks_van_week(sessie: Session, uzb_sleutel: str, maandag: date) -> Kaa
     periodes: list[tuple[date, TariefKaart | None]] = []
     for verschuiving in range(7):
         dag = maandag + timedelta(days=verschuiving)
-        lonen = loontabel_op(sessie, dag)
-        factoren = factoren_op(sessie, uzb_sleutel, dag)
-        kaart = None
-        if lonen and factoren:
-            kaart, _ = bouw_tariefkaart(uzb_sleutel, lonen, factoren)
+        kaart = kaart_op(sessie, uzb_sleutel, dag)
         if not periodes or periodes[-1][1] != kaart:
             periodes.append((dag, kaart))
     return Kaartreeks(tuple(periodes))
