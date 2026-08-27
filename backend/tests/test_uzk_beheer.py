@@ -102,3 +102,27 @@ def test_zondag_van_dezelfde_iso_week_mag_wel():
     assert bepaal_week(
         [_nitea("A"), _nitea("B", datum=date(2026, 6, 28))], [_snoop("A")]
     ) == (2026, 26)
+
+
+# --------------------------------------------------------------------------- #
+# Wie handmatig invulde
+# --------------------------------------------------------------------------- #
+def test_zet_loonschaal_registreert_wie_en_wist_bij_overname():
+    """De naam hoort bij de bescherming: hij wordt getoond bij de ja/nee-vraag
+    zodra een upload over de handmatige waarde heen wil. Neemt iemand bewust de
+    bestandswaarde over, dan vervalt de bescherming én de naam -- daarna mogen
+    imports weer geruisloos overschrijven."""
+    from app.services.opslag import zet_loonschaal
+
+    class Rij:
+        loonschaal_code = None
+        schaal_handmatig = False
+        schaal_door = None
+
+    rij = Rij()
+    zet_loonschaal(rij, "C2 Flex", handmatig=True, door="ola@kwekerijbaas.nl")
+    assert rij.schaal_handmatig and rij.schaal_door == "ola@kwekerijbaas.nl"
+
+    zet_loonschaal(rij, "B2 Flex", handmatig=False, door="tim@kwekerijbaas.nl")
+    assert not rij.schaal_handmatig
+    assert rij.schaal_door is None  # bescherming weg -> naam ook

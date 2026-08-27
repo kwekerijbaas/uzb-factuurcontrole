@@ -22,13 +22,16 @@ from app.services.ingest.loontabel import lees_loontabel
 from app.services.tarief.kaart import Loontabel
 from app.services.opslag import (
     alle_handmatige_tarieven,
+    beeindig_handmatig_tarief,
     bewaar_factoren,
     bewaar_handmatig_tarief,
     bewaar_loontabel,
     borg_uzb,
     factoren_op,
     loontabel_op,
+    loontabel_overzicht,
     loontabellen,
+    lopende_handmatige_tarieven,
     verdwenen_schalen,
     verwijder_handmatig_tarief,
 )
@@ -80,11 +83,42 @@ def overzicht(
             "loontabellen": tabellen,
             "per_uzb": per_uzb,
             "actieve_loontabel": loontabel_op(sessie, vandaag),
+            "tabellen_overzicht": loontabel_overzicht(sessie),
             "handmatige_tarieven": alle_handmatige_tarieven(sessie),
             "uzbs": UZB_NAMEN,
             "gewijzigd": gewijzigd,
         },
     )
+
+
+def _handmatige_conflicten(
+    sessie: Session, uzb_sleutel: str, kaartcodes, vanaf: date
+) -> list[dict]:
+    """Actieve handmatige tarieven waar deze import overheen wil.
+
+    Een handmatig tarief wint altijd van de afgeleide kaart; een import die
+    dezelfde kaartcode meebrengt heeft dus pas effect als de gebruiker per
+    geval 'ja' zegt. Een al beëindigd handmatig tarief telt niet mee -- daar
+    gaat een import geruisloos overheen.
+    """
+    per_code: dict[str, dict] = {}
+    for h in lopende_handmatige_tarieven(sessie, uzb_sleutel):
+        if h["kaartcode"] not in kaartcodes:
+            continue
+        regel = per_code.setdefault(
+            h["kaartcode"],
+            {
+                "uzb": uzb_sleutel,
+                "uzb_naam": UZB_NAMEN.get(uzb_sleutel, uzb_sleutel),
+                "kaartcode": h["kaartcode"],
+                "tarieven": [],
+                "door": h["door"],
+                "geldig_van": h["geldig_van"],
+                "vanaf": vanaf,
+            },
+        )
+        regel["tarieven"].append(f"{h['categorie']}: EUR {h['tarief']:.2f}")
+    return list(per_code.values())
 
 
 # Categorieën die in het formulier kunnen worden ingevuld; de veldnaam is de
@@ -149,7 +183,31 @@ def voeg_handmatig_tarief_toe(
         )
 
     rij = borg_uzb(sessie, uzb, UZB_NAMEN[uzb])
-    bewaar_handmatig_tarief(sessie, rij, code, ingevuld, geldig_van)
+    bewaar_handmatig_tarief(sessie, rij, code, ingevuld, geldig_van, door=gebruiker.naam)
+    sessie.commit()
+    return RedirectResponse("/tarieven?gewijzigd=handmatig", status_code=303)
+
+
+@router.post("/handmatig/beeindig", response_model=None)
+def beeindig_handmatig(
+    uzb: str = Form(...),
+    kaartcode: str = Form(...),
+    vanaf: date = Form(...),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """De 'ja' op de vraag of een import een handmatig tarief mag overnemen.
+
+    Sluit het handmatige tarief af per de ingangsdatum van de import: oude
+    weken houden het, daarna geldt de kaart weer en overschrijven volgende
+    imports geruisloos.
+    """
+    aantal = beeindig_handmatig_tarief(sessie, uzb, kaartcode, vanaf)
+    if not aantal:
+        raise HTTPException(
+            status_code=404,
+            detail="Er loopt geen handmatig tarief (meer) voor deze schaal.",
+        )
     sessie.commit()
     return RedirectResponse("/tarieven?gewijzigd=handmatig", status_code=303)
 
@@ -285,8 +343,12 @@ async def upload_tariefkaart(
 
     bevindingen = []
     resultaten = []
+    tarief_conflicten = []
     for sleutel, blad in bladen.items():
         bevindingen += valideer_tarieven(sleutel, blad.tarieven)
+        tarief_conflicten += _handmatige_conflicten(
+            sessie, sleutel, set(blad.tarieven), ingangsdatum
+        )
 
         kaart = TariefKaart(
             uzb_sleutel=sleutel,
@@ -331,6 +393,7 @@ async def upload_tariefkaart(
             "waarschuwingen": waarschuwingen,
             "bevindingen": bevindingen,
             "resultaten": resultaten,
+            "tarief_conflicten": tarief_conflicten,
         },
     )
 
@@ -396,6 +459,9 @@ async def upload_level_one(
         )
 
     bevindingen = valideer_tarieven("L1", export.tarieven)
+    tarief_conflicten = _handmatige_conflicten(
+        sessie, "L1", set(export.tarieven), ingangsdatum
+    )
     # Ook hier de lonen toetsen zoals ze na deze upload gelden: de export noemt
     # alleen de schalen van Level One, de rest komt uit een eerdere tabel.
     bevindingen += valideer_minimumloon(lonen, Decimal(settings.minimumloon))
@@ -433,6 +499,7 @@ async def upload_level_one(
             ),
             "waarschuwingen": waarschuwingen,
             "bevindingen": bevindingen,
+            "tarief_conflicten": tarief_conflicten,
             "resultaten": [
                 {
                     "sleutel": "L1",

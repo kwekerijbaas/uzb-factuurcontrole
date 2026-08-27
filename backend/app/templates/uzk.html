@@ -6,6 +6,10 @@
 {% if gewijzigd %}
   <div class="kaart"><p>Loonschaal van <strong>{{ gewijzigd }}</strong> opgeslagen.</p></div>
 {% endif %}
+{% if behouden %}
+  <div class="kaart"><p>De handmatige loonschaal van <strong>{{ behouden }}</strong>
+     blijft staan; het bestand heeft hem niet overschreven.</p></div>
+{% endif %}
 
 <div class="kaart">
   <p>Per uitzendbureau de bekende uitzendkrachten met hun loonschaal. Zonder
@@ -56,7 +60,7 @@
       {% for k in uzb.krachten %}
       <tr data-naam="{{ k.naam|lower }}">
         <td>{{ k.naam }}{% if k.schaal_handmatig %}
-          <span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig</span>
+          <span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig{% if k.schaal_door %} ({{ k.schaal_door }}){% endif %}</span>
         {% endif %}</td>
         <td>
           <form method="post" action="/uzk/{{ k.id }}/loonschaal" class="inline">

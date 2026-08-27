@@ -89,12 +89,14 @@ In de praktijk komt dit vooral door een naamverschil tussen SNOOP en Nitea
 koppeling de SNOOP-regel niet en blijft de schaal leeg.
 
 **Handmatig ingevulde schalen zijn beschermd.** Een met de hand ingevulde
-schaal (gemarkeerd met ✎) wint bij het verwerken van de SNOOP-waarde en wordt
-door bestanden niet stilzwijgend overschreven. Wijkt een bestand ervan af, dan
-volgt een melding per geval: bij de weekverwerking op het Afwijkingen-tabblad,
-bij de lijst-upload als keuze op het resultaatscherm ("bestand overnemen" of
-"handmatig laten staan"). Pas wie bewust de bestandswaarde overneemt, vervalt
-de bescherming.
+schaal (gemarkeerd met ✎, met de naam van wie hem invulde) wint bij het
+verwerken van de SNOOP-waarde en wordt door bestanden niet stilzwijgend
+overschreven. Wijkt een upload ervan af, dan volgt **per uitzendkracht een
+ja/nee-vraag** op het resultaatscherm, met de naam van de invuller erbij:
+"Ja, bestandswaarde overnemen" of "Nee, handmatig houden". Bij ja vervalt de
+bescherming (en de naam) en overschrijven volgende imports geruisloos; bij nee
+blijft de handmatige waarde staan en wordt het bij een volgende afwijkende
+upload opnieuw gevraagd.
 
 **Het weeknummer komt uit de bestanden.** Nitea is leidend; het overzicht moet
 precies één ISO-week beslaan en de SNOOP-export moet dezelfde week dekken,
@@ -218,11 +220,22 @@ onrechte als 'vervallen' worden gemeld.
 ### 6.5 Handmatige tarieven
 Voor kaartcodes die op de kaart van het bureau ontbreken (de Level One-kaart
 mist de E-schalen) kan op de Lonen & tarieven-pagina per kaartcode en categorie
-een **handmatig tarief** worden ingevoerd, met ingangsdatum (SCD2). Handmatig
-**wint** van de afgeleide kaart en telt mee in de schaal-toets bij
-Uitzendkrachten. Let op: een handmatig tarief beweegt **niet** mee met een
-CAO-loonronde — bij elke nieuwe loontabel de lijst nalopen, en de regel
-verwijderen zodra het bureau een kaart levert waar de schaal wél op staat.
+een **handmatig tarief** worden ingevoerd, met ingangsdatum (SCD2); wie het
+invoert wordt vastgelegd en getoond. Handmatig **wint** van de afgeleide kaart
+en telt mee in de schaal-toets bij Uitzendkrachten. Let op: een handmatig
+tarief beweegt **niet** mee met een CAO-loonronde — bij elke nieuwe loontabel
+de lijst nalopen, en de regel verwijderen zodra het bureau een kaart levert
+waar de schaal wél op staat.
+
+Brengt een **import** (tariefkaart of Level One-export) een kaartcode mee
+waarvoor een handmatig tarief nog loopt, dan vraagt het resultaatscherm **per
+schaal ja of nee**, met de naam van de invuller erbij. Ja beëindigt het
+handmatige tarief per de ingangsdatum van de import (oude weken houden het);
+daarna overschrijven volgende imports geruisloos. Nee laat het handmatige
+tarief vóórgaan, en de vraag komt bij een volgende import terug. De Lonen &
+tarieven-pagina toont daarnaast alle **ingeladen loontabellen** met de
+markering welke actueel is, zodat te zien is wat er al staat vóórdat iemand
+een tabel (nogmaals) uploadt.
 
 Een loontabel-upload met een **al bestaande ingangsdatum** vervangt die tabel
 volledig; laat de upload schalen verdwijnen (half ingelezen bestand), dan

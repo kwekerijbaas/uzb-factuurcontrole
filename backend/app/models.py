@@ -163,6 +163,9 @@ class Uzk(Base, TijdstempelMixin):
     # overschreven door een bestand: bij een verschil volgt een melding, en
     # alleen een bewuste keuze neemt de bestandswaarde over.
     schaal_handmatig: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Wie de handmatige waarde invulde; getoond bij de ja/nee-vraag zodra een
+    # upload eroverheen wil.
+    schaal_door: Mapped[str | None] = mapped_column(String(320))
     actief: Mapped[bool] = mapped_column(Boolean, default=True)
 
     uzb: Mapped[Uzb] = relationship(back_populates="uzks")
@@ -274,6 +277,7 @@ class UzbTariefHandmatig(Base, Scd2Mixin, TijdstempelMixin):
     kaartcode: Mapped[str] = mapped_column(String(50), nullable=False)
     categorie: Mapped[str] = mapped_column(String(20), nullable=False)
     tarief: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+    door: Mapped[str | None] = mapped_column(String(320))  # wie dit invoerde
 
 
 class MatchPeriode(Base, TijdstempelMixin):

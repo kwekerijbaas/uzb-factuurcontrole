@@ -74,6 +74,7 @@ def _bekend(sessie: Session) -> list[dict]:
 def overzicht(
     request: Request,
     gewijzigd: str = "",
+    behouden: str = "",
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
@@ -85,6 +86,7 @@ def overzicht(
             "uzbs": UZB_NAMEN,
             "per_uzb": _bekend(sessie),
             "gewijzigd": gewijzigd,
+            "behouden": behouden,
         },
     )
 
@@ -137,9 +139,25 @@ def wijzig_loonschaal(
                 },
             )
 
-    zet_loonschaal(kracht, waarde, handmatig=bron != "bestand")
+    zet_loonschaal(kracht, waarde, handmatig=bron != "bestand", door=gebruiker.naam)
     sessie.commit()
     return RedirectResponse(f"/uzk?gewijzigd={quote(kracht.naam)}", status_code=303)
+
+
+@router.post("/{uzk_id}/loonschaal/behoud", response_model=None)
+def behoud_loonschaal(
+    uzk_id: uuid.UUID,
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """De expliciete 'nee' op de vraag of het bestand de handmatige schaal mag
+    overschrijven. Wijzigt niets; bevestigt alleen dat de handmatige waarde
+    blijft staan (en bij een volgende upload met hetzelfde verschil wordt het
+    opnieuw gevraagd)."""
+    kracht = sessie.get(Uzk, uzk_id)
+    if kracht is None:
+        raise HTTPException(status_code=404, detail="Deze uitzendkracht bestaat niet.")
+    return RedirectResponse(f"/uzk?behouden={quote(kracht.naam)}", status_code=303)
 
 
 @router.post("/lijst", response_class=HTMLResponse)
@@ -178,6 +196,7 @@ async def upload_lijst(
                     "naam": rij.naam,
                     "handmatig": rij.loonschaal_code,
                     "uit_bestand": regel.loonschaal,
+                    "door": rij.schaal_door,
                 }
             )
     sessie.commit()

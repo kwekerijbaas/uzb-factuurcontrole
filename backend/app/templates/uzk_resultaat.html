@@ -19,17 +19,22 @@
      overschreven. Kies per persoon: de waarde uit het bestand overnemen, of de
      handmatige waarde laten staan (dan hoef je niets te doen).</p>
   <table>
-    <tr><th>Naam</th><th>Handmatig ingevuld</th><th>In het bestand</th><th></th></tr>
+    <tr><th>Naam</th><th>Handmatig ingevuld</th><th>Door</th>
+        <th>In het bestand</th><th>Mag het bestand overschrijven?</th></tr>
     {% for c in conflicten %}
     <tr>
       <td>{{ c.naam }}</td>
-      <td><strong>{{ c.handmatig }}</strong> <span class="hint">(blijft staan)</span></td>
+      <td><strong>{{ c.handmatig }}</strong></td>
+      <td class="hint">{{ c.door or 'onbekend' }}</td>
       <td>{{ c.uit_bestand }}</td>
       <td>
         <form method="post" action="/uzk/{{ c.id }}/loonschaal" class="inline">
           <input type="hidden" name="loonschaal" value="{{ c.uit_bestand }}">
           <input type="hidden" name="bron" value="bestand">
-          <button type="submit">'{{ c.uit_bestand }}' uit het bestand overnemen</button>
+          <button type="submit">Ja, '{{ c.uit_bestand }}' overnemen</button>
+        </form>
+        <form method="post" action="/uzk/{{ c.id }}/loonschaal/behoud" class="inline">
+          <button type="submit">Nee, '{{ c.handmatig }}' houden</button>
         </form>
       </td>
     </tr>

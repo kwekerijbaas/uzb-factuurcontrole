@@ -7,6 +7,41 @@
   <p><a href="/tarieven">&larr; terug naar lonen &amp; tarieven</a></p>
 </div>
 
+{% if tarief_conflicten %}
+<div class="kaart">
+  <h2>Import raakt handmatige tarieven ({{ tarief_conflicten|length }})</h2>
+  <p>Voor deze schalen loopt een <strong>handmatig</strong> tarief; dat blijft
+     vóórgaan op de zojuist ingelezen import totdat je hieronder per schaal
+     kiest. <strong>Ja</strong> = vanaf {{ tarief_conflicten[0].vanaf.strftime('%d-%m-%Y') }}
+     de import gebruiken (oude weken houden het handmatige tarief; daarna
+     overschrijven volgende imports geruisloos). <strong>Nee</strong> = niets
+     doen, het handmatige tarief blijft gelden.</p>
+  <table>
+    <tr><th>Bureau</th><th>Kaartcode</th><th>Handmatig tarief</th>
+        <th>Ingevoerd door</th><th>Sinds</th><th>Keuze</th></tr>
+    {% for c in tarief_conflicten %}
+    <tr>
+      <td>{{ c.uzb_naam }}</td>
+      <td>{{ c.kaartcode }}</td>
+      <td>{{ c.tarieven|join('; ') }}</td>
+      <td>{{ c.door or 'onbekend' }}</td>
+      <td>{{ c.geldig_van.strftime('%d-%m-%Y') }}</td>
+      <td>
+        <form method="post" action="/tarieven/handmatig/beeindig" class="inline"
+              onsubmit="return confirm('Handmatig tarief {{ c.kaartcode }} per {{ c.vanaf.strftime('%d-%m-%Y') }} vervangen door de import?')">
+          <input type="hidden" name="uzb" value="{{ c.uzb }}">
+          <input type="hidden" name="kaartcode" value="{{ c.kaartcode }}">
+          <input type="hidden" name="vanaf" value="{{ c.vanaf.isoformat() }}">
+          <button type="submit">Ja, import gebruiken</button>
+        </form>
+        <span class="hint">niets doen = nee, handmatig blijft</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 {% if bevindingen %}
 <div class="kaart">
   <h2>Controle ({{ bevindingen|length }})</h2>

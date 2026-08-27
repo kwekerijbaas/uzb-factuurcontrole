@@ -23,10 +23,28 @@
 <div class="kaart">
   <h2>Huidige stand</h2>
   {% if actieve_loontabel %}
-    <p>Actieve loontabel: <strong>{{ actieve_loontabel.naam }}</strong>
-       (vanaf {{ actieve_loontabel.ingangsdatum.strftime('%d-%m-%Y') }},
-       {{ actieve_loontabel.lonen|length }} schalen, inclusief de schalen die
-       een eerdere tabel al vastlegde).</p>
+    <p>Er gelden nu <strong>{{ actieve_loontabel.lonen|length }} schalen</strong>,
+       opgebouwd uit de tabellen hieronder (een nieuwere tabel overschrijft
+       alleen de schalen die hij zelf noemt).</p>
+    <table>
+      <tr><th>Ingangsdatum</th><th>Naam</th><th>Bronbestand</th>
+          <th>Schalen</th><th>Status</th></tr>
+      {% for tabel in tabellen_overzicht %}
+      <tr>
+        <td>{{ tabel.ingangsdatum.strftime('%d-%m-%Y') }}</td>
+        <td>{{ tabel.naam }}</td>
+        <td class="hint">{{ tabel.bron_bestand or '' }}</td>
+        <td>{{ tabel.aantal }}</td>
+        <td>{% if tabel.actueel %}<strong>ACTUEEL</strong>
+            {% elif tabel.toekomstig %}gaat nog in
+            {% else %}gold eerder{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="hint"><strong>Let op bij opnieuw uploaden:</strong> een upload met
+       een ingangsdatum die hierboven al staat, <strong>vervangt</strong> die
+       tabel volledig. Controleer dus eerst of de datum al in de lijst staat —
+       alleen uploaden wat nieuw is, tenzij je bewust corrigeert.</p>
   {% else %}
     <p class="fout">Nog geen CAO-loontabel geladen — zonder lonen kunnen er geen bedragen berekend worden.</p>
   {% endif %}
@@ -143,7 +161,7 @@
   {% if handmatige_tarieven %}
   <table>
     <tr><th>Bureau</th><th>Kaartcode</th><th>Categorie</th><th>Tarief</th>
-        <th>Geldig</th><th></th></tr>
+        <th>Geldig</th><th>Ingevoerd door</th><th></th></tr>
     {% for h in handmatige_tarieven %}
     <tr>
       <td>{{ uzbs.get(h.uzb_sleutel, h.uzb_sleutel) }}</td>
@@ -152,6 +170,7 @@
       <td>€ {{ '%.2f'|format(h.tarief) }}</td>
       <td>{{ h.geldig_van.strftime('%d-%m-%Y') }} —
           {{ h.geldig_tot.strftime('%d-%m-%Y') if h.geldig_tot else 'heden' }}</td>
+      <td class="hint">{{ h.door or 'onbekend' }}</td>
       <td>
         <form method="post" action="/tarieven/handmatig/verwijder" class="inline"
               onsubmit="return confirm('Handmatig tarief {{ h.kaartcode }} {{ h.categorie }} verwijderen?')">

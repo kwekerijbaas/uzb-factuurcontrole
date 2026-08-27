@@ -82,6 +82,34 @@ def _naar_loontabel(rij: CaoLoontabel) -> Loontabel:
     )
 
 
+def loontabel_overzicht(sessie: Session) -> list[dict]:
+    """Alle ingeladen loontabellen, met markering welke nu actueel is.
+
+    Voor het scherm: zo is te zien wat er al staat vóórdat iemand een tabel
+    (nogmaals) uploadt -- een upload met een bestaande ingangsdatum vervangt
+    die tabel immers volledig.
+    """
+    vandaag = date.today()
+    rijen = sessie.scalars(
+        select(CaoLoontabel).order_by(CaoLoontabel.ingangsdatum)
+    ).all()
+    actueel = None
+    for rij in rijen:
+        if rij.ingangsdatum <= vandaag:
+            actueel = rij.id
+    return [
+        {
+            "ingangsdatum": rij.ingangsdatum,
+            "naam": rij.naam,
+            "bron_bestand": rij.bron_bestand,
+            "aantal": len(rij.lonen),
+            "actueel": rij.id == actueel,
+            "toekomstig": rij.ingangsdatum > vandaag,
+        }
+        for rij in rijen
+    ]
+
+
 def loontabellen(sessie: Session) -> list[Loontabel]:
     rijen = sessie.scalars(
         select(CaoLoontabel).order_by(CaoLoontabel.ingangsdatum)
@@ -202,6 +230,7 @@ def bewaar_handmatig_tarief(
     kaartcode: str,
     tarieven: dict[str, Decimal],
     geldig_van: date,
+    door: str | None = None,
 ) -> int:
     """Leg handmatige tarieven vast voor één kaartschaal, per categorie.
 
@@ -232,6 +261,7 @@ def bewaar_handmatig_tarief(
                 tarief=tarief,
                 geldig_van=geldig_van,
                 geldig_tot=None,
+                door=door,
             )
         )
     sessie.flush()
@@ -276,9 +306,65 @@ def alle_handmatige_tarieven(sessie: Session) -> list[dict]:
             "tarief": Decimal(str(rij.tarief)),
             "geldig_van": rij.geldig_van,
             "geldig_tot": rij.geldig_tot,
+            "door": rij.door,
         }
         for rij, uzb_naam in rijen
     ]
+
+
+def lopende_handmatige_tarieven(sessie: Session, uzb_sleutel: str) -> list[dict]:
+    """De handmatige tarieven die nu nog meelopen (geen einddatum).
+
+    Gebruikt bij een import: overlapt de import met zo'n tarief, dan wordt per
+    geval gevraagd of de importwaarde het mag overnemen. Een al beëindigd
+    handmatig tarief telt niet mee -- daaroverheen mag een import geruisloos.
+    """
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return []
+    rijen = sessie.scalars(
+        select(UzbTariefHandmatig)
+        .where(UzbTariefHandmatig.uzb_id == uzb.id)
+        .where(UzbTariefHandmatig.geldig_tot.is_(None))
+        .order_by(UzbTariefHandmatig.kaartcode, UzbTariefHandmatig.categorie)
+    ).all()
+    return [
+        {
+            "kaartcode": rij.kaartcode,
+            "categorie": rij.categorie,
+            "tarief": Decimal(str(rij.tarief)),
+            "geldig_van": rij.geldig_van,
+            "door": rij.door,
+        }
+        for rij in rijen
+    ]
+
+
+def beeindig_handmatig_tarief(
+    sessie: Session, uzb_sleutel: str, kaartcode: str, vanaf: date
+) -> int:
+    """Sluit de lopende handmatige tarieven van één kaartschaal af per `vanaf`.
+
+    De bewuste 'ja' op de vraag of een import het mag overnemen: tot `vanaf`
+    blijft het handmatige tarief voor oude weken gelden, daarna telt de
+    afgeleide kaart weer -- en volgende imports overschrijven geruisloos.
+    """
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return 0
+    rijen = sessie.scalars(
+        select(UzbTariefHandmatig)
+        .where(UzbTariefHandmatig.uzb_id == uzb.id)
+        .where(UzbTariefHandmatig.kaartcode == kaartcode)
+        .where(UzbTariefHandmatig.geldig_tot.is_(None))
+    ).all()
+    for rij in rijen:
+        if rij.geldig_van >= vanaf:
+            sessie.delete(rij)  # zou anders een lege of negatieve periode worden
+        else:
+            rij.geldig_tot = date.fromordinal(vanaf.toordinal() - 1)
+    sessie.flush()
+    return len(rijen)
 
 
 def verwijder_handmatig_tarief(sessie: Session, tarief_id: uuid.UUID) -> bool:
@@ -369,15 +455,20 @@ def onthoud_uzk(
     return rij
 
 
-def zet_loonschaal(rij: Uzk, loonschaal: str, handmatig: bool) -> None:
+def zet_loonschaal(
+    rij: Uzk, loonschaal: str, handmatig: bool, door: str | None = None
+) -> None:
     """Bewuste schaalwijziging vanuit het scherm.
 
     `handmatig=True` bij een met de hand ingevulde waarde: die is daarna tegen
-    bestanden beschermd. `handmatig=False` wanneer de gebruiker juist kiest de
-    bestandswaarde over te nemen; daarmee vervalt de bescherming weer.
+    bestanden beschermd, en `door` legt vast wie hem invulde -- die naam wordt
+    getoond zodra een upload eroverheen wil. `handmatig=False` wanneer de
+    gebruiker juist kiest de bestandswaarde over te nemen; daarmee vervalt de
+    bescherming (en de naam) weer, en overschrijven volgende imports geruisloos.
     """
     rij.loonschaal_code = loonschaal
     rij.schaal_handmatig = handmatig
+    rij.schaal_door = door if handmatig else None
 
 
 def handmatige_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
