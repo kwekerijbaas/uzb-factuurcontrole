@@ -25,6 +25,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Time,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -78,6 +79,78 @@ class Loonschaal(Base, Scd2Mixin, TijdstempelMixin):
     uurtarief: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
 
 
+class CaoLoontabel(Base, TijdstempelMixin):
+    """Eén geüploade CAO-loontabel. Vanaf `ingangsdatum` gelden deze lonen; de
+    UZB-tarieven bewegen automatisch mee (zie UzbTariefFactor)."""
+
+    __tablename__ = "cao_loontabel"
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(200), nullable=False)
+    ingangsdatum: Mapped[date] = mapped_column(Date, nullable=False)
+    bron_bestand: Mapped[str | None] = mapped_column(String(500))
+    geimporteerd_door: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+    lonen: Mapped[list[CaoLoon]] = relationship(
+        back_populates="loontabel", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (UniqueConstraint("ingangsdatum", name="uq_cao_loontabel_ingangsdatum"),)
+
+
+class CaoLoon(Base):
+    """Uurloon van één CAO-schaal binnen een loontabel."""
+
+    __tablename__ = "cao_loon"
+
+    id: Mapped[uuid.UUID] = _pk()
+    loontabel_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cao_loontabel.id", ondelete="CASCADE"), nullable=False
+    )
+    schaal_code: Mapped[str] = mapped_column(String(50), nullable=False)  # bv. "B2", "15B2"
+    omschrijving: Mapped[str | None] = mapped_column(String(200))
+    uurloon: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+
+    loontabel: Mapped[CaoLoontabel] = relationship(back_populates="lonen")
+
+    __table_args__ = (
+        UniqueConstraint("loontabel_id", "schaal_code", name="uq_cao_loon_tabel_schaal"),
+    )
+
+
+class UzbTariefFactor(Base, Scd2Mixin, TijdstempelMixin):
+    """Omrekenfactor per UZB, per tariefkaart-schaal, per tariefcategorie:
+
+        tarief = CAO-uurloon x factor
+
+    De factor ligt contractueel vast met het uitzendbureau en verandert niet mee
+    met de CAO-lonen. Daardoor levert het uploaden van een nieuwe loontabel
+    automatisch een nieuwe, correcte tariefkaart op vanaf die ingangsdatum
+    (SPEC §6).
+
+    `kaartcode` is de code van het uitzendbureau (bv. "B4F" of "B4V"), die naar
+    dezelfde `cao_schaal_code` ("B4") kan verwijzen met een andere factor --
+    Flex en Vast delen immers het CAO-loon maar niet het tarief.
+    """
+
+    __tablename__ = "uzb_tarief_factor"
+
+    id: Mapped[uuid.UUID] = _pk()
+    uzb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uzb.id"), nullable=False)
+    kaartcode: Mapped[str] = mapped_column(String(50), nullable=False)
+    cao_schaal_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    categorie: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 100 | 135 | 150 | 200 | feestdag | nachtuur
+    factor: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "uzb_id", "kaartcode", "categorie", "geldig_van",
+            name="uq_uzb_tarief_factor_versie",
+        ),
+    )
+
+
 class Uzk(Base, TijdstempelMixin):
     __tablename__ = "uzk"
 
@@ -86,6 +159,13 @@ class Uzk(Base, TijdstempelMixin):
     externe_code: Mapped[str | None] = mapped_column(String(100))  # id in Nitea
     naam: Mapped[str] = mapped_column(String(200), nullable=False)
     loonschaal_code: Mapped[str | None] = mapped_column(String(50))
+    # Met de hand ingevuld in het scherm. Zo'n schaal wordt niet stilzwijgend
+    # overschreven door een bestand: bij een verschil volgt een melding, en
+    # alleen een bewuste keuze neemt de bestandswaarde over.
+    schaal_handmatig: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Wie de handmatige waarde invulde; getoond bij de ja/nee-vraag zodra een
+    # upload eroverheen wil.
+    schaal_door: Mapped[str | None] = mapped_column(String(320))
     actief: Mapped[bool] = mapped_column(Boolean, default=True)
 
     uzb: Mapped[Uzb] = relationship(back_populates="uzks")
@@ -180,6 +260,26 @@ class RegistratieRegel(Base):
     run: Mapped[RegistratieRun] = relationship(back_populates="regels")
 
 
+class UzbTariefHandmatig(Base, Scd2Mixin, TijdstempelMixin):
+    """Handmatig ingevoerd tarief voor één kaartschaal en tariefcategorie.
+
+    Voor schalen die op de tariefkaart van het uitzendbureau ontbreken (de
+    Level One-kaart mist de E-schalen): zonder dit blijven die uren op EUR 0
+    staan tot het bureau een nieuwe kaart levert. Een handmatig tarief wint
+    van de afgeleide kaart en beweegt -- anders dan een factor -- níét mee met
+    de CAO-lonen; het blijft staan tot het wordt beëindigd of vervangen.
+    """
+
+    __tablename__ = "uzb_tarief_handmatig"
+
+    id: Mapped[uuid.UUID] = _pk()
+    uzb_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uzb.id"), nullable=False)
+    kaartcode: Mapped[str] = mapped_column(String(50), nullable=False)
+    categorie: Mapped[str] = mapped_column(String(20), nullable=False)
+    tarief: Mapped[float] = mapped_column(Numeric(8, 4), nullable=False)
+    door: Mapped[str | None] = mapped_column(String(320))  # wie dit invoerde
+
+
 class MatchPeriode(Base, TijdstempelMixin):
     """Eén weekcontrole (uzk × week). Enige schrijfbare werkeenheid."""
 
@@ -196,11 +296,14 @@ class MatchPeriode(Base, TijdstempelMixin):
     gevalideerd_op: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     berekening: Mapped[BerekendeUren | None] = relationship(
-        back_populates="match", uselist=False
+        back_populates="match", uselist=False, cascade="all, delete-orphan"
     )
 
 
 class BerekendeUren(Base, TijdstempelMixin):
+    """De uitkomst van één uitzendkracht × week, bewaard zodat de factuur later
+    los kan worden gecontroleerd zonder de bronbestanden opnieuw te uploaden."""
+
     __tablename__ = "berekende_uren"
 
     id: Mapped[uuid.UUID] = _pk()
@@ -209,6 +312,15 @@ class BerekendeUren(Base, TijdstempelMixin):
     # {"0": 2280, "35": 240, "50": 120, "100": 0}
     minuten_per_percentage: Mapped[dict] = mapped_column(JSONB, nullable=False)
     trace: Mapped[list | None] = mapped_column(JSONB)
+
+    # De loonschaal zoals die in déze week gold; de schaal op `uzk` is de
+    # huidige en kan later gewijzigd zijn.
+    loonschaal: Mapped[str | None] = mapped_column(String(50))
+    kaartcode: Mapped[str | None] = mapped_column(String(50))
+    # {"100": 2280, "150": 120} en {"100": 1099.72, "150": 67.84}
+    minuten_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
+    bedrag_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
+    bedrag_totaal: Mapped[float | None] = mapped_column(Numeric(12, 2))
 
     match: Mapped[MatchPeriode] = relationship(back_populates="berekening")
 

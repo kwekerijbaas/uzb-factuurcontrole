@@ -1,0 +1,49 @@
+{% extends "basis.html" %}
+{% block titel %}{{ titel }} — UF{% endblock %}
+{% block inhoud %}
+<h1>{{ titel }}</h1>
+
+<div class="kaart">
+  <p>{{ samenvatting }}</p>
+  {% if waarschuwingen %}
+    <ul>
+      {% for w in waarschuwingen %}<li class="waarschuwing">{{ w }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</div>
+
+{% if conflicten %}
+<div class="kaart">
+  <h2>Het bestand wijkt af van handmatig ingevulde schalen ({{ conflicten|length }})</h2>
+  <p>Deze schalen zijn eerder met de hand ingevuld en zijn daarom <strong>niet</strong>
+     overschreven. Kies per persoon: de waarde uit het bestand overnemen, of de
+     handmatige waarde laten staan (dan hoef je niets te doen).</p>
+  <table>
+    <tr><th>Naam</th><th>Handmatig ingevuld</th><th>Door</th>
+        <th>In het bestand</th><th>Mag het bestand overschrijven?</th></tr>
+    {% for c in conflicten %}
+    <tr>
+      <td>{{ c.naam }}</td>
+      <td><strong>{{ c.handmatig }}</strong></td>
+      <td class="hint">{{ c.door or 'onbekend' }}</td>
+      <td>{{ c.uit_bestand }}</td>
+      <td>
+        <form method="post" action="/uzk/{{ c.id }}/loonschaal" class="inline">
+          <input type="hidden" name="loonschaal" value="{{ c.uit_bestand }}">
+          <input type="hidden" name="bron" value="bestand">
+          <button type="submit">Ja, '{{ c.uit_bestand }}' overnemen</button>
+        </form>
+        <form method="post" action="/uzk/{{ c.id }}/loonschaal/behoud" class="inline">
+          <button type="submit">Nee, '{{ c.handmatig }}' houden</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="hint">Neem je de bestandswaarde over, dan vervalt de bescherming en
+     volgt deze persoon voortaan weer gewoon de bestanden.</p>
+</div>
+{% endif %}
+
+<p><a href="/uzk">Terug naar Uitzendkrachten</a></p>
+{% endblock %}

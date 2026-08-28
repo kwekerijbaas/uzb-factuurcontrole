@@ -1,0 +1,108 @@
+{% extends "basis.html" %}
+{% block titel %}Uitzendkrachten — UF{% endblock %}
+{% block inhoud %}
+<h1>Uitzendkrachten</h1>
+
+{% if gewijzigd %}
+  <div class="kaart"><p>Loonschaal van <strong>{{ gewijzigd }}</strong> opgeslagen.</p></div>
+{% endif %}
+{% if behouden %}
+  <div class="kaart"><p>De handmatige loonschaal van <strong>{{ behouden }}</strong>
+     blijft staan; het bestand heeft hem niet overschreven.</p></div>
+{% endif %}
+
+<div class="kaart">
+  <p>Per uitzendbureau de bekende uitzendkrachten met hun loonschaal. Zonder
+     loonschaal is er geen tarief, en dan wordt een week <strong>niet</strong>
+     verwerkt. Vul een ontbrekende schaal hieronder met de hand in.</p>
+  <p class="hint">De SNOOP-regel van de week zelf gaat altijd voor — een schaal
+     kan tussentijds wijzigen. Wat je hier invult geldt zolang SNOOP niets
+     anders meelevert.</p>
+</div>
+
+<div class="kaart">
+  <label for="zoek">Zoek een uitzendkracht</label>
+  <input id="zoek" type="search" placeholder="Typ een (deel van een) naam..."
+         autocomplete="off">
+  <p class="hint" id="zoekstand" hidden></p>
+</div>
+
+<div class="kaart">
+  <h2>Lijst uploaden</h2>
+  <form method="post" action="/uzk/lijst" enctype="multipart/form-data">
+    <label for="b">Bestand (.xlsx)</label>
+    <input id="b" type="file" name="bestand" accept=".xlsx" required>
+    <p class="hint">Een SNOOP-export over een langere periode. Het uitzendbureau
+       wordt uit het bestand afgeleid. Bij een schaalwissel telt de meest recente.</p>
+    <button type="submit">Lijst inladen</button>
+  </form>
+</div>
+
+{% for uzb in per_uzb %}
+<div class="kaart">
+  <h2>{{ uzb.naam }}</h2>
+  {% if uzb.aantal %}
+    {% set ontbreekt = uzb.aantal - uzb.met_schaal %}
+    <p>{{ uzb.aantal }} uitzendkrachten, waarvan {{ uzb.met_schaal }} met loonschaal.
+       {% if ontbreekt %}
+         <span class="fout">{{ ontbreekt }} zonder loonschaal — vul die eerst in.</span>
+       {% endif %}
+    </p>
+    {% if not uzb.heeft_kaart %}
+      <p class="waarschuwing">Nog geen tariefkaart voor dit bureau; een ingevulde
+         schaal wordt daarom niet getoetst.</p>
+    {% endif %}
+    <datalist id="schalen-{{ uzb.sleutel }}">
+      {% for schaal in uzb.schalen %}<option value="{{ schaal }}">{% endfor %}
+    </datalist>
+    <table>
+      <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th></tr>
+      {% for k in uzb.krachten %}
+      <tr data-naam="{{ k.naam|lower }}">
+        <td>{{ k.naam }}{% if k.schaal_handmatig %}
+          <span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig{% if k.schaal_door %} ({{ k.schaal_door }}){% endif %}</span>
+        {% endif %}</td>
+        <td>
+          <form method="post" action="/uzk/{{ k.id }}/loonschaal" class="inline">
+            <input type="text" name="loonschaal" value="{{ k.loonschaal_code or '' }}"
+                   list="schalen-{{ uzb.sleutel }}" required
+                   aria-label="Loonschaal van {{ k.naam }}"
+                   {% if not k.loonschaal_code %}placeholder="nog invullen"{% endif %}>
+            <button type="submit">Opslaan</button>
+          </form>
+        </td>
+        <td>{{ k.externe_code or '' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="leeg">Nog geen uitzendkrachten bekend.</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<script>
+  // Filtert de tabellen op naam terwijl je typt; kaarten zonder treffers
+  // verdwijnen zodat de gezochte persoon meteen in beeld staat.
+  const zoek = document.getElementById("zoek");
+  const stand = document.getElementById("zoekstand");
+  zoek.addEventListener("input", () => {
+    const term = zoek.value.trim().toLowerCase();
+    let treffers = 0;
+    document.querySelectorAll("tr[data-naam]").forEach(rij => {
+      const past = !term || rij.dataset.naam.includes(term);
+      rij.hidden = !past;
+      if (past && term) treffers++;
+    });
+    document.querySelectorAll(".kaart").forEach(kaart => {
+      const rijen = kaart.querySelectorAll("tr[data-naam]");
+      if (rijen.length) {
+        kaart.hidden = term && ![...rijen].some(r => !r.hidden);
+      }
+    });
+    stand.hidden = !term;
+    stand.textContent = term
+      ? `${treffers} uitzendkracht${treffers === 1 ? "" : "en"} gevonden.` : "";
+  });
+</script>
+{% endblock %}

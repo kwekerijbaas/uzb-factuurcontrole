@@ -1,0 +1,21 @@
+{% extends "basis.html" %}
+{% block titel %}{{ titel }} — UF{% endblock %}
+{% block inhoud %}
+<h1>{{ titel }}</h1>
+<div class="kaart">
+  <p class="fout">{{ melding }}</p>
+  {% if punten %}
+    <ul>
+      {% for punt in punten %}<li>{{ punt }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+  {% if actie %}
+    <p><a href="{{ actie.href }}"><strong>{{ actie.tekst }}</strong></a></p>
+  {% endif %}
+  {% if kenmerk %}
+    <p class="hint">Kenmerk {{ kenmerk }} — noem dit als je hier melding van maakt;
+       de details staan onder dat kenmerk in het log.</p>
+  {% endif %}
+  <p><a href="{{ terug }}">Terug naar het formulier</a></p>
+</div>
+{% endblock %}

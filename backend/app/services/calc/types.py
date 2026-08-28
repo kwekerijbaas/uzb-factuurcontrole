@@ -95,6 +95,20 @@ class WeekParameters:
     week_grens_percentage: Decimal = Decimal("50")
     week_50u_uitzondering: bool = False  # art. 18 lid 4d: 8 weken/jaar geen 50% >48u
 
+    # Nitea rondt af op kwartieren, SNOOP plant op hele tijden en er wordt op
+    # de minuut in- en uitgeklokt. Vergelijken op minuutniveau levert daarom
+    # bij vrijwel elke dag een melding op zonder dat er iets mis is. Onder deze
+    # grenzen wordt niets gemeld.
+    tolerantie_registratie_minuten: int = 15
+    tolerantie_uren_minuten: int = 15
+    tolerantie_tijd_minuten: int = 15
+
+    # De SNOOP-planning naast de Nitea-registratie leggen. Staat uit: Nitea is
+    # leidend en wordt vóór het verwerken al gecontroleerd, dus een afwijking
+    # ten opzichte van de planning zegt niets over de te factureren uren. Zet
+    # aan wie de planning wél wil bewaken.
+    vergelijk_planning: bool = False
+
 
 @dataclass
 class WeekResultaat:
