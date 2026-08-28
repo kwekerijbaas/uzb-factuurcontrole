@@ -31,10 +31,11 @@ is `plan: starter` in `render.yaml` (~EUR 7/mnd) genoeg. Google Cloud Run is een
 alternatief dat bij dit gebruiksvolume ook gratis blijft en dezelfde image
 draait.
 
-**Repo-structuur (branch `claude/staffing-hours-app-z19SH`):**
-`backend/` (datamodel, migraties, calc-engine, web-laag, tests), `docs/` (deze
-docs + CAO-bron), `render.yaml` (deploy). De bestaande `artikelinvoer`-app in de
-repo-root staat hier los van.
+**Repo-structuur (`kwekerijbaas/uzb-factuurcontrole`, branch
+`claude/staffing-hours-app-z19SH`):** `backend/` (datamodel, migraties,
+calc-engine, web-laag, tests), `docs/` (deze docs + CAO-bron), `render.yaml`
+(deploy). De app is in augustus 2026 met volledige historie overgeheveld uit
+`kwekerijbaas/artikelinvoer`.
 
 > **Versiebeheer van tarieven** is al in het datamodel verankerd via een
 > SCD2-patroon (`geldig_van`/`geldig_tot` op `loonschaal` en `toeslag_regel`) —

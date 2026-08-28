@@ -1,32 +1,18 @@
-# Kwekerijbaas — Artikelinvoer
+# UF — UZB-urencontrole
 
-Twee web-apps voor masterdata beheer van Blooming Joy verkoopartikelen. Pure HTML/CSS/JS, direct in de browser te openen.
+Webapp voor de wekelijkse controle van uitzendbureau-uren en -facturen bij
+Kwekerij Baas. Ola of Jacob laadt per week de SNOOP-export (Excel) en het
+Nitea-overzicht (PDF) in; de app berekent per uitzendkracht de uren per
+CAO-toeslagcategorie en het inkoopbedrag, en legt later de facturen van de
+uitzendbureaus ernaast.
 
-## 1. Artikelinvoer (`index.html`) — Masterdata
+- **App:** https://uf-urencontrole.onrender.com (inloggen met een code per
+  e-mail, alleen @kwekerijbaas.nl)
+- **Rekenspecificatie:** [docs/SPEC.md](docs/SPEC.md)
+- **Architectuur & beheer:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Code:** `backend/` (FastAPI + calc-engine + templates), deploy via
+  `render.yaml` (Render, Docker) op een Supabase-database.
 
-Masterdata beheertool voor Blooming Joy verkoopartikelen.
-
-### Functionaliteiten
-
-- Invoerformulier met live preview van Naam uitgeschreven, Stickernaam en Artikelnr
-- 347 bestaande artikelen voorgeladen (Family, Friends, Solo)
-- Dropdowns gevuld vanuit Agriware stamdata (geslachten, kleuren, potcodes, eenheden, etc.)
-- Nieuwe referentiewaarden toevoegen via + knop (thema, soort, typekleur, potmaat)
-- **Inline cell-editing**: klik een cel om direct te bewerken
-- **Teelt + Teeltomschrijving** met lookup-lijsten (vrije tekst toegestaan)
-- Artikelen bewerken en verwijderen
-- Sorteerbare kolommen en filters (zoekbalk + combinatietype)
-- CSV-export voor Agriware-import
-- JSON backup/import voor persistentie
-
-## 2. Legacy: `artikelinvoer.html`
-
-Voorloper van `index.html`. Wordt door SWA serveerd onder `/artikelinvoer.html`.
-
-## Lokaal gebruik
-
-Open `index.html` in een browser. Geen server of installatie nodig.
-
-## Kwekerijbaas
-
-Drietorensweg / Enserweg — Blooming Joy productlijnen
+Deze repo is de voortzetting van de app die eerder in
+`kwekerijbaas/artikelinvoer` werd ontwikkeld; de volledige historie is mee
+overgeheveld.
