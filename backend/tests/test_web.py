@@ -353,3 +353,18 @@ def test_terugval_op_de_bekende_schaal_telt_als_ingevuld():
     )
     assert ontbrekende_loonschalen(verwerking) == []
     assert verwerking.medewerkers[0].bedrag.totaal == Decimal("231.52")
+
+
+def test_geblokkeerd_adres_komt_er_niet_in_ook_niet_met_cookie(monkeypatch):
+    """Offboarding: het adres van een vertrokken medewerker valt nog binnen het
+    domein en een sessiecookie leeft tot 12 uur. De blokkeerlijst sluit beide
+    routes meteen af."""
+    monkeypatch.setattr(settings, "geblokkeerde_emails", ["tim@kwekerijbaas.nl"])
+    assert not is_toegestaan("tim@kwekerijbaas.nl")
+    assert not is_toegestaan("  TIM@Kwekerijbaas.NL ")  # hoofdletters/spaties
+    assert is_toegestaan("ola@kwekerijbaas.nl")  # de rest gewoon door
+
+    antwoord = Response()
+    zet_sessie(antwoord, Gebruiker(email="tim@kwekerijbaas.nl", id="t"))
+    waarde = antwoord.headers["set-cookie"].split("=", 1)[1].split(";")[0]
+    assert gebruiker_uit_cookie(_request({"cookie": f"{SESSIE_COOKIE}={waarde}"})) is None

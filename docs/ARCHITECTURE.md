@@ -59,6 +59,11 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
 - Alleen adressen binnen `TOEGESTANE_DOMEINEN` (standaard `kwekerijbaas.nl`)
   krijgen toegang; losse uitzonderingen via `TOEGESTANE_EMAILS`.
+- **Offboarding:** zet het adres van een vertrokken medewerker in
+  `GEBLOKKEERDE_EMAILS` (bv. `'["tim@kwekerijbaas.nl"]'`) in de
+  Render-omgeving. Dat blokkeert direct — ook een nog lopend sessiecookie —
+  want elk verzoek loopt langs die controle. Verwijder daarnaast de gebruiker
+  in Supabase (Authentication → Users) voor de volledigheid.
 - De controle staat op drie plekken: vóór het versturen van de code, ná
   verificatie, en bij élk verzoek op basis van het sessiecookie. Wie uit het
   domein valt, is met een bestaand cookie meteen buiten.
@@ -74,8 +79,10 @@ uit de mail overtypen, klaar. Geen wachtwoorden om te beheren of te lekken.
 
 ## 4. Adres van de app
 
-De app draait op **`https://uf-urencontrole.onrender.com`** en dat blijft zo —
-besloten augustus 2026. **`uf.kwekerijbaas.nl` is niet beschikbaar: dat
+De app draait op **`https://uzb-factuurcontrole.onrender.com`** (Render-service
+`uzb-factuurcontrole`, gekoppeld aan deze repo; de oude service
+`uf-urencontrole` uit de artikelinvoer-repo is per 27-08-2026 gesuspend).
+**`uf.kwekerijbaas.nl` is niet beschikbaar: dat
 subdomein is in gebruik door een andere app** (het DNS-record `uf` →
 `...azurestaticapps.net` hoort daarbij en moet blijven staan). Het
 Render-adres staat al in de instructiemails aan het team. Optioneel kan
@@ -84,7 +91,7 @@ niet.
 
 Mocht een eigen subdomein later alsnog gewenst zijn, kies dan een vrije naam
 (bv. `uren.kwekerijbaas.nl`): een `CNAME`-record naar
-`uf-urencontrole.onrender.com.` plus **Custom Domains** in Render volstaat —
+`uzb-factuurcontrole.onrender.com.` plus **Custom Domains** in Render volstaat —
 verder verandert er niets.
 
 **Twee domeinen, let op het verschil:** `kwekerijbaas.nl` (e-mail, en

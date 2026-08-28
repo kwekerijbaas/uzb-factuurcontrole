@@ -6,8 +6,8 @@ Nitea-overzicht (PDF) in; de app berekent per uitzendkracht de uren per
 CAO-toeslagcategorie en het inkoopbedrag, en legt later de facturen van de
 uitzendbureaus ernaast.
 
-- **App:** https://uf-urencontrole.onrender.com (inloggen met een code per
-  e-mail, alleen @kwekerijbaas.nl)
+- **App:** https://uzb-factuurcontrole.onrender.com (inloggen met een code
+  per e-mail, alleen @kwekerijbaas.nl)
 - **Rekenspecificatie:** [docs/SPEC.md](docs/SPEC.md)
 - **Architectuur & beheer:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Code:** `backend/` (FastAPI + calc-engine + templates), deploy via

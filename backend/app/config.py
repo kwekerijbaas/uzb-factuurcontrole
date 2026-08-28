@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Wie mag inloggen: alle adressen binnen deze domeinen, plus losse adressen.
     toegestane_domeinen: list[str] = ["kwekerijbaas.nl"]
     toegestane_emails: list[str] = []
+    # Vertrokken medewerkers: deze adressen zijn geblokkeerd ook al vallen ze
+    # binnen het domein. Werkt direct, ook voor een nog lopend sessiecookie.
+    geblokkeerde_emails: list[str] = []
 
     # Waar geüploade bronbestanden en gegenereerde overzichten landen.
     opslag_pad: str = "./data"

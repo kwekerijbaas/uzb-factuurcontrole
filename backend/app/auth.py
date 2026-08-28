@@ -43,9 +43,17 @@ def _serializer() -> URLSafeTimedSerializer:
 
 
 def is_toegestaan(email: str) -> bool:
-    """Alleen werkadressen van de eigen organisatie mogen inloggen."""
+    """Alleen werkadressen van de eigen organisatie mogen inloggen.
+
+    De blokkeerlijst gaat vóór alles: het adres van een vertrokken medewerker
+    valt nog steeds binnen het domein, en een sessiecookie blijft tot 12 uur
+    geldig. Omdat élk verzoek langs deze controle komt, sluit een adres op de
+    blokkeerlijst beide routes meteen af.
+    """
     adres = (email or "").strip().lower()
     if "@" not in adres:
+        return False
+    if adres in {e.strip().lower() for e in settings.geblokkeerde_emails if e.strip()}:
         return False
     if adres in {e.strip().lower() for e in settings.toegestane_emails if e.strip()}:
         return True
