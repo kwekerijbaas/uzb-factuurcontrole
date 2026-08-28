@@ -4,42 +4,61 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titel %}UF — UZB-urencontrole{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
-    :root { --groen:#2d6a4f; --rand:#d8dee4; --grijs:#5b6570; --rood:#b42318; --oranje:#b54708; }
+    /* Huisstijl Kwekerij Baas (www.kwekerijbaas.nl): limegroen als hoofdkleur,
+       magenta als accent (bloem-asterisk), bosgroen als steunkleur, ronde
+       dikke koppen. Tabellen en formulieren blijven in een systeemletter --
+       dit is een cijfer-app, leesbaarheid gaat voor. */
+    :root {
+      --lime:#bdce00; --lime-donker:#a3b200; --lime-licht:#f5f8dd;
+      --magenta:#d6007f; --magenta-donker:#a80064;
+      --groen:#3fa13c; --olijf:#4a5200;
+      --rand:#d8dee4; --grijs:#5b6570; --rood:#b42318; --oranje:#b54708;
+      --kopletter:"Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    }
     * { box-sizing:border-box; }
-    body { margin:0; font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; color:#1c2530; background:#f6f7f9; }
-    header { background:var(--groen); color:#fff; padding:.9rem 1.5rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap; }
-    header a { color:#fff; text-decoration:none; opacity:.9; }
-    header a:hover { opacity:1; text-decoration:underline; }
-    header .merk { font-weight:700; font-size:1.1rem; }
-    header .wie { margin-left:auto; font-size:.85rem; opacity:.85; }
+    body { margin:0; font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; color:#232323; background:#fafbf4; }
+    header { background:var(--lime); padding:.7rem 1.5rem; display:flex; align-items:center; gap:1.4rem; flex-wrap:wrap; }
+    header a { color:var(--olijf); text-decoration:none; font-weight:600; }
+    header a:hover { color:#fff; }
+    header .merk { font-family:var(--kopletter); font-weight:800; font-size:1.35rem; color:#fff; letter-spacing:.02em; }
+    header .merk .bloem { color:var(--magenta); font-size:1.1em; vertical-align:-.05em; }
+    header .merk .sub { font-size:.62em; color:var(--olijf); font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-left:.4rem; }
+    header .wie { margin-left:auto; font-size:.85rem; color:var(--olijf); }
+    header .wie a { text-decoration:underline; }
     main { max-width:960px; margin:1.5rem auto; padding:0 1.5rem 3rem; }
-    h1 { font-size:1.5rem; margin:.2rem 0 1rem; }
-    h2 { font-size:1.1rem; margin:1.8rem 0 .6rem; }
-    .kaart { background:#fff; border:1px solid var(--rand); border-radius:10px; padding:1.2rem 1.4rem; margin-bottom:1.2rem; }
+    h1, h2 { font-family:var(--kopletter); color:#2f3a00; }
+    h1 { font-size:1.7rem; margin:.2rem 0 1rem; font-weight:800; }
+    h2 { font-size:1.15rem; margin:1.8rem 0 .6rem; font-weight:700; }
+    a { color:var(--magenta); }
+    .kaart { background:#fff; border:1px solid var(--rand); border-radius:14px; padding:1.2rem 1.4rem; margin-bottom:1.2rem; }
     label { display:block; font-weight:600; margin:.7rem 0 .25rem; font-size:.92rem; }
-    input, select { width:100%; padding:.5rem .6rem; border:1px solid var(--rand); border-radius:6px; font:inherit; background:#fff; }
-    button { background:var(--groen); color:#fff; border:0; border-radius:6px; padding:.6rem 1.2rem; font:inherit; font-weight:600; cursor:pointer; margin-top:1rem; }
-    button:hover { filter:brightness(1.1); }
+    input, select { width:100%; padding:.5rem .6rem; border:1px solid var(--rand); border-radius:8px; font:inherit; background:#fff; }
+    input:focus, select:focus { outline:2px solid var(--lime); outline-offset:1px; }
+    button { background:var(--lime); color:#fff; border:0; border-radius:22px; padding:.55rem 1.3rem; font-family:var(--kopletter); font-size:1rem; font-weight:700; cursor:pointer; margin-top:1rem; }
+    button:hover { background:var(--lime-donker); }
     table { width:100%; border-collapse:collapse; margin-top:.6rem; font-size:.9rem; }
     th, td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--rand); vertical-align:top; }
-    th { background:#eef1f4; font-weight:600; }
+    th { background:var(--lime-licht); color:var(--olijf); font-weight:700; }
     .hint { color:var(--grijs); font-size:.86rem; margin:.3rem 0 0; }
     .fout { color:var(--rood); font-weight:600; }
     .waarschuwing { color:var(--oranje); }
     .leeg { color:var(--grijs); font-style:italic; }
     .rij { display:flex; gap:1rem; flex-wrap:wrap; }
+    .rij > div { flex:1 1 200px; }
     .inline { display:flex; gap:.4rem; align-items:center; }
     .inline input { padding:.3rem .5rem; font-size:.88rem; min-width:9rem; }
-    .inline button { margin-top:0; padding:.32rem .7rem; font-size:.85rem; }
+    .inline button { margin-top:0; padding:.3rem .8rem; font-size:.85rem; }
     ul { margin:.4rem 0 .8rem 1.2rem; padding:0; }
     li { margin:.15rem 0; }
-    .rij > div { flex:1 1 200px; }
   </style>
 </head>
 <body>
   <header>
-    <span class="merk">UF — urencontrole</span>
+    <span class="merk">BAAS<span class="bloem">&#10033;</span><span class="sub">urencontrole</span></span>
     {% if gebruiker %}
       <a href="/">Start</a>
       <a href="/week">Week verwerken</a>

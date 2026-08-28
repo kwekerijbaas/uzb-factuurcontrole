@@ -32,7 +32,8 @@ _BRON_LABEL = {
 }
 
 _KOP = Font(bold=True, color="FFFFFF")
-_KOP_VULLING = PatternFill("solid", fgColor="2F5496")
+# Magenta uit de huisstijl van Kwekerij Baas (kernwaardenblokken op de site).
+_KOP_VULLING = PatternFill("solid", fgColor="D6007F")
 _TITEL = Font(bold=True, size=13)
 _EURO = '#,##0.00'
 _UUR = "0.00"
