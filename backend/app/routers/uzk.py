@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.models import Uzk
-from app.services.ingest.herkenning import bepaal_uzb
+from app.services.ingest.herkenning import verdeel_per_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import (
     borg_uzb,
@@ -176,50 +176,61 @@ async def upload_lijst(
     inhoud = await lees_upload(bestand, "uitzendkrachtenlijst", EXCEL)
     with leesfouten("uitzendkrachtenlijst", bestand.filename):
         regels, waarschuwingen = lees_uzk_lijst(inhoud)
-        uzb_sleutel = bepaal_uzb(regels, UZB_NAMEN)
+        # Eén lijst mag alle bureaus bevatten; per regel staat het bureau erbij.
+        per_uzb = verdeel_per_uzb(regels, UZB_NAMEN)
 
-    uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
-    # Een handmatig ingevulde schaal wordt niet stilzwijgend overschreven
-    # (`onthoud_uzk` laat hem staan). Wijkt het bestand ervan af, dan wordt dat
-    # hier per geval voorgelegd: bestand overnemen, of handmatig laten staan.
+    samenvattingen = []
     conflicten = []
-    for regel in regels:
-        rij = onthoud_uzk(sessie, uzb, regel.naam, regel.externe_code, regel.loonschaal)
-        if (
-            rij.schaal_handmatig
-            and regel.loonschaal
-            and regel.loonschaal != rij.loonschaal_code
-        ):
-            conflicten.append(
-                {
-                    "id": rij.id,
-                    "naam": rij.naam,
-                    "handmatig": rij.loonschaal_code,
-                    "uit_bestand": regel.loonschaal,
-                    "door": rij.schaal_door,
-                }
+    for uzb_sleutel, groep in per_uzb.items():
+        uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
+        # Een handmatig ingevulde schaal wordt niet stilzwijgend overschreven
+        # (`onthoud_uzk` laat hem staan). Wijkt het bestand ervan af, dan wordt
+        # dat per geval voorgelegd: bestand overnemen, of handmatig laten staan.
+        for regel in groep:
+            rij = onthoud_uzk(
+                sessie, uzb, regel.naam, regel.externe_code, regel.loonschaal
             )
+            if (
+                rij.schaal_handmatig
+                and regel.loonschaal
+                and regel.loonschaal != rij.loonschaal_code
+            ):
+                conflicten.append(
+                    {
+                        "id": rij.id,
+                        "uzb_naam": UZB_NAMEN[uzb_sleutel],
+                        "naam": rij.naam,
+                        "handmatig": rij.loonschaal_code,
+                        "uit_bestand": regel.loonschaal,
+                        "door": rij.schaal_door,
+                    }
+                )
+        met_schaal = sum(1 for r in groep if r.loonschaal)
+        gewisseld = sum(1 for r in groep if r.is_gewisseld)
+        zonder = [r.naam for r in groep if not r.loonschaal]
+        samenvattingen.append(
+            f"{UZB_NAMEN[uzb_sleutel]}: {len(groep)} uitzendkrachten, "
+            f"{met_schaal} met loonschaal"
+            + (f", {gewisseld} gewisseld van schaal" if gewisseld else "")
+            + (
+                f". Zonder schaal (met de hand invullen): {', '.join(sorted(zonder))}"
+                if zonder
+                else "."
+            )
+        )
     sessie.commit()
 
-    met_schaal = sum(1 for r in regels if r.loonschaal)
-    gewisseld = [r for r in regels if r.is_gewisseld]
-    zonder = [r.naam for r in regels if not r.loonschaal]
     return templates.TemplateResponse(
         request=request,
         name="uzk_resultaat.html",
         context={
             "gebruiker": gebruiker,
-            "titel": f"Uitzendkrachten {UZB_NAMEN[uzb_sleutel]} bijgewerkt",
+            "titel": "Uitzendkrachtenlijst verwerkt",
             "samenvatting": (
-                f"{len(regels)} uitzendkrachten ingelezen, {met_schaal} met loonschaal"
-                + (f", {len(gewisseld)} gewisseld van schaal." if gewisseld else ".")
-                + (
-                    f" Vul de schaal van {len(zonder)} uitzendkracht(en) met de "
-                    "hand in; zonder schaal wordt een week niet verwerkt."
-                    if zonder
-                    else ""
-                )
+                f"{len(regels)} uitzendkrachten ingelezen voor "
+                f"{len(per_uzb)} uitzendbureau(s)."
             ),
+            "samenvattingen": samenvattingen,
             "waarschuwingen": waarschuwingen,
             "conflicten": conflicten,
         },

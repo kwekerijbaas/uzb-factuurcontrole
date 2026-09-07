@@ -89,6 +89,36 @@ def herken_uzb(medewerkers) -> tuple[str | None, str | None]:
     return None, None
 
 
+def verdeel_per_uzb(regels, uzb_namen: dict[str, str]) -> dict[str, list]:
+    """Verdeel de regels van één export over de uitzendbureaus.
+
+    Een SNOOP-lijst over een langere periode bevat alle bureaus door elkaar;
+    per regel staat het bureau erbij. Weigeren en om losse exports vragen
+    (zoals bij het verwerken van een week, waar één bureau per bestand moet)
+    is hier alleen maar extra werk. Regels waarvan het bureau niet te bepalen
+    is, worden bij naam genoemd.
+    """
+    per_uzb: dict[str, list] = {}
+    onbekend: list[str] = []
+    for regel in regels:
+        sleutel = _sleutel_van_werkgever(getattr(regel, "werkgever", None))
+        if sleutel is None:
+            sleutel, _ = herken_uzb([regel])
+        if sleutel is None or sleutel not in uzb_namen:
+            onbekend.append(regel.naam)
+            continue
+        per_uzb.setdefault(sleutel, []).append(regel)
+    if onbekend:
+        namen = ", ".join(sorted(set(onbekend))[:8])
+        rest = len(set(onbekend)) - 8
+        raise ValueError(
+            f"bij {len(set(onbekend))} uitzendkracht(en) is het bureau niet te "
+            f"bepalen: {namen}{f' en {rest} anderen' if rest > 0 else ''}. "
+            "Zorg dat de kolom 'Werkgever op datum shift' is gevuld."
+        )
+    return per_uzb
+
+
 def bepaal_uzb(medewerkers, uzb_namen: dict[str, str]) -> str:
     """Leid het uitzendbureau af uit het bestand zelf.
 

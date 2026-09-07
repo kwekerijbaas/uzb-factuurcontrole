@@ -132,3 +132,25 @@ def test_bestand_zonder_aanwijzing_vraagt_om_de_kolom():
 
     with pytest.raises(ValueError, match="Werkgever op datum shift"):
         bepaal_uzb([_mw()], NAMEN)
+
+
+def test_lijst_met_alle_bureaus_wordt_per_bureau_verdeeld():
+    """Een SNOOP-lijst over een langere periode bevat alle bureaus door elkaar;
+    weigeren en om losse exports vragen is alleen maar extra werk."""
+    from app.services.ingest.herkenning import verdeel_per_uzb
+
+    regels = [
+        _mw(werkgever="Level One", loonschaal="B2 Flex"),
+        _mw(werkgever="Level One Payroll Jeugd", loonschaal="B 16 jaar Jeugd"),
+        _mw(werkgever="SterkWerk", loonschaal="B2 Sw"),
+        _mw(werkgever=None, loonschaal="C3 SW"),  # bureau uit de schaal
+    ]
+    verdeeld = verdeel_per_uzb(regels, NAMEN)
+    assert {k: len(v) for k, v in verdeeld.items()} == {"L1": 1, "L1_JEUGD": 1, "SW": 2}
+
+
+def test_regel_zonder_herkenbaar_bureau_wordt_bij_naam_genoemd():
+    from app.services.ingest.herkenning import verdeel_per_uzb
+
+    with pytest.raises(ValueError, match="Marius Mic"):
+        verdeel_per_uzb([_mw()], NAMEN)
