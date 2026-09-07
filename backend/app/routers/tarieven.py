@@ -17,7 +17,7 @@ from app.config import settings
 from app.db import get_session
 from app.services.ingest import cao_schaal_code, lees_cao_loontabel, lees_tariefkaart
 from app.services.ingest.cao_pdf import lees_cao_pdf
-from app.services.ingest.level_one import lees_level_one_export
+from app.services.ingest.level_one import datum_uit_bestandsnaam, lees_level_one_export
 from app.services.ingest.loontabel import lees_loontabel
 from app.services.tarief.kaart import Loontabel
 from app.services.opslag import (
@@ -89,6 +89,10 @@ def overzicht(
             "gewijzigd": gewijzigd,
         },
     )
+
+
+def waarschuwingen_noemen_datum(waarschuwingen: list[str]) -> bool:
+    return any("ingangsdatum" in w for w in waarschuwingen)
 
 
 def _handmatige_conflicten(
@@ -422,15 +426,23 @@ async def upload_level_one(
     # De ingangsdatum staat in de kolomkop ("Loon per 1/7/26"); die hoeft dus
     # niet overgetypt te worden. Een ingevulde datum gaat wel voor, voor het
     # geval de kop hem niet noemt of niet klopt.
-    ingangsdatum = ingangsdatum or export.ingangsdatum
+    ingangsdatum = (
+        ingangsdatum
+        or export.ingangsdatum
+        or datum_uit_bestandsnaam(bestand.filename)
+    )
     if ingangsdatum is None:
         raise HTTPException(
             status_code=400,
             detail=(
                 "Geen ingangsdatum gevonden. Die staat normaal in de kolomkop "
-                "(bijvoorbeeld 'Loon per 1/7/26'); vul hem anders zelf in."
+                "(bijvoorbeeld 'Loon per 1/7/26') of in de bestandsnaam "
+                "(bijvoorbeeld 'BAAS_Tarieven_L1_01082026.xlsx'); vul hem anders "
+                "zelf in."
             ),
         )
+    if export.ingangsdatum is None and not waarschuwingen_noemen_datum(waarschuwingen):
+        waarschuwingen.append(f"ingangsdatum {ingangsdatum:%d-%m-%Y} gebruikt")
 
     if ook_lonen and export.lonen:
         tabel = Loontabel(

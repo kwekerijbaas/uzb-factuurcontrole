@@ -54,7 +54,25 @@ _COMPONENTEN: dict[tuple[str, str], str] = {
 # contractvorm -> achtervoegsel van de kaartcode
 _VORMEN = {"vast": "V", "flex": "F", "seizoen": "S"}
 
-_KOLOM = re.compile(r"^(vast|flex|seizoen|loon)\s+(oud|per\b.*)$", re.IGNORECASE)
+# De kop van de nieuwe kolom varieert per export: "Vast per 1/7/26",
+# "Vast per 1 jul", of kaal "Vast". De oude kolom heet altijd "Vast oud".
+_KOLOM = re.compile(r"^(vast|flex|seizoen|loon)(?:\s+(oud|per\b.*))?$", re.IGNORECASE)
+
+# Als de kop geen datum noemt, staat die soms in de bestandsnaam:
+# "BAAS_Tarieven_L1_01082026.xlsx" -> 01-08-2026.
+_NAAMDATUM_BESTAND = re.compile(r"(\d{2})(\d{2})(20\d{2})")
+
+
+def datum_uit_bestandsnaam(naam: str | None) -> date | None:
+    """De ingangsdatum uit een bestandsnaam als 'BAAS_Tarieven_L1_01082026.xlsx'."""
+    m = _NAAMDATUM_BESTAND.search(str(naam or ""))
+    if not m:
+        return None
+    dag, maand, jaar = (int(g) for g in m.groups())
+    try:
+        return date(jaar, maand, dag)
+    except ValueError:
+        return None
 
 # De ingangsdatum staat in de kolomkop zelf, zodat die niet overgetypt hoeft te
 # worden. Level One schrijft hem op twee manieren: "per 1/7/26" en "per 1 jul".
@@ -168,10 +186,11 @@ def _kolommen(header) -> tuple[dict[str, dict[str, int]], list[str], dict[str, i
         if not m:
             continue
         soort = m.group(1).lower()
-        welke = "oud" if m.group(2).lower() == "oud" else "nieuw"
+        rest = (m.group(2) or "").strip()
+        welke = "oud" if rest.lower() == "oud" else "nieuw"
         posities.setdefault(soort, {})[welke] = i
-        if welke == "nieuw" and m.group(2) not in peilmomenten:
-            peilmomenten.append(m.group(2))
+        if welke == "nieuw" and rest and rest not in peilmomenten:
+            peilmomenten.append(rest)
     return posities, peilmomenten, vaste
 
 

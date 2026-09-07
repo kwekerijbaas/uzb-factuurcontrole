@@ -180,3 +180,41 @@ def test_kolomkop_zonder_jaartal():
     assert peildatum("Loon per 1 jul", date(2026, 8, 18)) == date(2026, 7, 1)
     assert peildatum("Loon per 1 jul", date(2027, 2, 1)) == date(2027, 7, 1)
     assert peildatum("Loon per 1 juli 2026", date(2030, 1, 1)) == date(2026, 7, 1)
+
+
+def test_kale_kolomkoppen_zonder_peildatum():
+    """De export per 01-08-2026 noemt de nieuwe kolommen kaal ('Loon', 'Vast',
+    'Flex', 'Seizoen') in plaats van 'Vast per 1/7/26'; alleen de oude kolom
+    heeft een achtervoegsel. Daar mag de inlezer niet op struikelen."""
+    kop = [
+        "Relatie", "Code", "Nr.", None, "Loon oud", "Loon", "EF", None,
+        "Component", "Percentage", "Vast oud", "Vast", None, None,
+        "Flex oud", "Flex", None, None, "Seizoen oud", "Seizoen",
+    ]
+    wb = Workbook()
+    ws = wb.active
+    ws.append(kop)
+    ws.append(["A. Baas", "GTB B3", "291902", None, 14.99, 15.17, 14.99, None, "Toevoegen"])
+    ws.append(
+        [None, None, None, None, None, None, None, "Verwijderen",
+         "Loon normale uren", 100, 28.51, 28.82, None, None, 29.44, 29.76,
+         None, None, 29.77, 30.09]
+    )
+    buffer = BytesIO()
+    wb.save(buffer)
+
+    nieuw, waarschuwingen = lees_level_one_export(buffer.getvalue(), "nieuw")
+    assert nieuw.lonen["B3"] == Decimal("15.17")
+    assert nieuw.tarieven["B3F"][CAT_100] == Decimal("29.76")
+    assert nieuw.ingangsdatum is None  # de kop noemt geen datum
+    oud, _ = lees_level_one_export(buffer.getvalue(), "oud")
+    assert oud.tarieven["B3F"][CAT_100] == Decimal("29.44")
+
+
+def test_ingangsdatum_uit_de_bestandsnaam():
+    """Zonder datum in de kop staat hij soms in de bestandsnaam."""
+    from app.services.ingest.level_one import datum_uit_bestandsnaam
+
+    assert datum_uit_bestandsnaam("BAAS_Tarieven_L1_01082026.xlsx") == date(2026, 8, 1)
+    assert datum_uit_bestandsnaam("BAAS_0107202.xlsx") is None  # afgekapt jaar
+    assert datum_uit_bestandsnaam("tarieven.xlsx") is None
