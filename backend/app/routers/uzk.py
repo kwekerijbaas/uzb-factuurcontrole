@@ -75,6 +75,7 @@ def overzicht(
     request: Request,
     gewijzigd: str = "",
     behouden: str = "",
+    zoek: str = "",
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
 ) -> HTMLResponse:
@@ -87,6 +88,9 @@ def overzicht(
             "per_uzb": _bekend(sessie),
             "gewijzigd": gewijzigd,
             "behouden": behouden,
+            # Vooringevuld vanuit het resultaatscherm van een week: de link
+            # 'loonschaal invullen' landt dan meteen op de juiste persoon.
+            "zoek": zoek,
         },
     )
 

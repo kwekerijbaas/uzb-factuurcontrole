@@ -205,12 +205,14 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
 
 1. Naar `baaskwekerij.nl/uf` en inloggen met een code per e-mail.
 2. Week kiezen; per UZB de **SNOOP (.xlsx)** en **Nitea (.pdf)** uploaden.
-3. App genereert de **urenoverzichten** (download per UZB). Mist iemand een
+3. App toont een **resultaatscherm**: wie er verwerkt is (uren en bedrag),
+   wie er **zonder tarief** in staat en waarom, en de download van het
+   **urenoverzicht** (start vanzelf; anders via de knop). Mist iemand een
    loonschaal (of staat zijn schaal niet op de tariefkaart), dan gaat de week
-   gewoon door: die persoon staat met uren maar **zonder bedrag** in het
-   overzicht, met bovenaan een LET OP wie het betreft. Vul de schaal in onder
-   **Uitzendkrachten** (per persoon een invulveld) en verwerk de week opnieuw;
-   de naam staat daar al, want die wordt bij het verwerken vastgelegd.
+   gewoon door: die persoon staat met uren maar zonder bedrag in het
+   overzicht. De link "loonschaal invullen" op het scherm landt onder
+   **Uitzendkrachten** meteen op die persoon; daarna de week opnieuw
+   verwerken.
 4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
    afwijkingen + concept-**bevindingenmail**.
 5. Bij een CAO-/minimumloonwijziging: onder **Loontabellen** de nieuwe

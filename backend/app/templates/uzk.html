@@ -25,7 +25,7 @@
 <div class="kaart">
   <label for="zoek">Zoek een uitzendkracht</label>
   <input id="zoek" type="search" placeholder="Typ een (deel van een) naam..."
-         autocomplete="off">
+         autocomplete="off" value="{{ zoek }}">
   <p class="hint" id="zoekstand" hidden></p>
 </div>
 
@@ -89,7 +89,7 @@
   // verdwijnen zodat de gezochte persoon meteen in beeld staat.
   const zoek = document.getElementById("zoek");
   const stand = document.getElementById("zoekstand");
-  zoek.addEventListener("input", () => {
+  const filter = () => {
     const term = zoek.value.trim().toLowerCase();
     let treffers = 0;
     document.querySelectorAll("tr[data-naam]").forEach(rij => {
@@ -106,6 +106,8 @@
     stand.hidden = !term;
     stand.textContent = term
       ? `${treffers} uitzendkracht${treffers === 1 ? "" : "en"} gevonden.` : "";
-  });
+  };
+  zoek.addEventListener("input", filter);
+  if (zoek.value) { filter(); zoek.focus(); }
 </script>
 {% endblock %}

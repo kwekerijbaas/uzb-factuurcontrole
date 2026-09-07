@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
+
 from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -121,14 +123,16 @@ def formulier(
     )
 
 
-@router.post("/verwerk")
+@router.post("/verwerk", response_class=HTMLResponse)
 async def verwerk(
+    request: Request,
     snoop_bestand: UploadFile = File(...),
     nitea_bestand: UploadFile = File(...),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
-) -> Response:
-    """Verwerk één week en geef het urenoverzicht als download terug.
+) -> HTMLResponse:
+    """Verwerk één week: resultaatscherm met wie verwerkt is, wie zonder tarief
+    staat, en de download van het urenoverzicht.
 
     Zowel het uitzendbureau als het weeknummer worden uit de bestanden zelf
     afgeleid; een getypt weeknummer ging te vaak fout en zette de week onder
@@ -216,12 +220,32 @@ async def verwerk(
             verwerking.meldingen.insert(0, waarschuwing)
 
     naam = UZB_NAMEN[uzb_sleutel]
-
     inhoud = bouw_overzicht(verwerking, naam, reeks)
-    return Response(
-        content=inhoud,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={
-            "Content-Disposition": f'attachment; filename="{bestandsnaam(naam, verwerking)}"'
+
+    # Resultaatscherm in plaats van een kale download: wie is verwerkt en wie
+    # staat zonder tarief, met de download eronder. Het bestand gaat als
+    # data-URL mee in de pagina, zodat er niets bewaard hoeft te worden.
+    waarschuwing = melding_zonder_tarief(verwerking) if not reeks.is_leeg else None
+    return templates.TemplateResponse(
+        request=request,
+        name="week_resultaat.html",
+        context={
+            "gebruiker": gebruiker,
+            "uzb_naam": naam,
+            "verwerking": verwerking,
+            "zonder_tarief": verwerking.zonder_tarief,
+            # De tabel 'Zonder tarief' zegt het al; de losse meldingen daarover
+            # zouden op het scherm dubbel zijn (in het bestand staan ze wel).
+            "meldingen": [
+                m
+                for m in verwerking.meldingen
+                if m != waarschuwing
+                and not m.endswith(("uur zonder bedrag", "geen bedrag berekend"))
+            ],
+            "bestandsnaam": bestandsnaam(naam, verwerking),
+            "download": (
+                "data:application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet;base64," + base64.b64encode(inhoud).decode()
+            ),
         },
     )

@@ -78,6 +78,10 @@ schaal die niet op de tariefkaart staat) **blokkeert de week niet**: de rest
 van de ploeg mag niet wachten op één naam. De week wordt verwerkt en bewaard,
 en die persoon staat met uren maar zonder bedrag in het overzicht:
 
+- op het **resultaatscherm** na het verwerken een tabel "Zonder tarief" met
+  naam, uren, reden en een link die onder Uitzendkrachten direct op die
+  persoon landt (`/uzk?zoek=naam`); het overzicht wordt vanaf datzelfde scherm
+  gedownload;
 - bovenaan het tabblad *Totaal week* een **LET OP** met de namen en de reden
   (geen loonschaal / schaal niet op de kaart), en in de kolom Bedrag de tekst
   "geen tarief" in plaats van € 0,00;
