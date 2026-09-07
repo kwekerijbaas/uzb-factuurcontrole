@@ -312,13 +312,12 @@ def test_snoop_met_onbekende_kolommen_noemt_wat_er_wel_staat():
 
 
 # --------------------------------------------------------------------------- #
-# Loonschaal verplicht
+# Zonder loonschaal geen bedrag, maar de week gaat door
 # --------------------------------------------------------------------------- #
-def test_week_zonder_loonschaal_wordt_geweigerd():
+def test_wie_geen_loonschaal_heeft_wordt_bij_naam_genoemd():
     """Zonder loonschaal is er geen tarief. Zo iemand telt wel mee in de uren,
-    waardoor het overzicht compleet lijkt terwijl het bedrag te laag is -- en
-    juist dat bedrag gaat naast de factuur. De week hoort dan niet verwerkt te
-    worden; eerst de schaal invullen bij Uitzendkrachten."""
+    waardoor het bedrag te laag is -- en juist dat bedrag gaat naast de
+    factuur. De week gaat wel door; het overzicht noemt wie de schaal mist."""
     from app.services.verwerking import ontbrekende_loonschalen
 
     verwerking = verwerk_week(
@@ -331,14 +330,46 @@ def test_week_zonder_loonschaal_wordt_geweigerd():
     assert ontbrekende_loonschalen(verwerking) == ["Alex Dekker", "Julia Machura"]
 
 
-def test_volledige_week_wordt_niet_geblokkeerd():
-    from app.services.verwerking import ontbrekende_loonschalen
+def test_zonder_tarief_gaat_de_week_door_met_een_waarschuwing():
+    """Eén ontbrekende schaal mag de rest van de ploeg niet ophouden: de week
+    wordt verwerkt, de persoon staat met uren maar zonder bedrag in het
+    overzicht en bovenaan staat wie het betreft en wat te doen."""
+    from app.services.verwerking import melding_zonder_tarief
+
+    verwerking = verwerk_week(
+        "L1", 2026, 25,
+        [_snoop("Marius Mic"), _snoop("Julia Machura", None), _snoop("Zoe Zonder", "Z9 Flex")],
+        [_nitea("Marius Mic"), _nitea("Julia Machura"), _nitea("Zoe Zonder")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    assert [m.naam for m in verwerking.zonder_tarief] == ["Julia Machura", "Zoe Zonder"]
+    waarschuwing = melding_zonder_tarief(verwerking)
+    assert waarschuwing.startswith("LET OP: 2 van de 3")
+    assert "Julia Machura (geen loonschaal)" in waarschuwing
+    assert "Zoe Zonder (loonschaal 'Z9 Flex' staat niet op de tariefkaart)" in waarschuwing
+    assert "verwerk de week opnieuw" in waarschuwing
+
+    wb = openpyxl.load_workbook(io.BytesIO(bouw_overzicht(verwerking, "Level One", KAART)))
+    ws = wb["Totaal week"]
+    assert ws["A2"].value.startswith("LET OP: 2 zonder tarief")
+    rijen = {r[0]: r for r in ws.iter_rows(min_row=4, values_only=True) if r[0]}
+    assert rijen["Julia Machura"][-1] == "geen tarief"
+    assert rijen["Zoe Zonder"][-1] == "geen tarief"
+    assert rijen["Marius Mic"][-1] == pytest.approx(231.52)
+    assert rijen["TOTAAL"][-1] == pytest.approx(231.52)
+
+
+def test_volledige_week_heeft_geen_waarschuwing():
+    from app.services.verwerking import melding_zonder_tarief, ontbrekende_loonschalen
 
     verwerking = verwerk_week(
         "L1", 2026, 25, [_snoop("Marius Mic")], [_nitea("Marius Mic")],
         cao_toeslag_regels(), KAART, LEVEL_ONE,
     )
     assert ontbrekende_loonschalen(verwerking) == []
+    assert melding_zonder_tarief(verwerking) is None
+    wb = openpyxl.load_workbook(io.BytesIO(bouw_overzicht(verwerking, "Level One", KAART)))
+    assert wb["Totaal week"]["A2"].value is None
 
 
 def test_terugval_op_de_bekende_schaal_telt_als_ingevuld():

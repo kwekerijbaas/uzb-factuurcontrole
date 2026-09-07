@@ -27,7 +27,7 @@ from app.services.opslag import (
 )
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
 from app.services.tarief import Kaartreeks, TariefKaart, conventies
-from app.services.verwerking import ontbrekende_loonschalen, verwerk_week
+from app.services.verwerking import melding_zonder_tarief, verwerk_week
 from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
@@ -172,9 +172,9 @@ async def verwerk(
     )
 
     # Onthoud iedereen met zijn loonschaal, zodat een week waarin SNOOP
-    # onvolledig is alsnog een tarief kan vinden. Dit wordt vastgelegd vóór de
-    # controle hieronder: wie een schaal mist, hoort juist wél op de
-    # uitzendkrachtenlijst te staan, anders is er niets in te vullen.
+    # onvolledig is alsnog een tarief kan vinden. Wie een schaal mist, hoort
+    # juist wél op de uitzendkrachtenlijst te staan, anders is er niets in te
+    # vullen.
     for medewerker in verwerking.medewerkers:
         onthoud_uzk(
             sessie, uzb, medewerker.naam, medewerker.nitea_id, medewerker.loonschaal
@@ -182,23 +182,6 @@ async def verwerk(
     for bron in snoop:
         onthoud_uzk(sessie, uzb, bron.naam, None, bron.loonschaal)
     sessie.commit()
-
-    zonder_schaal = ontbrekende_loonschalen(verwerking)
-    if zonder_schaal:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "melding": (
-                    f"Deze week is niet verwerkt: {len(zonder_schaal)} van de "
-                    f"{len(verwerking.medewerkers)} uitzendkrachten hebben geen "
-                    "loonschaal, en zonder loonschaal is er geen tarief. Vul de "
-                    "schaal in bij Uitzendkrachten en verwerk de week daarna "
-                    "opnieuw."
-                ),
-                "punten": zonder_schaal,
-                "actie": {"tekst": "Naar Uitzendkrachten", "href": "/uzk"},
-            },
-        )
 
     # Bewaar de uitkomst zodat de factuur later los gecontroleerd kan worden.
     bewaar_weekresultaat(sessie, uzb, verwerking)
@@ -223,6 +206,14 @@ async def verwerk(
             )
             + ". De uren zijn per dag tegen de dan geldende tarieven afgerekend.",
         )
+
+    # Een ontbrekende schaal of tarief van een enkeling houdt de week niet op:
+    # de week is verwerkt en bewaard, maar het overzicht zegt bovenaan wie er
+    # zonder bedrag in staat en wat daaraan te doen is.
+    if not reeks.is_leeg:
+        waarschuwing = melding_zonder_tarief(verwerking)
+        if waarschuwing:
+            verwerking.meldingen.insert(0, waarschuwing)
 
     naam = UZB_NAMEN[uzb_sleutel]
 

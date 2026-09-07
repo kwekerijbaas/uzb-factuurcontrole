@@ -71,11 +71,22 @@ verschil met de planning zegt dus niets over de te factureren uren. SNOOP dient
 alleen als bron voor de loonschaal. Wie de planning tóch wil bewaken, zet
 `WeekParameters.vergelijk_planning` aan.
 
-### Loonschaal is verplicht
-Een week wordt **niet verwerkt** zolang iemand die erin gewerkt heeft geen
-loonschaal heeft. Zonder schaal is er geen tarief: de uren tellen dan wel mee
-en het bedrag niet, waardoor het overzicht compleet lijkt terwijl het totaal te
-laag is — en juist dat totaal gaat naast de factuur.
+### Zonder loonschaal geen bedrag — maar de week gaat door
+Iedereen die in een week gewerkt heeft, hoort een loonschaal te hebben: zonder
+schaal is er geen tarief en dus geen bedrag. Een ontbrekende schaal (of een
+schaal die niet op de tariefkaart staat) **blokkeert de week niet**: de rest
+van de ploeg mag niet wachten op één naam. De week wordt verwerkt en bewaard,
+en die persoon staat met uren maar zonder bedrag in het overzicht:
+
+- bovenaan het tabblad *Totaal week* een **LET OP** met de namen en de reden
+  (geen loonschaal / schaal niet op de kaart), en in de kolom Bedrag de tekst
+  "geen tarief" in plaats van € 0,00;
+- dezelfde waarschuwing als eerste melding op het tabblad *Afwijkingen*;
+- bij de factuurcontrole een eigen bevinding **"Bedrag niet te controleren
+  (geen tarief bij ons)"** met als actie: schaal invullen, week opnieuw
+  verwerken, factuur opnieuw controleren, en het bedrag tot die tijd niet
+  goedkeuren. Er gaat dus geen creditverzoek naar het bureau op basis van een
+  bedrag dat bij ons simpelweg ontbrak.
 
 De schaal komt in volgorde uit (1) de SNOOP-regel van de week zelf en (2) de
 laatst bekende schaal op de uitzendkracht. Die tweede is met de hand in te

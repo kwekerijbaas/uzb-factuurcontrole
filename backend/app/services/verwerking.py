@@ -43,6 +43,25 @@ class MedewerkerResultaat:
     def netto_uren(self) -> Decimal:
         return self.resultaat.netto_uren
 
+    @property
+    def heeft_tarief(self) -> bool:
+        """Zijn de gewerkte uren op geld gezet?
+
+        Onwaar als er wel uren zijn maar geen bedragregels: de loonschaal
+        ontbreekt, of de schaal staat niet op de tariefkaart. Wie geen uren
+        heeft, mist ook niets.
+        """
+        return bool(self.bedrag.regels) or not self.resultaat.netto_minuten
+
+    @property
+    def tarief_ontbreekt_omdat(self) -> str | None:
+        """Korte reden waarom er geen bedrag is, voor in meldingen."""
+        if self.heeft_tarief:
+            return None
+        if not self.loonschaal:
+            return "geen loonschaal"
+        return f"loonschaal '{self.loonschaal}' staat niet op de tariefkaart"
+
 
 @dataclass
 class WeekVerwerking:
@@ -60,16 +79,40 @@ class WeekVerwerking:
     def totaal_bedrag(self) -> Decimal:
         return sum((m.bedrag.totaal for m in self.medewerkers), Decimal("0"))
 
+    @property
+    def zonder_tarief(self) -> list[MedewerkerResultaat]:
+        """Wie wel uren maar geen bedrag heeft, op naam gesorteerd."""
+        return sorted(
+            (m for m in self.medewerkers if not m.heeft_tarief), key=lambda m: m.naam
+        )
+
 
 def ontbrekende_loonschalen(verwerking: WeekVerwerking) -> list[str]:
     """Wie in deze week geen loonschaal heeft, op naam.
 
     Zonder loonschaal is er geen tarief en dus geen bedrag. Zo iemand telt wel
-    mee in de uren, waardoor het overzicht compleet lijkt terwijl het totaal te
-    laag is -- en dat is precies wat er tegen een factuur naast wordt gelegd.
-    Daarom wordt een week met een ontbrekende schaal niet verwerkt.
+    mee in de uren, waardoor het weektotaal te laag uitkomt. De week wordt
+    desondanks verwerkt (een ontbrekende schaal van een enkeling mag de rest
+    niet ophouden); het overzicht en de factuurcontrole markeren deze personen
+    en vragen om de schaal in te vullen en de week opnieuw te verwerken.
     """
     return sorted(m.naam for m in verwerking.medewerkers if not m.loonschaal)
+
+
+def melding_zonder_tarief(verwerking: WeekVerwerking) -> str | None:
+    """De waarschuwing bovenaan het overzicht als niet iedereen een tarief heeft."""
+    zonder = verwerking.zonder_tarief
+    if not zonder:
+        return None
+    namen = "; ".join(f"{m.naam} ({m.tarief_ontbreekt_omdat})" for m in zonder)
+    return (
+        f"LET OP: {len(zonder)} van de {len(verwerking.medewerkers)} "
+        f"uitzendkrachten zonder tarief: {namen}. Hun uren staan in het "
+        "overzicht, maar zonder bedrag; het weektotaal is dus te laag. Vul de "
+        "loonschaal in bij Uitzendkrachten (of laad een tariefkaart met die "
+        "schaal) en verwerk de week opnieuw; daarna is ook hun factuurregel te "
+        "controleren."
+    )
 
 
 def verwerk_week(

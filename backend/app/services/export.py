@@ -34,6 +34,7 @@ _BRON_LABEL = {
 _KOP = Font(bold=True, color="FFFFFF")
 # Magenta uit de huisstijl van Kwekerij Baas (kernwaardenblokken op de site).
 _KOP_VULLING = PatternFill("solid", fgColor="D6007F")
+_WAARSCHUWING = Font(bold=True, color="D6007F")
 _TITEL = Font(bold=True, size=13)
 _EURO = '#,##0.00'
 _UUR = "0.00"
@@ -139,6 +140,18 @@ def bouw_overzicht(
     ws["A1"].font = _TITEL
     koppen = ["Medewerker", "Nitea-ID", "Loonschaal"]
     koppen += [f"Uren {c}" for c in categorieen] + ["Totaal uren", "Bedrag (€)"]
+    # Wie zonder tarief in de week staat, hoort direct op te vallen: het
+    # weektotaal is anders stilzwijgend te laag. De regel zelf krijgt geen
+    # bedrag maar de tekst "geen tarief", en bovenaan staat wat te doen.
+    zonder_tarief = verwerking.zonder_tarief
+    if zonder_tarief:
+        ws["A2"] = (
+            f"LET OP: {len(zonder_tarief)} zonder tarief -- "
+            + ", ".join(f"{m.naam} ({m.tarief_ontbreekt_omdat})" for m in zonder_tarief)
+            + ". Vul de loonschaal in bij Uitzendkrachten en verwerk de week "
+            "opnieuw; het weektotaal is nu te laag."
+        )
+        ws["A2"].font = _WAARSCHUWING
     _kop(ws, 3, koppen)
 
     rij = 4
@@ -153,10 +166,15 @@ def bouw_overzicht(
             cel.number_format = _UUR
         totaal = ws.cell(row=rij, column=4 + len(categorieen), value=float(medewerker.netto_uren))
         totaal.number_format = _UUR
-        bedrag = ws.cell(
-            row=rij, column=5 + len(categorieen), value=float(medewerker.bedrag.totaal)
-        )
-        bedrag.number_format = _EURO
+        if medewerker.heeft_tarief:
+            bedrag = ws.cell(
+                row=rij, column=5 + len(categorieen), value=float(medewerker.bedrag.totaal)
+            )
+            bedrag.number_format = _EURO
+        else:
+            bedrag = ws.cell(row=rij, column=5 + len(categorieen), value="geen tarief")
+            bedrag.font = _WAARSCHUWING
+            ws.cell(row=rij, column=1).font = _WAARSCHUWING
         rij += 1
 
     ws.cell(row=rij, column=1, value="TOTAAL").font = Font(bold=True)

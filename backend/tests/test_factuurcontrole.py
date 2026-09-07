@@ -12,6 +12,7 @@ import pytest
 from app.services.calc.types import WeekResultaat
 from app.services.factuurcontrole import (
     SOORT_BEDRAG,
+    SOORT_GEEN_TARIEF,
     SOORT_NIET_GEFACTUREERD,
     SOORT_NIET_IN_OVERZICHT,
     SOORT_UREN,
@@ -112,6 +113,27 @@ def test_gelijke_uren_maar_afwijkend_bedrag_wijst_op_de_loonschaal():
     )
     assert [b.soort for b in controle.bevindingen] == [SOORT_BEDRAG]
     assert "loonschaal" in controle.bevindingen[0].melding
+
+
+def test_zonder_tarief_bij_ons_is_het_factuurbedrag_niet_te_controleren():
+    """Staat iemand bij ons zonder bedrag (geen loonschaal), dan is het verschil
+    met de factuur geen afwijking van het bureau maar een gat bij ons. Geen
+    creditverzoek dus, maar: schaal invullen en de week opnieuw verwerken."""
+    zonder = _medewerker("Kamil Sliwa", "40", "0")
+    zonder.loonschaal = None
+    zonder.bedrag = BedragResultaat(regels=[])
+    controle = controleer(_week([zonder]), _factuur([_kracht("K.P. Sliwa (Kamil)", "40", "1157.60")]), "Level One")
+    assert [b.soort for b in controle.bevindingen] == [SOORT_GEEN_TARIEF]
+    bevinding = controle.bevindingen[0]
+    assert "geen loonschaal" in bevinding.melding
+    assert "niet te controleren" in bevinding.melding
+    assert "Vul de loonschaal in" in bevinding.actie
+    assert "week 25 opnieuw" in bevinding.actie
+    assert "niet goedkeuren" in bevinding.actie
+    # en de mail noemt hem onder een eigen kop
+    mail = bevindingenmail([controle])
+    assert "Bedrag niet te controleren (geen tarief bij ons)" in mail
+    assert "Actie: Vul de loonschaal in" in mail
 
 
 def test_afronding_van_het_uurtarief_is_geen_bevinding():

@@ -21,6 +21,7 @@ from app.services.verwerking import MedewerkerResultaat, WeekVerwerking
 # soorten bevindingen
 SOORT_UREN = "uren"
 SOORT_BEDRAG = "bedrag"
+SOORT_GEEN_TARIEF = "geen_tarief"
 SOORT_NIET_GEFACTUREERD = "niet_gefactureerd"
 SOORT_NIET_IN_OVERZICHT = "niet_in_overzicht"
 SOORT_GEEN_KOPPELING = "geen_koppeling"
@@ -259,6 +260,36 @@ def controleer(
                     "corrigeren en verwerk de week opnieuw.",
                 )
             )
+        elif not medewerker.heeft_tarief:
+            # Bij ons staat deze persoon zonder bedrag in de week; het
+            # factuurbedrag is dan niet te toetsen. Geen creditverzoek naar
+            # het bureau dus, maar eerst zelf de schaal invullen.
+            controle.bevindingen.append(
+                Bevinding(
+                    soort=SOORT_GEEN_TARIEF,
+                    naam=medewerker.naam,
+                    uren_overzicht=medewerker.netto_uren,
+                    uren_factuur=kracht.uren,
+                    bedrag_overzicht=medewerker.bedrag.totaal,
+                    bedrag_factuur=kracht.bedrag,
+                    melding=(
+                        f"de uren kloppen, maar het factuurbedrag van EUR "
+                        f"{kracht.bedrag:.2f} (EUR {_uurprijs(kracht.bedrag, kracht.uren)}/u) "
+                        f"is niet te controleren: bij ons heeft deze persoon "
+                        f"{medewerker.tarief_ontbreekt_omdat}, dus geen bedrag. "
+                        "Waar te vinden: het weekoverzicht toont 'geen tarief' "
+                        "in de kolom Bedrag; de factuurregel zelf is verder "
+                        "niet beoordeeld."
+                    ),
+                    actie=(
+                        "Vul de loonschaal in bij Uitzendkrachten (of laad een "
+                        f"tariefkaart met die schaal), verwerk week "
+                        f"{verwerking.iso_week} opnieuw en controleer de factuur "
+                        "daarna nog een keer. Tot die tijd dit bedrag niet "
+                        "goedkeuren."
+                    ),
+                )
+            )
         elif abs(bedrag_af) > _CENT_TOLERANTIE:
             controle.bevindingen.append(
                 Bevinding(
@@ -349,6 +380,7 @@ def controleer(
 _LABELS = {
     SOORT_UREN: "Uren wijken af",
     SOORT_BEDRAG: "Bedrag wijkt af",
+    SOORT_GEEN_TARIEF: "Bedrag niet te controleren (geen tarief bij ons)",
     SOORT_NIET_GEFACTUREERD: "Wel gewerkt, niet gefactureerd",
     SOORT_NIET_IN_OVERZICHT: "Wel gefactureerd, niet in onze registratie",
 }
@@ -392,6 +424,7 @@ def bevindingenmail(controles: list[Controle]) -> str:
             SOORT_NIET_GEFACTUREERD,
             SOORT_NIET_IN_OVERZICHT,
             SOORT_BEDRAG,
+            SOORT_GEEN_TARIEF,
         ):
             groep = per_soort.get(soort)
             if not groep:
