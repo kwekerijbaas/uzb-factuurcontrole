@@ -205,8 +205,20 @@ def _samengevoegd(factuur: Factuur) -> list[FactuurKracht]:
         if sleutel in samen:
             samen[sleutel].regels.extend(kracht.regels)
         else:
-            samen[sleutel] = FactuurKracht(kracht.naam_ruw, list(kracht.regels))
+            samen[sleutel] = FactuurKracht(
+                kracht.naam_ruw, list(kracht.regels), factuurnummer=kracht.factuurnummer
+            )
     return list(samen.values())
+
+
+def _nummers_van(gekoppeld, zonder_overzicht, alle: list[str]) -> list[str]:
+    """De factuurnummers die in dit deel voorkomen; zonder die informatie alle."""
+    nummers: list[str] = []
+    for kracht in [k for _, k in gekoppeld] + list(zonder_overzicht):
+        for nummer in (kracht.factuurnummer or "").split(", "):
+            if nummer and nummer not in nummers:
+                nummers.append(nummer)
+    return nummers or list(alle)
 
 
 def controleer(
@@ -248,19 +260,25 @@ def controleer_gesplitst(
     controles = []
     for deel in [hoofd, *delen]:
         namen = {m.naam for m in deel.medewerkers}
+        eigen_koppelingen = [(m, k) for m, k in gekoppeld if m.naam in namen]
+        eigen_zonder_overzicht = zonder_overzicht if deel is hoofd else []
         controle = Controle(
             uzb_naam=uzb_naam,
             iso_jaar=verwerking.iso_jaar,
             iso_week=verwerking.iso_week,
-            factuurnummers=list(factuur.factuurnummers),
+            # Alleen de factuur waarop dit deel staat; staan de twee apart
+            # gefactureerden samen op één factuur, dan noemen beide delen die.
+            factuurnummers=_nummers_van(
+                eigen_koppelingen, eigen_zonder_overzicht, factuur.factuurnummers
+            ),
             label=deel.label,
         )
         _vergelijk(
             controle,
             deel,
-            [(m, k) for m, k in gekoppeld if m.naam in namen],
+            eigen_koppelingen,
             [m for m in zonder_factuur if m.naam in namen],
-            zonder_overzicht if deel is hoofd else [],
+            eigen_zonder_overzicht,
             uzb_naam,
         )
         controles.append(controle)

@@ -85,6 +85,10 @@ class FactuurKracht:
 
     naam_ruw: str
     regels: list[FactuurRegel] = field(default_factory=list)
+    # Op welke factuur deze persoon staat; gevuld zodra meerdere facturen in
+    # één upload worden samengevoegd, zodat elk deel van de controle alleen
+    # zijn eigen factuurnummer(s) noemt.
+    factuurnummer: str | None = None
 
     @property
     def uren(self) -> Decimal:

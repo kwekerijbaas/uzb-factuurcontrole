@@ -117,6 +117,8 @@ async def controleer_facturen(
         rauw = await lees_upload(bestand, f"factuur '{bestand.filename}'", PDF)
         with leesfouten(f"factuur '{bestand.filename}'", bestand.filename):
             deel = lees_factuur(rauw, uzb_sleutel)
+        for kracht in deel.krachten:
+            kracht.factuurnummer = ", ".join(deel.factuurnummers) or None
         if samen is None:
             samen = deel
         else:

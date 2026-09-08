@@ -285,3 +285,22 @@ def test_zonder_apart_gefactureerden_een_controle():
         _factuur([_kracht("M. Mic (Marius)", "40", "1177.60")]), "Level One",
     )
     assert len(controles) == 1 and controles[0].label is None and controles[0].bevindingen == []
+
+
+def test_apart_deel_noemt_alleen_zijn_eigen_factuur():
+    """Sliwa en Kolodziej staan soms samen op één factuur, soms alleen. Elk
+    deel noemt de factuur waarop de persoon staat, niet alle nummers van de
+    upload."""
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    sliwa = _medewerker("Kamil Sliwa", "40", "1360.80"); sliwa.apart = True
+    kolodziej = _medewerker("Patryk Kolodziej", "40", "1360.80"); kolodziej.apart = True
+    week = _week([_medewerker("Marius Mic", "40", "1177.60"), sliwa, kolodziej])
+    mic = _kracht("M. Mic (Marius)", "40", "1177.60"); mic.factuurnummer = "H1"
+    s = _kracht("K.P. Sliwa (Kamil)", "40", "1360.80"); s.factuurnummer = "A7"
+    k = _kracht("P. Kolodziej (Patryk)", "40", "1360.80"); k.factuurnummer = "A7"
+    factuur = Factuur(uzb_sleutel="L1", factuurnummers=["H1", "A7"], krachten=[mic, s, k])
+    hoofd, deel_s, deel_k = controleer_gesplitst(week, factuur, "Level One")
+    assert hoofd.factuurnummers == ["H1"]
+    assert deel_s.factuurnummers == ["A7"] and deel_k.factuurnummers == ["A7"]
+    assert all(c.bevindingen == [] for c in (hoofd, deel_s, deel_k))
