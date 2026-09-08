@@ -1,0 +1,65 @@
+{% extends "basis.html" %}
+{% block titel %}Week {{ verwerking.iso_week }} verwerkt — UF{% endblock %}
+{% block inhoud %}
+<h1>Week {{ verwerking.iso_week }}/{{ verwerking.iso_jaar }} — {{ uzb_naam }} verwerkt</h1>
+
+<div class="kaart">
+  <p>{{ verwerking.medewerkers|length }} uitzendkrachten verwerkt:
+     {{ '%.2f'|format(verwerking.totaal_uren) }} uur, € {{ '%.2f'|format(verwerking.totaal_bedrag) }}
+     {% if zonder_tarief %}(exclusief {{ zonder_tarief|length }} zonder tarief, zie hieronder){% endif %}.
+     De week is bewaard; de facturen leg je er later naast via
+     <a href="/facturen">Factuurcontrole</a>.</p>
+  {% if apart %}
+  <p>Apart gefactureerd, met een eigen overzicht:
+     {% for m in apart %}<strong>{{ m.naam }}</strong> ({{ '%.2f'|format(m.netto_uren) }} u, € {{ '%.2f'|format(m.bedrag.totaal) }}){% if not loop.last %}, {% endif %}{% endfor %}.
+     Het hoofdoverzicht telt {{ hoofd.medewerkers|length }} uitzendkrachten:
+     {{ '%.2f'|format(hoofd.totaal_uren) }} uur, € {{ '%.2f'|format(hoofd.totaal_bedrag) }}.</p>
+  {% endif %}
+  {% for d in downloads %}
+  <p><a class="knop" href="{{ d.url }}" download="{{ d.bestandsnaam }}">{{ d.label }} (.xlsx)</a></p>
+  {% endfor %}
+  <p class="hint">De eerste download start vanzelf; komt hij niet op gang, klik dan op de knop.
+     {% if downloads|length > 1 %}De overige overzichten download je met de knoppen erna.{% endif %}</p>
+</div>
+
+{% if zonder_tarief %}
+<div class="kaart">
+  <h2>Zonder tarief ({{ zonder_tarief|length }})</h2>
+  <p>Deze uitzendkrachten staan met hun uren in het overzicht, maar
+     <strong>zonder bedrag</strong>. Vul de loonschaal in en verwerk de week
+     daarna opnieuw; tot die tijd is hun factuurregel niet te controleren.</p>
+  <table>
+    <tr><th>Naam</th><th>Uren</th><th>Waarom geen tarief</th><th>Wat te doen</th></tr>
+    {% for m in zonder_tarief %}
+    <tr>
+      <td><strong>{{ m.naam }}</strong></td>
+      <td>{{ '%.2f'|format(m.netto_uren) }}</td>
+      <td>{{ m.tarief_ontbreekt_omdat }}</td>
+      <td>{% if m.loonschaal %}
+            Deze schaal staat niet op de tariefkaart van {{ uzb_naam }}:
+            <a href="/uzk?zoek={{ m.naam|urlencode }}">schaal aanpassen</a> of de
+            juiste <a href="/tarieven">tariefkaart laden</a>.
+          {% else %}
+            <a href="/uzk?zoek={{ m.naam|urlencode }}">Loonschaal invullen</a>
+            bij Uitzendkrachten.
+          {% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if meldingen %}
+<div class="kaart">
+  <h2>Meldingen ({{ meldingen|length }})</h2>
+  <ul>{% for m in meldingen %}<li class="waarschuwing">{{ m }}</li>{% endfor %}</ul>
+  <p class="hint">Dezelfde meldingen staan op het tabblad Afwijkingen van het overzicht.</p>
+</div>
+{% endif %}
+
+<p><a href="/week">Nog een week verwerken</a></p>
+<script>
+  // Start de download meteen; de knop blijft staan voor als de browser dat tegenhoudt.
+  document.querySelector("a.knop").click();
+</script>
+{% endblock %}

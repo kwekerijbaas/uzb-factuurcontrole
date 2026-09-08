@@ -1,0 +1,306 @@
+"""Tests voor de factuurcontrole (SPEC §7).
+
+Gevalideerd tegen week 25/2026 Level One: 21 van de 21 medewerkers gekoppeld
+aan 21 factuurblokken uit vier facturen, met een verschil van -10,00 uur en
+-EUR 414,04 -- exact de uitkomst van de handmatige controle destijds.
+"""
+
+from decimal import Decimal
+
+import pytest
+
+from app.services.calc.types import WeekResultaat
+from app.services.factuurcontrole import (
+    SOORT_BEDRAG,
+    SOORT_GEEN_TARIEF,
+    SOORT_NIET_GEFACTUREERD,
+    SOORT_NIET_IN_OVERZICHT,
+    SOORT_UREN,
+    bevindingenmail,
+    controleer,
+    koppel,
+)
+from app.services.ingest.factuur import Factuur, FactuurKracht, FactuurRegel
+from app.services.tarief.types import BedragRegel, BedragResultaat
+from app.services.verwerking import MedewerkerResultaat, WeekVerwerking
+
+
+def _medewerker(naam: str, uren: str, bedrag: str) -> MedewerkerResultaat:
+    minuten = int(Decimal(uren) * 60)
+    return MedewerkerResultaat(
+        naam=naam, nitea_id="1", loonschaal="B2 Flex", kaartcode="B2F",
+        resultaat=WeekResultaat(netto_minuten=minuten, minuten_per_percentage={}),
+        bedrag=BedragResultaat(
+            regels=[BedragRegel("100", (), minuten, Decimal("1"), Decimal(bedrag))]
+        ),
+    )
+
+
+def _kracht(naam: str, uren: str, bedrag: str) -> FactuurKracht:
+    return FactuurKracht(
+        naam_ruw=naam,
+        regels=[FactuurRegel("Loon normale uren", None, Decimal(uren),
+                             Decimal("28.94"), Decimal(bedrag))],
+    )
+
+
+def _week(medewerkers) -> WeekVerwerking:
+    verwerking = WeekVerwerking("L1", 2026, 25)
+    verwerking.medewerkers = list(medewerkers)
+    return verwerking
+
+
+def _factuur(krachten) -> Factuur:
+    return Factuur(uzb_sleutel="L1", factuurnummers=["02604736"], krachten=list(krachten))
+
+
+# --------------------------------------------------------------------------- #
+# Koppelen van namen
+# --------------------------------------------------------------------------- #
+def test_initialen_op_de_factuur_koppelen_aan_volledige_namen():
+    """De factuur zet "K.P. Sliwa (Kamil)", wij kennen "Kamil Sliwa"."""
+    gekoppeld, zonder_factuur, zonder_overzicht = koppel(
+        [_medewerker("Kamil Sliwa", "45", "1512.41")],
+        [_kracht("K.P. Sliwa (Kamil)", "45", "1501.65")],
+    )
+    assert len(gekoppeld) == 1
+    assert not zonder_factuur and not zonder_overzicht
+
+
+def test_naamgenoten_worden_uit_elkaar_gehouden():
+    """Twee keer Pilarz: alleen de voornaam onderscheidt ze."""
+    gekoppeld, _, _ = koppel(
+        [_medewerker("Malgorzata Pilarz", "47.50", "1582.21"),
+         _medewerker("Kamila Pilarz", "29.75", "880.30")],
+        [_kracht("M. Pilarz (Malgorzata)", "47.50", "1580.79"),
+         _kracht("K.G. Pilarz (Kamila)", "29.75", "880.30")],
+    )
+    koppels = {m.naam: k.naam_ruw for m, k in gekoppeld}
+    assert "Malgorzata" in koppels["Malgorzata Pilarz"]
+    assert "Kamila" in koppels["Kamila Pilarz"]
+
+
+def test_meerdere_blokken_van_een_kracht_worden_opgeteld():
+    """Een nagekomen dag komt als apart blok op de factuur."""
+    controle = controleer(
+        _week([_medewerker("Julia Machura", "41", "1192.77")]),
+        _factuur([_kracht("J.J. Machura (Julia)", "31.25", "904.38"),
+                  _kracht("J.J. Machura (Julia)", "9.75", "288.39")]),
+        "Level One",
+    )
+    assert controle.uren_factuur == Decimal("41.00")
+    assert controle.bevindingen == []
+
+
+# --------------------------------------------------------------------------- #
+# Classificatie van verschillen
+# --------------------------------------------------------------------------- #
+def test_urenverschil_wordt_gemeld():
+    controle = controleer(
+        _week([_medewerker("Bartlomiej Janicki", "33.75", "1107.22")]),
+        _factuur([_kracht("B.D. Janicki (Bartlomiej)", "27.75", "892.16")]),
+        "Level One",
+    )
+    assert [b.soort for b in controle.bevindingen] == [SOORT_UREN]
+    assert controle.bevindingen[0].uren_verschil == Decimal("-6.00")
+
+
+def test_gelijke_uren_maar_afwijkend_bedrag_wijst_op_de_loonschaal():
+    controle = controleer(
+        _week([_medewerker("Marius Girtoi", "30.25", "875.44")]),
+        _factuur([_kracht("M.P. Girtoi (Marius)", "30.25", "895.70")]),
+        "Level One",
+    )
+    assert [b.soort for b in controle.bevindingen] == [SOORT_BEDRAG]
+    assert "loonschaal" in controle.bevindingen[0].melding
+
+
+def test_zonder_tarief_bij_ons_is_het_factuurbedrag_niet_te_controleren():
+    """Staat iemand bij ons zonder bedrag (geen loonschaal), dan is het verschil
+    met de factuur geen afwijking van het bureau maar een gat bij ons. Geen
+    creditverzoek dus, maar: schaal invullen en de week opnieuw verwerken."""
+    zonder = _medewerker("Kamil Sliwa", "40", "0")
+    zonder.loonschaal = None
+    zonder.bedrag = BedragResultaat(regels=[])
+    controle = controleer(_week([zonder]), _factuur([_kracht("K.P. Sliwa (Kamil)", "40", "1157.60")]), "Level One")
+    assert [b.soort for b in controle.bevindingen] == [SOORT_GEEN_TARIEF]
+    bevinding = controle.bevindingen[0]
+    assert "geen loonschaal" in bevinding.melding
+    assert "niet te controleren" in bevinding.melding
+    assert "Vul de loonschaal in" in bevinding.actie
+    assert "week 25 opnieuw" in bevinding.actie
+    assert "niet goedkeuren" in bevinding.actie
+    # en de mail noemt hem onder een eigen kop
+    mail = bevindingenmail([controle])
+    assert "Bedrag niet te controleren (geen tarief bij ons)" in mail
+    assert "Actie: Vul de loonschaal in" in mail
+
+
+def test_afronding_van_het_uurtarief_is_geen_bevinding():
+    """Level One draagt drie decimalen; enkele centen verschil is ruis."""
+    controle = controleer(
+        _week([_medewerker("Alexandra Rebega", "38", "1099.68")]),
+        _factuur([_kracht("A.R. Rebega (Alexandra)", "38", "1099.72")]),
+        "Level One",
+    )
+    assert controle.bevindingen == []
+
+
+def test_niet_gefactureerde_en_onbekende_krachten():
+    controle = controleer(
+        _week([_medewerker("Wel Gewerkt", "20", "578.80")]),
+        _factuur([_kracht("O. Onbekend (Otto)", "10", "289.40")]),
+        "Level One",
+    )
+    soorten = {b.soort for b in controle.bevindingen}
+    assert soorten == {SOORT_NIET_GEFACTUREERD, SOORT_NIET_IN_OVERZICHT}
+    assert controle.uren_overzicht == Decimal("20")
+    assert controle.uren_factuur == Decimal("10")
+
+
+# --------------------------------------------------------------------------- #
+# Bevindingenmail
+# --------------------------------------------------------------------------- #
+def test_bevindingenmail_noemt_bedragen_en_bevindingen():
+    controle = controleer(
+        _week([_medewerker("Bartlomiej Janicki", "33.75", "1107.22")]),
+        _factuur([_kracht("B.D. Janicki (Bartlomiej)", "27.75", "892.16")]),
+        "Level One",
+    )
+    tekst = bevindingenmail([controle])
+    assert "Level One — week 25/2026" in tekst
+    assert "02604736" in tekst
+    assert "Janicki" in tekst
+    assert "minder" in tekst  # richting van het verschil
+
+
+def test_bevindingenmail_bij_een_schone_controle():
+    controle = controleer(
+        _week([_medewerker("Alexandra Rebega", "38", "1099.72")]),
+        _factuur([_kracht("A.R. Rebega (Alexandra)", "38", "1099.72")]),
+        "Level One",
+    )
+    assert "Geen afwijkingen." in bevindingenmail([controle])
+
+
+# --------------------------------------------------------------------------- #
+# Matchingsbestand
+# --------------------------------------------------------------------------- #
+def test_matchingsbestand_bevat_de_vier_tabbladen():
+    import io
+
+    import openpyxl
+
+    from app.services.export import bouw_matchingsbestand
+
+    controle = controleer(
+        _week([_medewerker("Bartlomiej Janicki", "33.75", "1107.22")]),
+        _factuur([_kracht("B.D. Janicki (Bartlomiej)", "27.75", "892.16")]),
+        "Level One",
+    )
+    wb = openpyxl.load_workbook(
+        io.BytesIO(bouw_matchingsbestand(controle, bevindingenmail([controle])))
+    )
+    assert wb.sheetnames == [
+        "Samenvatting", "Bevindingen", "Koppelingen", "Bevindingenmail"
+    ]
+    assert wb.active.title == "Samenvatting"
+
+    koppelingen = [r for r in wb["Koppelingen"].iter_rows(min_row=4, values_only=True) if r[0]]
+    assert koppelingen[0][1] == "B.D. Janicki (Bartlomiej)"  # naam zoals op de factuur
+
+
+# --------------------------------------------------------------------------- #
+# Elke bevinding draagt zijn vervolgstap
+# --------------------------------------------------------------------------- #
+def test_elke_bevinding_heeft_een_actie():
+    """Zonder vervolgstap blijft een bevinding een constatering waar niemand
+    iets mee doet; de actie noemt het bureau en wat er moet gebeuren."""
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur(
+        [
+            _kracht("K. Sliwa (Kamil)", "42", "1080"),  # uren wijken af
+            _kracht("Onbekende Persoon", "8", "200"),   # niet in overzicht
+        ]
+    )
+    controle = controleer(verwerking, factuur, "Level One")
+
+    per_soort = {b.soort: b for b in controle.bevindingen}
+    assert all(b.actie for b in controle.bevindingen)
+    assert "creditering van 2.00 u" in per_soort[SOORT_UREN].actie
+    assert "Level One" in per_soort[SOORT_UREN].actie
+    assert "creditering" in per_soort[SOORT_NIET_IN_OVERZICHT].actie
+
+
+def test_actie_bij_te_weinig_gefactureerd_vraagt_om_nafactuur():
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur([_kracht("K. Sliwa", "36", "900")])
+    controle = controleer(verwerking, factuur, "Level One")
+    bevinding = next(b for b in controle.bevindingen if b.soort == SOORT_UREN)
+    assert "nafactuur" in bevinding.actie
+
+
+def test_mail_noemt_de_actie():
+    verwerking = _week([_medewerker("Kamil Sliwa", "40", "1000")])
+    factuur = _factuur([_kracht("K. Sliwa", "42", "1080")])
+    controle = controleer(verwerking, factuur, "Level One")
+    mail = bevindingenmail([controle])
+    assert "Actie:" in mail
+
+
+def test_apart_gefactureerde_kracht_krijgt_een_eigen_controle():
+    """Sliwa wordt los gefactureerd. Zijn factuur zit gewoon tussen de andere,
+    maar hij hoort niet in het hoofdtotaal en mag daar niet als 'niet
+    gefactureerd' opduiken; zijn eigen controle vergelijkt alleen hem."""
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    sliwa = _medewerker("Kamil Sliwa", "40", "1360.80")
+    sliwa.apart = True
+    week = _week([_medewerker("Marius Mic", "40", "1177.60"), sliwa])
+    factuur = _factuur([
+        _kracht("M. Mic (Marius)", "40", "1177.60"),
+        _kracht("K.P. Sliwa (Kamil)", "40", "1400.00"),
+        _kracht("O. Onbekend (Ongekoppeld)", "8", "200.00"),
+    ])
+    controles = controleer_gesplitst(week, factuur, "Level One")
+    assert [c.label for c in controles] == [None, "Kamil Sliwa (apart gefactureerd)"]
+
+    hoofd, apart = controles
+    assert hoofd.bedrag_overzicht == Decimal("1177.60")
+    assert [b.soort for b in hoofd.bevindingen] == [SOORT_NIET_IN_OVERZICHT]
+    assert apart.bedrag_overzicht == Decimal("1360.80")
+    assert apart.bedrag_factuur == Decimal("1400.00")
+    assert [b.soort for b in apart.bevindingen] == [SOORT_BEDRAG]
+    assert "Kamil Sliwa (apart gefactureerd)" in bevindingenmail([apart])
+
+    from app.services.export import bestandsnaam_controle
+    assert bestandsnaam_controle(apart) == "Factuurcontrole_Level_One_week_25_2026_Kamil_Sliwa.xlsx"
+
+
+def test_zonder_apart_gefactureerden_een_controle():
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    controles = controleer_gesplitst(
+        _week([_medewerker("Marius Mic", "40", "1177.60")]),
+        _factuur([_kracht("M. Mic (Marius)", "40", "1177.60")]), "Level One",
+    )
+    assert len(controles) == 1 and controles[0].label is None and controles[0].bevindingen == []
+
+
+def test_apart_deel_noemt_alleen_zijn_eigen_factuur():
+    """Sliwa en Kolodziej staan soms samen op één factuur, soms alleen. Elk
+    deel noemt de factuur waarop de persoon staat, niet alle nummers van de
+    upload."""
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    sliwa = _medewerker("Kamil Sliwa", "40", "1360.80"); sliwa.apart = True
+    kolodziej = _medewerker("Patryk Kolodziej", "40", "1360.80"); kolodziej.apart = True
+    week = _week([_medewerker("Marius Mic", "40", "1177.60"), sliwa, kolodziej])
+    mic = _kracht("M. Mic (Marius)", "40", "1177.60"); mic.factuurnummer = "H1"
+    s = _kracht("K.P. Sliwa (Kamil)", "40", "1360.80"); s.factuurnummer = "A7"
+    k = _kracht("P. Kolodziej (Patryk)", "40", "1360.80"); k.factuurnummer = "A7"
+    factuur = Factuur(uzb_sleutel="L1", factuurnummers=["H1", "A7"], krachten=[mic, s, k])
+    hoofd, deel_s, deel_k = controleer_gesplitst(week, factuur, "Level One")
+    assert hoofd.factuurnummers == ["H1"]
+    assert deel_s.factuurnummers == ["A7"] and deel_k.factuurnummers == ["A7"]
+    assert all(c.bevindingen == [] for c in (hoofd, deel_s, deel_k))

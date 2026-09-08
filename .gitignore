@@ -1,37 +1,14 @@
-# ---- KLANTDATA — NOOIT committen (Nitea, SNOOP, facturen, rapportages, mails) ----
-*.pdf
-*.xlsx
-*.xls
-*.xlsm
-*.csv
-*.docx
-*.txt
-!requirements.txt
-!emergent_prompt_plakklaar.txt
-.controle_state.json
-
-# ---- Python ----
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-.env
-
-# ---- Editor / tooling ----
-.claude/
-.idea/
-.vscode/
 .DS_Store
+Thumbs.db
+*.bak
 
+# Python / backend
 backend/.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 backend/.env
 
-backend/.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-backend/.env
+# Lokale data en artefacten
+backend/data/
+backend/*.db

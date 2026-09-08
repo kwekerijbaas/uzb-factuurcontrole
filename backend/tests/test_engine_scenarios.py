@@ -126,7 +126,7 @@ def test_11_consistentie_check_flag():
 def test_12_planning_afwijkingen():
     r = [reg(MA, 8, 0, 17, 0)]  # 9u gewerkt
     p = [PlanningRegel(MA, time(8, 0), time(16, 0), 480)]  # 8u gepland
-    res = bereken_week(r, p, REGELS, FEEST)
+    res = bereken_week(r, p, REGELS, FEEST, WeekParameters(vergelijk_planning=True))
     soorten = {a.soort for a in res.afwijkingen}
     assert SOORT_UREN_VERSCHIL in soorten
     assert SOORT_TIJD_VERSCHIL in soorten
