@@ -48,7 +48,7 @@
     {% set ontbreekt = uzb.aantal - uzb.met_schaal %}
     <p>{{ uzb.aantal }} uitzendkrachten, waarvan {{ uzb.met_schaal }} met loonschaal.
        {% if ontbreekt %}
-         <span class="fout">{{ ontbreekt }} zonder loonschaal — vul die eerst in.</span>
+         <span class="fout">{{ ontbreekt }} zonder loonschaal — zij staan zonder bedrag in het weekoverzicht tot de schaal is ingevuld.</span>
        {% endif %}
     </p>
     {% if not uzb.heeft_kaart %}
@@ -59,7 +59,7 @@
       {% for schaal in uzb.schalen %}<option value="{{ schaal }}">{% endfor %}
     </datalist>
     <table>
-      <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th></tr>
+      <tr><th>Naam</th><th>Loonschaal</th><th>Externe code</th><th>Apart gefactureerd</th><th>Bureau</th></tr>
       {% for k in uzb.krachten %}
       <tr data-naam="{{ k.naam|lower }}">
         <td>{{ k.naam }}{% if k.schaal_handmatig %}
@@ -75,9 +75,38 @@
           </form>
         </td>
         <td>{{ k.externe_code or '' }}</td>
+        <td>
+          <form method="post" action="/uzk/{{ k.id }}/apart" class="inline">
+            {% if k.apart_gefactureerd %}
+              <input type="hidden" name="apart" value="nee">
+              <span title="Eigen overzicht en eigen factuurcontrole{% if k.apart_door %}; ingesteld door {{ k.apart_door }}{% endif %}.">ja{% if k.apart_door %} <span class="hint">({{ k.apart_door }})</span>{% endif %}</span>
+              <button type="submit">Ongedaan maken</button>
+            {% else %}
+              <input type="hidden" name="apart" value="ja">
+              <button type="submit">Apart factureren</button>
+            {% endif %}
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/uzk/{{ k.id }}/bureau" class="inline"
+                onsubmit="return confirm('{{ k.naam }} verplaatsen naar ' + this.uzb.options[this.uzb.selectedIndex].text + '? De weekresultaten gaan mee.')">
+            <select name="uzb" aria-label="Verplaats {{ k.naam }} naar">
+              {% for sleutel, naam in uzbs.items() if sleutel != uzb.sleutel %}
+              <option value="{{ sleutel }}">{{ naam }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit">Verplaats</button>
+          </form>
+        </td>
       </tr>
       {% endfor %}
     </table>
+    <p class="hint"><strong>Apart gefactureerd:</strong> wie het bureau los factureert
+       (bv. techniek) krijgt een eigen weekoverzicht en een eigen factuurcontrole.
+       <strong>Verplaats:</strong> staat iemand onder het verkeerde bureau (dat
+       gebeurt als hij in het Nitea-overzicht van een week van dat bureau
+       voorkwam), zet hem dan hier onder het juiste bureau; zijn weekresultaten
+       gaan mee en een dubbele rij wordt samengevoegd.</p>
   {% else %}
     <p class="leeg">Nog geen uitzendkrachten bekend.</p>
   {% endif %}

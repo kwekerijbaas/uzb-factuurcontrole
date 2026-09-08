@@ -166,6 +166,11 @@ class Uzk(Base, TijdstempelMixin):
     # Wie de handmatige waarde invulde; getoond bij de ja/nee-vraag zodra een
     # upload eroverheen wil.
     schaal_door: Mapped[str | None] = mapped_column(String(320))
+    # Wordt door het bureau los gefactureerd (bv. techniek, apart geboekt).
+    # Zo iemand krijgt een eigen weekoverzicht en een eigen factuurcontrole,
+    # zodat het hoofdoverzicht naast de hoofdfactuur blijft passen.
+    apart_gefactureerd: Mapped[bool] = mapped_column(Boolean, default=False)
+    apart_door: Mapped[str | None] = mapped_column(String(320))
     actief: Mapped[bool] = mapped_column(Boolean, default=True)
 
     uzb: Mapped[Uzb] = relationship(back_populates="uzks")

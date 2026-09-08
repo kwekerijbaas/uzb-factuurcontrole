@@ -1,0 +1,47 @@
+{% extends "basis.html" %}
+{% block titel %}Factuurcontrole week {{ iso_week }} — UF{% endblock %}
+{% block inhoud %}
+<h1>Factuurcontrole week {{ iso_week }}/{{ iso_jaar }} — {{ uzb_naam }}</h1>
+
+{% for r in resultaten %}
+{% set c = r.controle %}
+<div class="kaart">
+  <h2>{{ r.label }}</h2>
+  {% if c.factuurnummers %}<p class="hint">Facturen: {{ c.factuurnummers|join(', ') }}</p>{% endif %}
+  <table>
+    <tr><th></th><th>Ons overzicht</th><th>Factuur</th><th>Verschil</th></tr>
+    <tr><td>Uren</td><td>{{ '%.2f'|format(c.uren_overzicht) }}</td><td>{{ '%.2f'|format(c.uren_factuur) }}</td><td>{{ '%+.2f'|format(c.uren_verschil) }}</td></tr>
+    <tr><td>Bedrag</td><td>€ {{ '%.2f'|format(c.bedrag_overzicht) }}</td><td>€ {{ '%.2f'|format(c.bedrag_factuur) }}</td><td>€ {{ '%+.2f'|format(c.bedrag_verschil) }}</td></tr>
+  </table>
+  <p>{{ c.koppelingen|length }} gekoppeld, {{ c.bevindingen|length }} bevinding(en).</p>
+  {% if c.bevindingen %}
+  <table>
+    <tr><th>Soort</th><th>Naam</th><th>Toelichting</th><th>Wat te doen</th></tr>
+    {% for b in c.bevindingen %}
+    <tr>
+      <td>{{ labels.get(b.soort, b.soort) }}</td>
+      <td><strong>{{ b.naam }}</strong></td>
+      <td>{{ b.melding }}</td>
+      <td>{{ b.actie }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Geen afwijkingen.</p>
+  {% endif %}
+  <p><a class="knop" href="{{ r.url }}" download="{{ r.bestandsnaam }}">{{ r.label }}: matchingsbestand (.xlsx)</a></p>
+  <details>
+    <summary>Concept-bevindingenmail</summary>
+    <pre style="white-space:pre-wrap">{{ r.mail }}</pre>
+  </details>
+</div>
+{% endfor %}
+
+<p class="hint">Wie apart gefactureerd wordt, staat in een eigen blok met een
+   eigen matchingsbestand; het hoofdblok telt hem niet mee. Instellen kan bij
+   <a href="/uzk">Uitzendkrachten</a>.</p>
+<p><a href="/facturen">Terug naar Factuurcontrole</a></p>
+<script>
+  document.querySelector("a.knop").click();
+</script>
+{% endblock %}

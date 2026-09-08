@@ -213,8 +213,11 @@ geweigerd of gebounced is. Dat leest duidelijker dan de Supabase-logs.
    overzicht. De link "loonschaal invullen" op het scherm landt onder
    **Uitzendkrachten** meteen op die persoon; daarna de week opnieuw
    verwerken.
-4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole** met
-   afwijkingen + concept-**bevindingenmail**.
+4. Optioneel: **UZB-factuur (.pdf)** uploaden → **factuurcontrole**:
+   resultaatscherm met per deel de bevindingen (met actie), het
+   matchingsbestand en de concept-**bevindingenmail**. Wie **apart
+   gefactureerd** wordt (instelling bij Uitzendkrachten) krijgt een eigen
+   deel, bij het weekoverzicht én bij de factuurcontrole.
 5. Bij een CAO-/minimumloonwijziging: onder **Loontabellen** de nieuwe
    CAO-loontabel met **ingangsdatum** uploaden (zie SPEC §6). De tarieven van
    alle uitzendbureaus bewegen vanaf die datum automatisch mee — verder niets.

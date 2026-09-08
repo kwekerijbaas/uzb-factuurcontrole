@@ -7,6 +7,7 @@ bewaard blijft, hoeven SNOOP en Nitea daarvoor niet opnieuw ingelezen te worden
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -16,8 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
-from app.services.export import bouw_matchingsbestand
-from app.services.factuurcontrole import bevindingenmail, controleer
+from app.services.export import bestandsnaam_controle, bouw_matchingsbestand
+from app.services.factuurcontrole import _LABELS as LABELS
+from app.services.factuurcontrole import bevindingenmail, controleer_gesplitst
 from app.services.ingest.factuur import Factuur, lees_factuur
 from app.services.opslag import (
     bewaarde_weken,
@@ -81,14 +83,17 @@ def verwijder_week(
     )
 
 
-@router.post("/controleer")
+@router.post("/controleer", response_class=HTMLResponse)
 async def controleer_facturen(
+    request: Request,
     week: str = Form(...),
     bestanden: list[UploadFile] = File(default_factory=list),
     sessie: Session = Depends(get_session),
     gebruiker: Gebruiker = Depends(huidige_gebruiker),
-) -> Response:
-    """Leg de facturen naast een bewaarde week en geef het matchingsbestand."""
+) -> HTMLResponse:
+    """Leg de facturen naast een bewaarde week: resultaatscherm met de
+    bevindingen en het matchingsbestand, apart voor wie apart gefactureerd
+    wordt."""
     try:
         uzb_sleutel, jaar, weeknummer = week.split("|")
         iso_jaar, iso_week = int(jaar), int(weeknummer)
@@ -124,13 +129,32 @@ async def controleer_facturen(
         raise HTTPException(status_code=400, detail="geen factuur meegestuurd")
 
     naam = UZB_NAMEN.get(uzb_sleutel, uzb_sleutel)
-    controle = controleer(verwerking, samen, naam)
-    inhoud = bouw_matchingsbestand(controle, bevindingenmail([controle]))
-
-    veilig = "".join(c if c.isalnum() else "_" for c in naam).strip("_")
-    bestandsnaam = f"Factuurcontrole_{veilig}_week_{iso_week}_{iso_jaar}.xlsx"
-    return Response(
-        content=inhoud,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{bestandsnaam}"'},
+    controles = controleer_gesplitst(verwerking, samen, naam)
+    resultaten = []
+    for controle in controles:
+        mail = bevindingenmail([controle])
+        inhoud = bouw_matchingsbestand(controle, mail)
+        resultaten.append(
+            {
+                "controle": controle,
+                "label": controle.label or f"Factuurcontrole {naam}",
+                "bestandsnaam": bestandsnaam_controle(controle),
+                "url": (
+                    "data:application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet;base64," + base64.b64encode(inhoud).decode()
+                ),
+                "mail": mail,
+            }
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="facturen_resultaat.html",
+        context={
+            "gebruiker": gebruiker,
+            "uzb_naam": naam,
+            "iso_jaar": iso_jaar,
+            "iso_week": iso_week,
+            "resultaten": resultaten,
+            "labels": LABELS,
+        },
     )

@@ -18,10 +18,13 @@ from app.services.export import bestandsnaam, bouw_overzicht
 from app.config import settings
 from app.services.ingest import lees_nitea, lees_snoop
 from app.services.ingest.herkenning import bepaal_uzb
+from app.services.ingest.herkenning import familie_van
 from app.services.opslag import (
+    apart_gefactureerd,
     bekende_loonschalen,
     bewaar_weekresultaat,
     borg_uzb,
+    elders_bekende_uzk,
     handmatige_loonschalen,
     kaart_op,
     onthoud_uzk,
@@ -144,8 +147,9 @@ async def verwerk(
     with leesfouten("SNOOP-export", snoop_bestand.filename):
         snoop = lees_snoop(rauwe_snoop)
         uzb_sleutel = bepaal_uzb(snoop, UZB_NAMEN)
+    nitea_opmerkingen: list[str] = []
     with leesfouten("Nitea-overzicht", nitea_bestand.filename):
-        nitea = lees_nitea(rauwe_nitea)
+        nitea = lees_nitea(rauwe_nitea, nitea_opmerkingen)
     if not nitea:
         raise HTTPException(
             status_code=400,
@@ -173,7 +177,22 @@ async def verwerk(
         feestdagen=feestdagen_cao_periode(),
         bekende_loonschalen=bekende_loonschalen(sessie, uzb_sleutel),
         handmatige_loonschalen=handmatige_loonschalen(sessie, uzb_sleutel),
+        elders_bekend=elders_bekende_uzk(
+            sessie, uzb_sleutel, UZB_NAMEN, familie_van(uzb_sleutel)
+        ),
+        apart_gefactureerd=apart_gefactureerd(sessie, uzb_sleutel),
     )
+    if nitea_opmerkingen:
+        # Niet-gelezen of anders gelezen Nitea-regels: een stil weggelaten dag
+        # is een te laag weektotaal dat niemand opmerkt.
+        getoond = nitea_opmerkingen[:12]
+        rest = len(nitea_opmerkingen) - len(getoond)
+        verwerking.meldingen.append(
+            f"Nitea: {len(nitea_opmerkingen)} regel(s) niet of anders gelezen -- "
+            "controleer deze dagen in het overzicht: "
+            + " | ".join(getoond)
+            + (f" | en {rest} meer" if rest > 0 else "")
+        )
 
     # Onthoud iedereen met zijn loonschaal, zodat een week waarin SNOOP
     # onvolledig is alsnog een tarief kan vinden. Wie een schaal mist, hoort
@@ -220,10 +239,21 @@ async def verwerk(
             verwerking.meldingen.insert(0, waarschuwing)
 
     naam = UZB_NAMEN[uzb_sleutel]
-    inhoud = bouw_overzicht(verwerking, naam, reeks)
+
+    # Wie apart gefactureerd wordt, krijgt een eigen overzicht; het
+    # hoofdoverzicht past dan naast de hoofdfactuur.
+    hoofd, delen = verwerking.gesplitst()
+    downloads = [
+        {
+            "label": deel.label or f"Weekoverzicht {naam}",
+            "bestandsnaam": bestandsnaam(naam, deel),
+            "url": _data_url(bouw_overzicht(deel, naam, reeks)),
+        }
+        for deel in [hoofd, *delen]
+    ]
 
     # Resultaatscherm in plaats van een kale download: wie is verwerkt en wie
-    # staat zonder tarief, met de download eronder. Het bestand gaat als
+    # staat zonder tarief, met de downloads eronder. De bestanden gaan als
     # data-URL mee in de pagina, zodat er niets bewaard hoeft te worden.
     waarschuwing = melding_zonder_tarief(verwerking) if not reeks.is_leeg else None
     return templates.TemplateResponse(
@@ -233,6 +263,8 @@ async def verwerk(
             "gebruiker": gebruiker,
             "uzb_naam": naam,
             "verwerking": verwerking,
+            "hoofd": hoofd,
+            "apart": [d.medewerkers[0] for d in delen],
             "zonder_tarief": verwerking.zonder_tarief,
             # De tabel 'Zonder tarief' zegt het al; de losse meldingen daarover
             # zouden op het scherm dubbel zijn (in het bestand staan ze wel).
@@ -242,10 +274,13 @@ async def verwerk(
                 if m != waarschuwing
                 and not m.endswith(("uur zonder bedrag", "geen bedrag berekend"))
             ],
-            "bestandsnaam": bestandsnaam(naam, verwerking),
-            "download": (
-                "data:application/vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet;base64," + base64.b64encode(inhoud).decode()
-            ),
+            "downloads": downloads,
         },
+    )
+
+
+def _data_url(inhoud: bytes) -> str:
+    return (
+        "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;"
+        "base64," + base64.b64encode(inhoud).decode()
     )

@@ -64,6 +64,8 @@ class Controle:
     iso_jaar: int
     iso_week: int
     factuurnummers: list[str] = field(default_factory=list)
+    # Gevuld bij de controle van één apart gefactureerde persoon.
+    label: str | None = None
     koppelingen: list[tuple[MedewerkerResultaat, FactuurKracht]] = field(default_factory=list)
     bevindingen: list[Bevinding] = field(default_factory=list)
     uren_overzicht: Decimal = Decimal("0")
@@ -193,6 +195,20 @@ def _lijkt_op(factuur_naam: str, verwerking: WeekVerwerking) -> str:
     return ""
 
 
+def _samengevoegd(factuur: Factuur) -> list[FactuurKracht]:
+    """Sommige facturen splitsen één uitzendkracht over meerdere blokken (een
+    nagekomen dag, of een paginagrens). Tel die eerst bij elkaar op."""
+    samen: dict[tuple[str, frozenset[str]], FactuurKracht] = {}
+    for kracht in factuur.krachten:
+        sleutel = _delen(kracht.naam_ruw)
+        sleutel = (sleutel[0], frozenset(sleutel[1]))
+        if sleutel in samen:
+            samen[sleutel].regels.extend(kracht.regels)
+        else:
+            samen[sleutel] = FactuurKracht(kracht.naam_ruw, list(kracht.regels))
+    return list(samen.values())
+
+
 def controleer(
     verwerking: WeekVerwerking, factuur: Factuur, uzb_naam: str
 ) -> Controle:
@@ -202,21 +218,63 @@ def controleer(
         iso_jaar=verwerking.iso_jaar,
         iso_week=verwerking.iso_week,
         factuurnummers=list(factuur.factuurnummers),
+        label=verwerking.label,
     )
+    gekoppeld, zonder_factuur, zonder_overzicht = koppel(
+        verwerking.medewerkers, _samengevoegd(factuur)
+    )
+    _vergelijk(controle, verwerking, gekoppeld, zonder_factuur, zonder_overzicht, uzb_naam)
+    return controle
 
-    # Sommige facturen splitsen één uitzendkracht over meerdere blokken (een
-    # nagekomen dag, of een paginagrens). Tel die eerst bij elkaar op.
-    samengevoegd: dict[tuple[str, frozenset[str]], FactuurKracht] = {}
-    for kracht in factuur.krachten:
-        sleutel = _delen(kracht.naam_ruw)
-        sleutel = (sleutel[0], frozenset(sleutel[1]))
-        if sleutel in samengevoegd:
-            samengevoegd[sleutel].regels.extend(kracht.regels)
-        else:
-            samengevoegd[sleutel] = FactuurKracht(kracht.naam_ruw, list(kracht.regels))
-    krachten = list(samengevoegd.values())
 
-    gekoppeld, zonder_factuur, zonder_overzicht = koppel(verwerking.medewerkers, krachten)
+def controleer_gesplitst(
+    verwerking: WeekVerwerking, factuur: Factuur, uzb_naam: str
+) -> list[Controle]:
+    """Eén controle voor het hoofddeel en één per apart gefactureerde persoon.
+
+    De facturen worden als één geheel gekoppeld (de aparte factuur zit er
+    meestal gewoon tussen), daarna wordt per deel vergeleken: de apart
+    gefactureerde persoon telt niet mee in het hoofdtotaal en duikt daar ook
+    niet op als 'niet gefactureerd'. Factuurregels die aan niemand te koppelen
+    zijn, horen bij het hoofddeel.
+    """
+    hoofd, delen = verwerking.gesplitst()
+    if not delen:
+        return [controleer(verwerking, factuur, uzb_naam)]
+
+    gekoppeld, zonder_factuur, zonder_overzicht = koppel(
+        verwerking.medewerkers, _samengevoegd(factuur)
+    )
+    controles = []
+    for deel in [hoofd, *delen]:
+        namen = {m.naam for m in deel.medewerkers}
+        controle = Controle(
+            uzb_naam=uzb_naam,
+            iso_jaar=verwerking.iso_jaar,
+            iso_week=verwerking.iso_week,
+            factuurnummers=list(factuur.factuurnummers),
+            label=deel.label,
+        )
+        _vergelijk(
+            controle,
+            deel,
+            [(m, k) for m, k in gekoppeld if m.naam in namen],
+            [m for m in zonder_factuur if m.naam in namen],
+            zonder_overzicht if deel is hoofd else [],
+            uzb_naam,
+        )
+        controles.append(controle)
+    return controles
+
+
+def _vergelijk(
+    controle: Controle,
+    verwerking: WeekVerwerking,
+    gekoppeld: list[tuple[MedewerkerResultaat, FactuurKracht]],
+    zonder_factuur: list[MedewerkerResultaat],
+    zonder_overzicht: list[FactuurKracht],
+    uzb_naam: str,
+) -> None:
     controle.koppelingen = gekoppeld
 
     for medewerker, kracht in sorted(gekoppeld, key=lambda p: p[0].naam):
@@ -374,8 +432,6 @@ def controleer(
             )
         )
 
-    return controle
-
 
 _LABELS = {
     SOORT_UREN: "Uren wijken af",
@@ -400,6 +456,7 @@ def bevindingenmail(controles: list[Controle]) -> str:
     for nummer, controle in enumerate(controles, start=1):
         regels.append(
             f"{nummer}. {controle.uzb_naam} — week {controle.iso_week}/{controle.iso_jaar}"
+            + (f" — {controle.label}" if controle.label else "")
         )
         if controle.factuurnummers:
             regels.append(f"   Factuur: {', '.join(controle.factuurnummers)}")

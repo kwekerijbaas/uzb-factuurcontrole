@@ -471,6 +471,90 @@ def zet_loonschaal(
     rij.schaal_door = door if handmatig else None
 
 
+def zet_apart(rij: Uzk, apart: bool, door: str | None = None) -> None:
+    """Markeer (of ontmarkeer) een uitzendkracht als apart gefactureerd."""
+    rij.apart_gefactureerd = apart
+    rij.apart_door = door if apart else None
+
+
+def apart_gefactureerd(sessie: Session, uzb_sleutel: str) -> set[str]:
+    """Genormaliseerde namen van wie bij dit bureau apart gefactureerd wordt."""
+    uzb = uzb_op_sleutel(sessie, uzb_sleutel)
+    if uzb is None:
+        return set()
+    rijen = sessie.scalars(
+        select(Uzk).where(Uzk.uzb_id == uzb.id).where(Uzk.apart_gefactureerd.is_(True))
+    ).all()
+    return {_sleutel(r.naam) for r in rijen}
+
+
+def elders_bekende_uzk(
+    sessie: Session, uzb_sleutel: str, uzb_namen: dict[str, str], familie: set[str] | None = None
+) -> dict[str, str]:
+    """Namen die bij een ánder bureau met loonschaal bekend zijn en bij dit
+    bureau niet (of zonder schaal), op genormaliseerde naam -> bureaunaam.
+
+    Het Nitea-overzicht is een urenoverzicht en bevat soms mensen van een
+    ander bureau; die horen niet in deze week. Bureaus uit dezelfde familie
+    (Level One en zijn jeugd-payroll delen hun bestanden) tellen niet als
+    'elders'.
+    """
+    eigen = uzb_op_sleutel(sessie, uzb_sleutel)
+    hier_met_schaal = set()
+    if eigen is not None:
+        hier_met_schaal = {
+            _sleutel(r.naam)
+            for r in sessie.scalars(
+                select(Uzk).where(Uzk.uzb_id == eigen.id).where(Uzk.loonschaal_code.is_not(None))
+            )
+        }
+    rijen = sessie.execute(
+        select(Uzk.naam, Uzb.naam)
+        .join(Uzb, Uzb.id == Uzk.uzb_id)
+        .where(Uzb.naam != uzb_sleutel)
+        .where(Uzk.loonschaal_code.is_not(None))
+    ).all()
+    elders: dict[str, str] = {}
+    for naam, sleutel in rijen:
+        if sleutel in (familie or set()):
+            continue
+        genormaliseerd = _sleutel(naam)
+        if genormaliseerd in hier_met_schaal:
+            continue
+        elders[genormaliseerd] = uzb_namen.get(sleutel, sleutel)
+    return elders
+
+
+def verplaats_uzk(sessie: Session, rij: Uzk, doel: Uzb) -> Uzk:
+    """Zet een uitzendkracht onder een ander bureau.
+
+    Nodig wanneer iemand via het Nitea-overzicht van een week onder het
+    verkeerde bureau is beland: zijn schaal ('D4 SW') past dan niet op de
+    tariefkaart van dat bureau. Bestaat dezelfde naam al onder het doelbureau,
+    dan gaan de weekresultaten daarheen en verdwijnt de dubbele rij; de
+    bekende gegevens (schaal, code) van het doel blijven staan en worden alleen
+    aangevuld.
+    """
+    from app.models import MatchPeriode
+
+    bestaand = sessie.scalar(
+        select(Uzk).where(Uzk.uzb_id == doel.id).where(func.lower(Uzk.naam) == _sleutel(rij.naam))
+    )
+    if bestaand is None or bestaand.id == rij.id:
+        rij.uzb_id = doel.id
+        sessie.flush()
+        return rij
+    for match in sessie.scalars(select(MatchPeriode).where(MatchPeriode.uzk_id == rij.id)):
+        match.uzk_id = bestaand.id
+    if not bestaand.externe_code and rij.externe_code:
+        bestaand.externe_code = rij.externe_code
+    if not bestaand.loonschaal_code and rij.loonschaal_code:
+        bestaand.loonschaal_code = rij.loonschaal_code
+    sessie.delete(rij)
+    sessie.flush()
+    return bestaand
+
+
 def handmatige_loonschalen(sessie: Session, uzb_sleutel: str) -> dict[str, str]:
     """De met de hand ingevulde schalen, op genormaliseerde naam.
 
@@ -680,6 +764,9 @@ def haal_weekresultaat(sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_wee
                     minuten_per_percentage={},
                 ),
                 bedrag=BedragResultaat(regels=regels),
+                # De markering van nú: wie inmiddels apart gefactureerd wordt,
+                # krijgt ook voor een eerder bewaarde week zijn eigen controle.
+                apart=bool(uzk.apart_gefactureerd),
             )
         )
     verwerking.medewerkers.sort(key=lambda m: m.naam)

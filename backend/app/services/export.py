@@ -136,7 +136,10 @@ def bouw_overzicht(
     # --- Totaal week ---------------------------------------------------- #
     ws = wb.active
     ws.title = "Totaal week"
-    ws["A1"] = f"Weektotaal per medewerker — {uzb_naam} week {verwerking.iso_week}/{verwerking.iso_jaar}"
+    kop = f"{uzb_naam} week {verwerking.iso_week}/{verwerking.iso_jaar}"
+    if verwerking.label:
+        kop += f" — {verwerking.label}"
+    ws["A1"] = f"Weektotaal per medewerker — {kop}"
     ws["A1"].font = _TITEL
     koppen = ["Medewerker", "Nitea-ID", "Loonschaal"]
     koppen += [f"Uren {c}" for c in categorieen] + ["Totaal uren", "Bedrag (€)"]
@@ -281,6 +284,7 @@ def voeg_factuurcontrole_toe(wb, controle) -> None:
     ws["A1"] = (
         f"Factuurcontrole — {controle.uzb_naam} week "
         f"{controle.iso_week}/{controle.iso_jaar}"
+        + (f" — {controle.label}" if controle.label else "")
     )
     ws["A1"].font = _TITEL
     if controle.factuurnummers:
@@ -321,9 +325,22 @@ def voeg_factuurcontrole_toe(wb, controle) -> None:
     _breedtes(ws, [22, 26, 11, 12, 12, 13, 60, 55])
 
 
+def _veilig(tekst: str) -> str:
+    return "".join(c if c.isalnum() else "_" for c in tekst).strip("_")
+
+
 def bestandsnaam(uzb_naam: str, verwerking: WeekVerwerking) -> str:
-    veilig = "".join(c if c.isalnum() else "_" for c in uzb_naam).strip("_")
-    return f"UZB-overzicht_{veilig}_week_{verwerking.iso_week}_{verwerking.iso_jaar}.xlsx"
+    naam = f"UZB-overzicht_{_veilig(uzb_naam)}_week_{verwerking.iso_week}_{verwerking.iso_jaar}"
+    if verwerking.label:
+        naam += "_" + _veilig(verwerking.label.split(" (")[0])
+    return naam + ".xlsx"
+
+
+def bestandsnaam_controle(controle) -> str:
+    naam = f"Factuurcontrole_{_veilig(controle.uzb_naam)}_week_{controle.iso_week}_{controle.iso_jaar}"
+    if controle.label:
+        naam += "_" + _veilig(controle.label.split(" (")[0])
+    return naam + ".xlsx"
 
 
 def bouw_matchingsbestand(controle, bevindingen_tekst: str = "") -> bytes:
@@ -334,6 +351,7 @@ def bouw_matchingsbestand(controle, bevindingen_tekst: str = "") -> bytes:
     ws["A1"] = (
         f"Factuurcontrole — {controle.uzb_naam} week "
         f"{controle.iso_week}/{controle.iso_jaar}"
+        + (f" — {controle.label}" if controle.label else "")
     )
     ws["A1"].font = _TITEL
     if controle.factuurnummers:

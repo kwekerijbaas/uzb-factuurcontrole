@@ -246,3 +246,42 @@ def test_mail_noemt_de_actie():
     controle = controleer(verwerking, factuur, "Level One")
     mail = bevindingenmail([controle])
     assert "Actie:" in mail
+
+
+def test_apart_gefactureerde_kracht_krijgt_een_eigen_controle():
+    """Sliwa wordt los gefactureerd. Zijn factuur zit gewoon tussen de andere,
+    maar hij hoort niet in het hoofdtotaal en mag daar niet als 'niet
+    gefactureerd' opduiken; zijn eigen controle vergelijkt alleen hem."""
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    sliwa = _medewerker("Kamil Sliwa", "40", "1360.80")
+    sliwa.apart = True
+    week = _week([_medewerker("Marius Mic", "40", "1177.60"), sliwa])
+    factuur = _factuur([
+        _kracht("M. Mic (Marius)", "40", "1177.60"),
+        _kracht("K.P. Sliwa (Kamil)", "40", "1400.00"),
+        _kracht("O. Onbekend (Ongekoppeld)", "8", "200.00"),
+    ])
+    controles = controleer_gesplitst(week, factuur, "Level One")
+    assert [c.label for c in controles] == [None, "Kamil Sliwa (apart gefactureerd)"]
+
+    hoofd, apart = controles
+    assert hoofd.bedrag_overzicht == Decimal("1177.60")
+    assert [b.soort for b in hoofd.bevindingen] == [SOORT_NIET_IN_OVERZICHT]
+    assert apart.bedrag_overzicht == Decimal("1360.80")
+    assert apart.bedrag_factuur == Decimal("1400.00")
+    assert [b.soort for b in apart.bevindingen] == [SOORT_BEDRAG]
+    assert "Kamil Sliwa (apart gefactureerd)" in bevindingenmail([apart])
+
+    from app.services.export import bestandsnaam_controle
+    assert bestandsnaam_controle(apart) == "Factuurcontrole_Level_One_week_25_2026_Kamil_Sliwa.xlsx"
+
+
+def test_zonder_apart_gefactureerden_een_controle():
+    from app.services.factuurcontrole import controleer_gesplitst
+
+    controles = controleer_gesplitst(
+        _week([_medewerker("Marius Mic", "40", "1177.60")]),
+        _factuur([_kracht("M. Mic (Marius)", "40", "1177.60")]), "Level One",
+    )
+    assert len(controles) == 1 and controles[0].label is None and controles[0].bevindingen == []

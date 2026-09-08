@@ -16,13 +16,15 @@ from sqlalchemy.orm import Session
 from app.auth import Gebruiker, huidige_gebruiker
 from app.db import get_session
 from app.models import Uzk
-from app.services.ingest.herkenning import verdeel_per_uzb
+from app.services.ingest.herkenning import herken_uzb, verdeel_per_uzb
 from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import (
     borg_uzb,
     kaart_op,
     onthoud_uzk,
     uzb_op_sleutel,
+    verplaats_uzk,
+    zet_apart,
     zet_loonschaal,
 )
 from app.services.tarief import conventies
@@ -125,27 +127,120 @@ def wijzig_loonschaal(
         )
 
     uzb_sleutel = kracht.uzb.naam
-    kaart = _kaart_van(sessie, uzb_sleutel, date.today())
-    if kaart is not None:
-        kaartcode = conventies(uzb_sleutel).kaartcode(waarde)
-        if kaart.schaal(kaartcode) is None:
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "melding": (
-                        f"'{waarde}' hoort niet bij een tarief van "
-                        f"{UZB_NAMEN.get(uzb_sleutel, uzb_sleutel)} "
-                        f"(dat leest als kaartcode '{kaartcode}'). Kies een "
-                        "schaal die op de tariefkaart staat:"
-                    ),
-                    "punten": sorted(kaart.schalen),
-                    "actie": {"tekst": "Terug naar Uitzendkrachten", "href": "/uzk"},
-                },
-            )
+    _toets_schaal(sessie, kracht, waarde)
 
     zet_loonschaal(kracht, waarde, handmatig=bron != "bestand", door=gebruiker.naam)
     sessie.commit()
     return RedirectResponse(f"/uzk?gewijzigd={quote(kracht.naam)}", status_code=303)
+
+
+def _toets_schaal(sessie: Session, kracht: Uzk, waarde: str) -> None:
+    """Weiger een schaal die niet op de tariefkaart van het bureau staat.
+
+    Past de schaal wél bij een ánder bureau ('D4 SW' bij iemand die onder
+    Level One staat), dan is de persoon vrijwel zeker via het Nitea-overzicht
+    van een week onder het verkeerde bureau beland. De melding zegt dat, en
+    biedt aan hem in één keer te verplaatsen én de schaal op te slaan.
+    """
+    uzb_sleutel = kracht.uzb.naam
+    kaart = _kaart_van(sessie, uzb_sleutel, date.today())
+    if kaart is None:
+        return
+    kaartcode = conventies(uzb_sleutel).kaartcode(waarde)
+    if kaart.schaal(kaartcode) is not None:
+        return
+    bureau = UZB_NAMEN.get(uzb_sleutel, uzb_sleutel)
+
+    class _Regel:  # herken_uzb kijkt naar .loonschaal en .werkgever
+        loonschaal = waarde
+        werkgever = None
+
+    ander, _ = herken_uzb([_Regel()])
+    if ander and ander != uzb_sleutel and ander in UZB_NAMEN:
+        ander_naam = UZB_NAMEN[ander]
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "melding": (
+                    f"'{waarde}' is een schaal van {ander_naam}, maar {kracht.naam} "
+                    f"staat hier onder {bureau}. Dat gebeurt als iemand in het "
+                    f"Nitea-overzicht van een {bureau}-week voorkwam. Hoort "
+                    f"{kracht.naam} bij {ander_naam}, verplaats hem dan; de "
+                    "schaal wordt daarbij meteen opgeslagen en een eventuele "
+                    f"dubbele rij onder {ander_naam} wordt samengevoegd."
+                ),
+                "actie": {
+                    "tekst": f"Verplaats naar {ander_naam} en sla '{waarde}' op",
+                    "href": f"/uzk/{kracht.id}/bureau",
+                    "post": {"uzb": ander, "loonschaal": waarde},
+                },
+            },
+        )
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "melding": (
+                f"'{waarde}' hoort niet bij een tarief van {bureau} (dat leest "
+                f"als kaartcode '{kaartcode}'). Kies een schaal die op de "
+                "tariefkaart staat:"
+            ),
+            "punten": sorted(kaart.schalen),
+            "actie": {"tekst": "Terug naar Uitzendkrachten", "href": "/uzk"},
+        },
+    )
+
+
+@router.post("/{uzk_id}/bureau", response_model=None)
+def wijzig_bureau(
+    uzk_id: uuid.UUID,
+    uzb: str = Form(...),
+    loonschaal: str = Form(""),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """Zet een uitzendkracht onder een ander bureau, eventueel met schaal.
+
+    De weekresultaten gaan mee met de persoon; bestaat de naam daar al, dan
+    worden de rijen samengevoegd.
+    """
+    kracht = sessie.get(Uzk, uzk_id)
+    if kracht is None:
+        raise HTTPException(status_code=404, detail="Deze uitzendkracht bestaat niet.")
+    if uzb not in UZB_NAMEN:
+        raise HTTPException(status_code=400, detail=f"Onbekend uitzendbureau '{uzb}'.")
+    doel = borg_uzb(sessie, uzb, UZB_NAMEN[uzb])
+    rij = verplaats_uzk(sessie, kracht, doel)
+    waarde = " ".join(loonschaal.split())
+    if waarde:
+        _toets_schaal(sessie, rij, waarde)
+        zet_loonschaal(rij, waarde, handmatig=True, door=gebruiker.naam)
+    sessie.commit()
+    return RedirectResponse(
+        f"/uzk?gewijzigd={quote(rij.naam)}&zoek={quote(rij.naam)}", status_code=303
+    )
+
+
+@router.post("/{uzk_id}/apart", response_model=None)
+def wijzig_apart(
+    uzk_id: uuid.UUID,
+    apart: str = Form("nee"),
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """Markeer een uitzendkracht als apart gefactureerd (of juist niet).
+
+    Zo iemand krijgt bij het verwerken een eigen overzicht en bij de
+    factuurcontrole een eigen controle; het hoofdoverzicht blijft dan naast
+    de hoofdfactuur passen.
+    """
+    kracht = sessie.get(Uzk, uzk_id)
+    if kracht is None:
+        raise HTTPException(status_code=404, detail="Deze uitzendkracht bestaat niet.")
+    zet_apart(kracht, apart == "ja", door=gebruiker.naam)
+    sessie.commit()
+    return RedirectResponse(
+        f"/uzk?gewijzigd={quote(kracht.naam)}&zoek={quote(kracht.naam)}", status_code=303
+    )
 
 
 @router.post("/{uzk_id}/loonschaal/behoud", response_model=None)

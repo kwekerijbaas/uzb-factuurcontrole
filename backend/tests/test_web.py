@@ -399,3 +399,68 @@ def test_geblokkeerd_adres_komt_er_niet_in_ook_niet_met_cookie(monkeypatch):
     zet_sessie(antwoord, Gebruiker(email="tim@kwekerijbaas.nl", id="t"))
     waarde = antwoord.headers["set-cookie"].split("=", 1)[1].split(";")[0]
     assert gebruiker_uit_cookie(_request({"cookie": f"{SESSIE_COOKIE}={waarde}"})) is None
+
+
+# --------------------------------------------------------------------------- #
+# Apart gefactureerd en mensen van een ander bureau
+# --------------------------------------------------------------------------- #
+def test_apart_gefactureerde_kracht_krijgt_een_eigen_deel():
+    """Wie het bureau los factureert (techniek), hoort niet in het hoofdtotaal:
+    dat past anders niet naast de hoofdfactuur. Meldingen over die persoon gaan
+    mee naar zijn deel."""
+    verwerking = verwerk_week(
+        "L1", 2026, 25,
+        [_snoop("Marius Mic"), _snoop("Kamil Sliwa", "Z9 Flex")],
+        [_nitea("Marius Mic"), _nitea("Kamil Sliwa")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+        apart_gefactureerd={"kamil sliwa"},
+    )
+    hoofd, delen = verwerking.gesplitst()
+    assert [m.naam for m in hoofd.medewerkers] == ["Marius Mic"]
+    assert hoofd.totaal_bedrag == Decimal("231.52")
+    assert [d.label for d in delen] == ["Kamil Sliwa (apart gefactureerd)"]
+    assert delen[0].meldingen and "Kamil Sliwa" in delen[0].meldingen[0]
+    assert hoofd.meldingen == []
+
+    wb = openpyxl.load_workbook(io.BytesIO(bouw_overzicht(delen[0], "Level One", KAART)))
+    assert "Kamil Sliwa (apart gefactureerd)" in wb["Totaal week"]["A1"].value
+    assert bestandsnaam("Level One", delen[0]).endswith("_Kamil_Sliwa.xlsx")
+
+
+def test_zonder_apart_gefactureerden_blijft_alles_een_geheel():
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("Marius Mic")], [_nitea("Marius Mic")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    hoofd, delen = verwerking.gesplitst()
+    assert delen == [] and len(hoofd.medewerkers) == 1
+
+
+def test_kracht_van_een_ander_bureau_wordt_overgeslagen_met_melding():
+    """Het Nitea-overzicht is een urenoverzicht en bevat soms mensen van een
+    ander bureau. Wie niet in de SNOOP van deze week staat maar wel bij Sterk
+    Werk bekend is, telt hier niet mee -- anders belandt hij onder Level One
+    en past zijn schaal 'D4 SW' daar op geen enkele kaart."""
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("Marius Mic")],
+        [_nitea("Marius Mic"), _nitea("Cristian Bogdan Demian")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+        elders_bekend={"cristian bogdan demian": "Sterk Werk"},
+    )
+    assert [m.naam for m in verwerking.medewerkers] == ["Marius Mic"]
+    assert any(
+        m.startswith("Cristian Bogdan Demian:") and "Sterk Werk" in m
+        for m in verwerking.meldingen
+    )
+
+
+def test_wie_in_de_snoop_van_deze_week_staat_telt_gewoon_mee():
+    """Staat hij wél in de SNOOP van dit bureau, dan werkt hij deze week hier."""
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("Cristian Bogdan Demian")],
+        [_nitea("Cristian Bogdan Demian")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+        elders_bekend={"cristian bogdan demian": "Sterk Werk"},
+    )
+    assert [m.naam for m in verwerking.medewerkers] == ["Cristian Bogdan Demian"]
+    assert verwerking.meldingen == []

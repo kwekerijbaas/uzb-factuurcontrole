@@ -9,7 +9,14 @@
       {% for punt in punten %}<li>{{ punt }}</li>{% endfor %}
     </ul>
   {% endif %}
-  {% if actie %}
+  {% if actie and actie.post %}
+    <form method="post" action="{{ actie.href }}">
+      {% for veld, waarde in actie.post.items() %}
+      <input type="hidden" name="{{ veld }}" value="{{ waarde }}">
+      {% endfor %}
+      <button type="submit">{{ actie.tekst }}</button>
+    </form>
+  {% elif actie %}
     <p><a href="{{ actie.href }}"><strong>{{ actie.tekst }}</strong></a></p>
   {% endif %}
   {% if kenmerk %}

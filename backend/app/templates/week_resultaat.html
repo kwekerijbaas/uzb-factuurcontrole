@@ -9,8 +9,17 @@
      {% if zonder_tarief %}(exclusief {{ zonder_tarief|length }} zonder tarief, zie hieronder){% endif %}.
      De week is bewaard; de facturen leg je er later naast via
      <a href="/facturen">Factuurcontrole</a>.</p>
-  <a class="knop" href="{{ download }}" download="{{ bestandsnaam }}">Overzicht downloaden (.xlsx)</a>
-  <p class="hint">Komt de download niet vanzelf op gang, klik dan op de knop.</p>
+  {% if apart %}
+  <p>Apart gefactureerd, met een eigen overzicht:
+     {% for m in apart %}<strong>{{ m.naam }}</strong> ({{ '%.2f'|format(m.netto_uren) }} u, € {{ '%.2f'|format(m.bedrag.totaal) }}){% if not loop.last %}, {% endif %}{% endfor %}.
+     Het hoofdoverzicht telt {{ hoofd.medewerkers|length }} uitzendkrachten:
+     {{ '%.2f'|format(hoofd.totaal_uren) }} uur, € {{ '%.2f'|format(hoofd.totaal_bedrag) }}.</p>
+  {% endif %}
+  {% for d in downloads %}
+  <p><a class="knop" href="{{ d.url }}" download="{{ d.bestandsnaam }}">{{ d.label }} (.xlsx)</a></p>
+  {% endfor %}
+  <p class="hint">De eerste download start vanzelf; komt hij niet op gang, klik dan op de knop.
+     {% if downloads|length > 1 %}De overige overzichten download je met de knoppen erna.{% endif %}</p>
 </div>
 
 {% if zonder_tarief %}

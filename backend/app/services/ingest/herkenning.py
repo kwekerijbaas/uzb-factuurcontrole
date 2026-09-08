@@ -42,6 +42,11 @@ _SUFFIXEN = {
 _FAMILIE = {"L1": {"L1", "L1_JEUGD"}, "L1_JEUGD": {"L1", "L1_JEUGD"}}
 
 
+def familie_van(sleutel: str) -> set[str]:
+    """De bureaus die met dit bureau bestanden delen (inclusief zichzelf)."""
+    return set(_FAMILIE.get(sleutel, {sleutel}))
+
+
 def _norm(waarde: str | None) -> str:
     return re.sub(r"[^a-z]", "", str(waarde or "").lower())
 

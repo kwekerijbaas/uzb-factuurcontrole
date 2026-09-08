@@ -25,7 +25,7 @@ Per week, per uitzendbureau (UZB):
 | Bron | Formaat | Inhoud |
 |---|---|---|
 | **SNOOP-export** | `.xlsx` | Per medewerker de **tarief-code** (loonschaal) en de kolom **Werkgever op datum shift**, waaruit het uitzendbureau wordt afgeleid. |
-| **Nitea-registratie** | `.pdf` (+ `.xlsx`) | Werkelijk gewerkte uren per medewerker per dag. **Nitea's "werk tijd" is leidend.** Nachtdiensturen zijn in de Nitea-Excel **rood** gemarkeerd. |
+| **Nitea-registratie** | `.pdf` (+ `.xlsx`) | Werkelijk gewerkte uren per medewerker per dag. **Nitea's "werk tijd" is leidend.** Nachtdiensturen zijn in de Nitea-Excel **rood** gemarkeerd. Het is een **urenoverzicht, geen bureau-overzicht**: het kan mensen van een ander bureau bevatten (zie §4). |
 | **Tariefkaart** | `.xlsx` | Per UZB een tabblad met per loonschaal de tarieven per toeslagcategorie. Heeft een **ingangsdatum** (zie §6). |
 | **UZB-factuur** | `.pdf` | Voor de controlestap. Per UZB een eigen indeling (zie §5). |
 
@@ -119,6 +119,51 @@ anders wordt de upload geweigerd. Een getypt weeknummer ging te vaak fout en
 zette de week onder het verkeerde nummer vast. Een tóch verkeerd bewaarde week
 is te verwijderen op de Factuurcontrole-pagina; opnieuw verwerken zet hem goed
 terug.
+
+### Mensen van een ander bureau in het Nitea-overzicht
+Het Nitea-overzicht bevat soms mensen van een ander bureau. Wie **niet in de
+SNOOP-export van deze week** staat maar wel op de uitzendkrachtenlijst van een
+ander bureau (met loonschaal), wordt bij het verwerken **overgeslagen met een
+melding** ("staat op de uitzendkrachtenlijst van Sterk Werk … niet meegeteld").
+Staat hij wél in de SNOOP van dit bureau, dan werkt hij deze week hier en telt
+hij gewoon mee. Level One en zijn jeugd-payroll delen hun bestanden en gelden
+niet als "ander bureau" voor elkaar.
+
+Is iemand tóch onder het verkeerde bureau beland (dat gebeurde vóór deze
+regel, in week 25), dan past zijn schaal daar op geen kaart: "D4 SW" bij
+iemand onder Level One. De melding zegt dan dat het een Sterk Werk-schaal is
+en biedt één knop **"Verplaats naar Sterk Werk en sla 'D4 SW' op"**. Bij elke
+uitzendkracht staat daarnaast een keuze **Verplaats** naar een ander bureau.
+De weekresultaten gaan mee met de persoon; bestaat de naam onder het
+doelbureau al, dan worden de rijen samengevoegd (schaal en code van het doel
+blijven staan en worden alleen aangevuld).
+
+### Nachtdiensten in het Nitea-overzicht
+Een dienst over middernacht kan in de PDF met een **einddatum** vóór de
+eindtijd staan (`03-08-2026 22:57 04-08-2026 8:00 8:00 1:00`); die wordt
+gelezen en op middernacht gesplitst. Staat er **geen eindtijd** (drie tijden,
+waarvan begin–einde de werktijd bij lange na niet verklaart), dan wordt het
+einde afgeleid uit begin + werktijd + pauze, in plaats van een dienst van
+zeventien uur met één gewerkt uur aan te nemen. Regels die op een
+registratieregel lijken maar niet te lezen zijn, en regels die anders gelezen
+zijn dan ze er staan, komen als melding in het resultaat ("Nitea: N regels
+niet of anders gelezen") — een stil weggelaten dag is een te laag weektotaal
+dat niemand opmerkt (week 32/2026, Sylwia Piatek: 1,75 uur).
+
+### Apart gefactureerd
+Sommige uitzendkrachten factureert het bureau los (techniek, apart geboekt).
+Bij **Uitzendkrachten** staat per persoon **"Apart factureren"** (met de naam
+van wie het instelde). Zo iemand krijgt:
+
+- bij het verwerken van een week een **eigen weekoverzicht** (uren, tarieven,
+  afwijkingen) naast het hoofdoverzicht, dat hem niet meetelt — het
+  hoofdoverzicht past dan naast de hoofdfactuur;
+- bij de factuurcontrole een **eigen controle** met eigen matchingsbestand en
+  bevindingenmail (§7); het hoofdblok telt hem niet mee en meldt hem ook niet
+  als "niet gefactureerd".
+
+De markering geldt ook voor al bewaarde weken: de controle kijkt naar de
+instelling van nú.
 
 ## 5. Tariefmapping per UZB
 
@@ -341,7 +386,15 @@ per medewerker **uren** en **bedrag**. Classificeer afwijkingen:
 
 **Uitsluiten van de berekening:** medewerkers zonder geldige tarief-code (leeg in
 SNOOP / niet in tariefkaart) worden niet meegerekend en apart gerapporteerd —
-anders vertekent een €0-tarief het gemiddelde.
+anders vertekent een €0-tarief het gemiddelde (bevinding "Bedrag niet te
+controleren (geen tarief bij ons)", zie §4).
+
+**Apart gefactureerden** (§4) krijgen een eigen controle: de facturen worden
+als één geheel gekoppeld (de aparte factuur zit er meestal gewoon tussen),
+daarna wordt per deel vergeleken. Factuurregels die aan niemand te koppelen
+zijn, horen bij het hoofddeel. Het resultaatscherm toont per deel de
+samenvatting, de bevindingen met actie, het matchingsbestand en de
+concept-bevindingenmail.
 
 ## 8. Referentie-uitkomsten (week 25/2026, ter regressietest)
 

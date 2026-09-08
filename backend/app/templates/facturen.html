@@ -33,10 +33,11 @@
     <input id="b" type="file" name="bestanden" accept=".pdf" multiple required>
     <p class="hint">Meerdere facturen tegelijk kan: houd Ctrl ingedrukt bij het
        kiezen. Ze worden als één geheel naast de week gelegd.</p>
-    <button type="submit">Controleren en matchingsbestand downloaden</button>
+    <button type="submit">Controleren</button>
   </form>
-  <p id="klaar" hidden class="hint">Het matchingsbestand is gedownload en de
-     gekozen bestanden zijn gewist.</p>
+  <p id="klaar" hidden class="hint">De gekozen bestanden zijn gewist. Na het
+     controleren verschijnt een scherm met de bevindingen en het
+     matchingsbestand; wie apart gefactureerd wordt, krijgt daar een eigen blok.</p>
   {% else %}
   <p class="fout">Er is nog geen week verwerkt. Ga eerst naar
      <a href="/week">Week verwerken</a>.</p>

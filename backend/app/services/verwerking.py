@@ -38,6 +38,9 @@ class MedewerkerResultaat:
     resultaat: WeekResultaat
     bedrag: BedragResultaat
     afwijkingen: list[Afwijking] = field(default_factory=list)
+    # Wordt door het bureau los gefactureerd (bv. techniek, apart geboekt):
+    # krijgt een eigen overzicht en een eigen factuurcontrole.
+    apart: bool = False
 
     @property
     def netto_uren(self) -> Decimal:
@@ -70,6 +73,8 @@ class WeekVerwerking:
     iso_week: int
     medewerkers: list[MedewerkerResultaat] = field(default_factory=list)
     meldingen: list[str] = field(default_factory=list)
+    # Gevuld bij een afgesplitst deel (één apart gefactureerde persoon).
+    label: str | None = None
 
     @property
     def totaal_uren(self) -> Decimal:
@@ -85,6 +90,37 @@ class WeekVerwerking:
         return sorted(
             (m for m in self.medewerkers if not m.heeft_tarief), key=lambda m: m.naam
         )
+
+    def gesplitst(self) -> tuple[WeekVerwerking, list[WeekVerwerking]]:
+        """Splits de week in het hoofddeel en één deel per apart gefactureerde
+        persoon.
+
+        Wie apart gefactureerd wordt, staat op een eigen factuur; in het
+        hoofdoverzicht zou hij het weektotaal vertekenen en bij de
+        factuurcontrole als 'niet gefactureerd' opduiken. Meldingen over een
+        persoon (ze beginnen met zijn naam) gaan mee naar zijn deel; de
+        overige blijven bij het hoofddeel.
+        """
+        hoofd = WeekVerwerking(self.uzb_sleutel, self.iso_jaar, self.iso_week)
+        delen: list[WeekVerwerking] = []
+        for medewerker in self.medewerkers:
+            if not medewerker.apart:
+                hoofd.medewerkers.append(medewerker)
+                continue
+            deel = WeekVerwerking(
+                self.uzb_sleutel, self.iso_jaar, self.iso_week,
+                label=f"{medewerker.naam} (apart gefactureerd)",
+            )
+            deel.medewerkers.append(medewerker)
+            delen.append(deel)
+        apart_namen = {d.medewerkers[0].naam for d in delen}
+        for melding in self.meldingen:
+            naam = melding.split(":", 1)[0].strip()
+            if naam in apart_namen:
+                next(d for d in delen if d.medewerkers[0].naam == naam).meldingen.append(melding)
+            else:
+                hoofd.meldingen.append(melding)
+        return hoofd, delen
 
 
 def ontbrekende_loonschalen(verwerking: WeekVerwerking) -> list[str]:
@@ -128,6 +164,8 @@ def verwerk_week(
     parameters: WeekParameters | None = None,
     bekende_loonschalen: dict[str, str] | None = None,
     handmatige_loonschalen: dict[str, str] | None = None,
+    elders_bekend: dict[str, str] | None = None,
+    apart_gefactureerd: set[str] | None = None,
 ) -> WeekVerwerking:
     """Bereken voor elke geregistreerde medewerker de uren en het bedrag.
 
@@ -146,6 +184,16 @@ def verwerk_week(
     SNOOP: die is ingevuld omdat het bestand het fout of niet had. Wijkt SNOOP
     af, dan komt daar een melding van, zodat een schaalwijziging bij het bureau
     niet ongemerkt blijft hangen achter een oude handmatige waarde.
+
+    Het Nitea-overzicht bevat soms mensen van een ánder bureau (het is een
+    urenoverzicht, geen bureau-overzicht). Wie niet in de SNOOP-export van
+    deze week staat maar wel bij een ander bureau bekend is
+    (`elders_bekend`: naam -> bureaunaam), hoort niet in deze week: hij wordt
+    overgeslagen met een melding. Staat hij wél in SNOOP, dan werkt hij deze
+    week voor dit bureau en telt hij gewoon mee.
+
+    `apart_gefactureerd` markeert wie door het bureau los gefactureerd wordt;
+    zie `WeekVerwerking.gesplitst`.
     """
     verwerking = WeekVerwerking(uzb_sleutel, iso_jaar, iso_week)
     reeks = kaart if isinstance(kaart, Kaartreeks) else Kaartreeks.van_kaart(kaart)
@@ -156,6 +204,16 @@ def verwerk_week(
         sleutel = normaliseer_naam(medewerker.naam)
         gezien.add(sleutel)
         planning_bron = snoop_op_naam.get(sleutel)
+
+        elders = (elders_bekend or {}).get(sleutel)
+        if elders and planning_bron is None:
+            verwerking.meldingen.append(
+                f"{medewerker.naam}: staat op de uitzendkrachtenlijst van {elders} "
+                "en niet in de SNOOP-export van deze week -- niet meegeteld in "
+                "deze week. Hoort hij hier wél, zet hem dan bij Uitzendkrachten "
+                "onder dit bureau."
+            )
+            continue
 
         resultaat = bereken_week(
             medewerker.registratie,
@@ -200,6 +258,7 @@ def verwerk_week(
                 resultaat=resultaat,
                 bedrag=bereken_bedrag(resultaat, schalen, conventies),
                 afwijkingen=resultaat.afwijkingen,
+                apart=sleutel in (apart_gefactureerd or set()),
             )
         )
 
