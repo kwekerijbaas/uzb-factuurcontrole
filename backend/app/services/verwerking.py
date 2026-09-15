@@ -15,6 +15,7 @@ from decimal import Decimal
 from app.services.calc import WeekParameters, bereken_week
 from app.services.calc.types import Afwijking, WeekResultaat
 from app.services.ingest import NiteaMedewerker, SnoopMedewerker
+from app.services.namen import beste_match
 from app.services.tarief import (
     BedragResultaat,
     Kaartreeks,
@@ -259,6 +260,21 @@ def verwerk_week(
         gezien.add(sleutel)
         planning_bron = snoop_op_naam.get(sleutel)
 
+        # Nitea en SNOOP schrijven dezelfde persoon niet altijd hetzelfde
+        # ("Cristian" tegenover "Christian", "Robert Ionut" tegenover "Ionut
+        # Robert"). Zonder koppeling krijgt zo iemand geen schaal terwijl SNOOP
+        # die wel heeft. Een koppeling op gelijkenis wordt altijd gemeld.
+        if planning_bron is None and snoop_op_naam:
+            gevonden = beste_match(medewerker.naam, snoop_op_naam)
+            if gevonden is not None and snoop_op_naam[gevonden].loonschaal:
+                planning_bron = snoop_op_naam[gevonden]
+                verwerking.meldingen.append(
+                    f"{medewerker.naam}: gekoppeld aan '{planning_bron.naam}' uit "
+                    f"SNOOP (loonschaal '{planning_bron.loonschaal}') -- de namen "
+                    "verschillen. Controleer of dit dezelfde persoon is; laat "
+                    "anders de spelling in Nitea of SNOOP gelijktrekken."
+                )
+
         elders = (elders_bekend or {}).get(sleutel)
         if elders and planning_bron is None:
             verwerking.meldingen.append(
@@ -282,6 +298,18 @@ def verwerk_week(
         loonschaal = handmatig or snoop_schaal
         if not loonschaal and bekende_loonschalen:
             loonschaal = bekende_loonschalen.get(sleutel)
+            if not loonschaal:
+                # Ook de uitzendkrachtenlijst kan een andere spelling hebben.
+                gevonden = beste_match(medewerker.naam, bekende_loonschalen)
+                if gevonden is not None:
+                    loonschaal = bekende_loonschalen[gevonden]
+                    verwerking.meldingen.append(
+                        f"{medewerker.naam}: geen eigen regel gevonden; de "
+                        f"loonschaal '{loonschaal}' is overgenomen van "
+                        f"'{gevonden}' uit de uitzendkrachtenlijst, omdat de "
+                        "namen op elkaar lijken. Controleer of dit dezelfde "
+                        "persoon is."
+                    )
         if handmatig and snoop_schaal and snoop_schaal != handmatig:
             verwerking.meldingen.append(
                 f"{medewerker.naam}: SNOOP noemt loonschaal '{snoop_schaal}', "

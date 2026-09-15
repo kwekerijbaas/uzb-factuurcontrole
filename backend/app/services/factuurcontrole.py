@@ -16,6 +16,7 @@ from decimal import Decimal
 from rapidfuzz import fuzz
 
 from app.services.ingest.factuur import Factuur, FactuurKracht
+from app.services.namen import delen, past
 from app.services.verwerking import MedewerkerResultaat, WeekVerwerking
 
 # soorten bevindingen
@@ -82,52 +83,11 @@ class Controle:
         return self.uren_factuur - self.uren_overzicht
 
 
-def _delen(naam: str) -> tuple[str, set[str]]:
-    """Splits een naam in achternaam en de overige naamdelen (kleine letters).
-
-    "K.P. Sliwa (Kamil)" -> ("sliwa", {"k", "p", "kamil"})
-    "Adelina Iuliana Boca" -> ("boca", {"adelina", "iuliana"})
-    """
-    tekst = re.sub(r"\s+", " ", str(naam or "")).strip()
-    haakjes = re.findall(r"\(([^)]*)\)", tekst)
-    tekst = re.sub(r"\([^)]*\)", " ", tekst).strip()
-    woorden = [w for w in re.split(r"\s+", tekst) if w]
-    if not woorden:
-        return "", set()
-    achternaam = woorden[-1].lower()
-    overig = {
-        deel.lower().strip(".")
-        for woord in woorden[:-1]
-        for deel in woord.split(".")
-        if deel.strip(".")
-    }
-    overig |= {h.lower() for h in haakjes if h.strip()}
-    return achternaam, overig
-
-
-def _past(medewerker_naam: str, factuur_naam: str) -> int:
-    """Score voor het koppelen; 0 betekent geen match."""
-    m_achter, m_overig = _delen(medewerker_naam)
-    f_achter, f_overig = _delen(factuur_naam)
-    if not m_achter or not f_achter:
-        return 0
-
-    gelijkenis = fuzz.ratio(m_achter, f_achter)
-    if gelijkenis < 85:
-        return 0
-
-    score = int(gelijkenis)
-    # voornaam of initiaal erbij laat naamgenoten uit elkaar houden
-    if m_overig & f_overig:
-        score += 40
-    elif any(
-        voor[0] == initiaal
-        for voor in m_overig
-        for initiaal in f_overig
-        if len(initiaal) == 1 and voor
-    ):
-        score += 20
-    return score
+# De naamkoppeling zelf staat in app/services/namen.py: Nitea, SNOOP, de
+# uitzendkrachtenlijst en de factuur schrijven dezelfde persoon verschillend,
+# en dat probleem is niet uniek voor facturen.
+_delen = delen
+_past = past
 
 
 def koppel(

@@ -99,9 +99,18 @@ vandaag geldt — een typefout zou anders alsnog een bedrag van nul opleveren.
 Namen worden vóór de controle vastgelegd, zodat wie een schaal mist meteen op
 die lijst staat.
 
-In de praktijk komt dit vooral door een naamverschil tussen SNOOP en Nitea
-(`Cristian` tegenover `Christian`, `Alex` tegenover `Alexander`): dan vindt de
-koppeling de SNOOP-regel niet en blijft de schaal leeg.
+**Namen worden op gelijkenis gekoppeld.** Dezelfde persoon staat in Nitea,
+SNOOP en de uitzendkrachtenlijst niet altijd hetzelfde geschreven: `Cristian`
+tegenover `Christian`, `Visile` tegenover `Vasile`, `Robert Ionut Grasu`
+tegenover `Ionut Robert Grasu`, `Elena Grasu` tegenover `Raluca Elena Grasu`.
+Vindt de app geen regel op de exacte naam, dan koppelt hij op **achternaam**,
+met de voornaam of initiaal als scheidsrechter bij naamgenoten (bij Sterk Werk
+werken drie mensen Grasu). Delen twee kandidaten de hoogste score, dan wordt er
+niet gekoppeld — een gok levert stilzwijgend een verkeerd tarief op. Elke
+koppeling op gelijkenis komt als melding in het resultaat, met beide
+schrijfwijzen, zodat een verkeerde koppeling zichtbaar is. Dezelfde regels
+gelden voor het koppelen van factuurregels (§7); de logica staat in
+`services/namen.py`.
 
 **Handmatig ingevulde schalen zijn beschermd.** Een met de hand ingevulde
 schaal (gemarkeerd met ✎, met de naam van wie hem invulde) wint bij het
