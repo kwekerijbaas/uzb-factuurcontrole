@@ -49,5 +49,55 @@
 </div>
 {% endif %}
 
+{% if zonder_tarief %}
+<div class="kaart">
+  <h2>Wel ingeladen, maar zonder tarief ({{ zonder_tarief|length }})</h2>
+  <p>Deze schaal staat wél in het bestand, maar levert op de tariefkaart van
+     dat bureau geen tarief op — meestal omdat het achtervoegsel ontbreekt
+     ("B2" in plaats van "B2 Flex", "B2 Vast" of "B2 Seizoen", die elk een
+     ander tarief hebben). Zet de juiste schaal erbij; tot die tijd staan zij
+     met uren maar zonder bedrag in het weekoverzicht.</p>
+  <table>
+    <tr><th>Bureau</th><th>Naam</th><th>Schaal in het bestand</th><th>Gelezen als</th><th>Aanpassen</th></tr>
+    {% for r in zonder_tarief %}
+    <tr>
+      <td>{{ r.uzb_naam }}</td>
+      <td><strong>{{ r.naam }}</strong></td>
+      <td>{{ r.loonschaal }}</td>
+      <td>{{ r.kaartcode }}</td>
+      <td>
+        <form method="post" action="/uzk/{{ r.id }}/loonschaal" class="inline">
+          <input type="text" name="loonschaal" value="{{ r.loonschaal }}"
+                 aria-label="Loonschaal van {{ r.naam }}">
+          <button type="submit">Opslaan</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if niet_geplaatst %}
+<div class="kaart">
+  <h2>Niet ingeladen ({{ niet_geplaatst|length }})</h2>
+  <p>Deze namen staan wel in de lijst maar horen bij geen enkel ingericht
+     uitzendbureau. Ze zijn <strong>overgeslagen</strong>: er is geen
+     tariefkaart, dus er komt voor hen geen tarief uit SNOOP. Gebruiken we dit
+     bureau vaker, laat het dan inrichten met een eigen tariefkaart.</p>
+  <table>
+    <tr><th>Naam</th><th>Werkgever in het bestand</th><th>Schaal in het bestand</th><th>Waarom overgeslagen</th></tr>
+    {% for r in niet_geplaatst %}
+    <tr>
+      <td><strong>{{ r.naam }}</strong></td>
+      <td>{{ r.werkgever or '—' }}</td>
+      <td>{{ r.loonschaal or '—' }}</td>
+      <td>{{ r.reden }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 <p><a href="/uzk">Terug naar Uitzendkrachten</a></p>
 {% endblock %}

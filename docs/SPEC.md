@@ -150,6 +150,28 @@ zijn dan ze er staan, komen als melding in het resultaat ("Nitea: N regels
 niet of anders gelezen") — een stil weggelaten dag is een te laag weektotaal
 dat niemand opmerkt (week 32/2026, Sylwia Piatek: 1,75 uur).
 
+### De jaarlijst bevat meer dan de uitzendbureaus
+Een SNOOP-lijst over een heel jaar bevat naast de ingerichte bureaus ook
+**eigen medewerkers** en **bureaus zonder tariefkaart** (uitzendplatform
+Temper, met schaal "Temper 2026"). Die namen worden **overgeslagen en
+gerapporteerd** in plaats van het hele bestand te weigeren: één zo'n naam mag
+de overige driehonderd niet tegenhouden. Alleen als er geen énkele regel te
+plaatsen is, wordt het bestand geweigerd — dan is het een verkeerd bestand.
+
+SNOOP schrijft Cervokordaat ook kortweg als **"Kordaat"**; de schalen staan
+daar zonder achtervoegsel ("B2", "C4") en passen op de CK-kaart.
+
+Het resultaatscherm van een upload toont daarom drie dingen naast de
+samenvatting per bureau:
+
+1. **Wel ingeladen, maar zonder tarief** — de schaal staat in het bestand maar
+   levert op de kaart van dat bureau geen tarief op, meestal omdat het
+   achtervoegsel ontbreekt ("B2" in plaats van "B2 Flex", "B2 Vast" of
+   "B2 Seizoen", die elk een ander tarief hebben). Per regel een invulveld om
+   het meteen te corrigeren.
+2. **Niet ingeladen** — naam, werkgever, schaal en de reden.
+3. De ja/nee-vragen bij handmatig ingevulde schalen (zie hierboven).
+
 ### Apart gefactureerd
 Sommige uitzendkrachten factureert het bureau los (techniek, apart geboekt).
 Bij **Uitzendkrachten** staat per persoon **"Apart factureren"** (met de naam

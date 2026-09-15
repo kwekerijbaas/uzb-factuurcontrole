@@ -24,8 +24,15 @@ _WERKGEVERS = {
     "levelonepayroll": "L1_JEUGD",
     "levelonepayrolljeugd": "L1_JEUGD",
     "sterkwerk": "SW",
+    # SNOOP schrijft Cervokordaat ook kortweg als "Kordaat". De schalen staan
+    # daar zonder achtervoegsel ("B2", "C4") en passen op de CK-kaart.
     "cervokordaat": "CK",
+    "kordaat": "CK",
 }
+
+# Eigen organisatie: geen uitzendbureau. Deze regels horen niet op de
+# uitzendkrachtenlijst en worden overgeslagen in plaats van geweigerd.
+_EIGEN = {"kwekerijbaas"}
 
 # achtervoegsel van de loonschaal -> UZB-sleutel
 _SUFFIXEN = {
@@ -94,34 +101,59 @@ def herken_uzb(medewerkers) -> tuple[str | None, str | None]:
     return None, None
 
 
-def verdeel_per_uzb(regels, uzb_namen: dict[str, str]) -> dict[str, list]:
+def verdeel_per_uzb(regels, uzb_namen: dict[str, str]) -> tuple[dict[str, list], list[dict]]:
     """Verdeel de regels van één export over de uitzendbureaus.
 
     Een SNOOP-lijst over een langere periode bevat alle bureaus door elkaar;
-    per regel staat het bureau erbij. Weigeren en om losse exports vragen
-    (zoals bij het verwerken van een week, waar één bureau per bestand moet)
-    is hier alleen maar extra werk. Regels waarvan het bureau niet te bepalen
-    is, worden bij naam genoemd.
+    per regel staat het bureau erbij. Retourneert de verdeling én de regels
+    die niet te plaatsen zijn, elk met de reden.
+
+    Die tweede lijst wordt overgeslagen in plaats van het hele bestand te
+    weigeren: een jaarlijst bevat naast de uitzendbureaus ook eigen
+    medewerkers en bureaus die niet in de app zijn ingericht (geen
+    tariefkaart). Eén zo'n naam mag de overige driehonderd niet tegenhouden --
+    maar ze moeten wel gemeld worden, want voor hen komt er geen tarief uit
+    SNOOP.
     """
     per_uzb: dict[str, list] = {}
-    onbekend: list[str] = []
+    niet_geplaatst: list[dict] = []
     for regel in regels:
-        sleutel = _sleutel_van_werkgever(getattr(regel, "werkgever", None))
+        werkgever = str(getattr(regel, "werkgever", None) or "").strip()
+        sleutel = _sleutel_van_werkgever(werkgever)
         if sleutel is None:
             sleutel, _ = herken_uzb([regel])
-        if sleutel is None or sleutel not in uzb_namen:
-            onbekend.append(regel.naam)
+        if sleutel is not None and sleutel in uzb_namen:
+            per_uzb.setdefault(sleutel, []).append(regel)
             continue
-        per_uzb.setdefault(sleutel, []).append(regel)
-    if onbekend:
-        namen = ", ".join(sorted(set(onbekend))[:8])
-        rest = len(set(onbekend)) - 8
-        raise ValueError(
-            f"bij {len(set(onbekend))} uitzendkracht(en) is het bureau niet te "
-            f"bepalen: {namen}{f' en {rest} anderen' if rest > 0 else ''}. "
-            "Zorg dat de kolom 'Werkgever op datum shift' is gevuld."
+        niet_geplaatst.append(
+            {
+                "naam": regel.naam,
+                "werkgever": werkgever or None,
+                "loonschaal": getattr(regel, "loonschaal", None),
+                "reden": _reden(werkgever),
+            }
         )
-    return per_uzb
+    if not per_uzb and niet_geplaatst:
+        raise ValueError(
+            "bij geen enkele regel is het uitzendbureau te bepalen. Zorg dat de "
+            "kolom 'Werkgever op datum shift' is gevuld."
+        )
+    return per_uzb, niet_geplaatst
+
+
+def _reden(werkgever: str) -> str:
+    """Waarom deze regel niet te plaatsen is, in de taal van de gebruiker."""
+    if not werkgever:
+        return (
+            "geen werkgever in het bestand en de loonschaal verraadt het bureau "
+            "niet (kolom 'Werkgever op datum shift' leeg)"
+        )
+    if _norm(werkgever) in _EIGEN:
+        return f"'{werkgever}' is geen uitzendbureau maar de eigen organisatie"
+    return (
+        f"uitzendbureau '{werkgever}' is niet in de app ingericht; daar is geen "
+        "tariefkaart voor, dus ook geen tarief"
+    )
 
 
 def bepaal_uzb(medewerkers, uzb_namen: dict[str, str]) -> str:

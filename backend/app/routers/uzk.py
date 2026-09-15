@@ -276,12 +276,24 @@ async def upload_lijst(
     with leesfouten("uitzendkrachtenlijst", bestand.filename):
         regels, waarschuwingen = lees_uzk_lijst(inhoud)
         # Eén lijst mag alle bureaus bevatten; per regel staat het bureau erbij.
-        per_uzb = verdeel_per_uzb(regels, UZB_NAMEN)
+        # Wie niet te plaatsen is (eigen medewerker, bureau zonder tariefkaart)
+        # wordt overgeslagen en apart gemeld -- voor hen komt er geen tarief
+        # uit SNOOP.
+        per_uzb, niet_geplaatst = verdeel_per_uzb(regels, UZB_NAMEN)
 
     samenvattingen = []
     conflicten = []
+    zonder_tarief = []
+    vandaag = date.today()
     for uzb_sleutel, groep in per_uzb.items():
         uzb = borg_uzb(sessie, uzb_sleutel, UZB_NAMEN[uzb_sleutel])
+        # De schaal staat wel in het bestand, maar levert op de kaart van dit
+        # bureau geen tarief op ("B2" bij Level One, waar B2 Flex, B2 Vast en
+        # B2 Seizoen elk een ander tarief hebben). Dat is precies het geval
+        # waarin het tarief stilzwijgend nul zou blijven, dus het wordt hier
+        # gemeld in plaats van pas bij het verwerken van een week.
+        kaart = _kaart_van(sessie, uzb_sleutel, vandaag)
+        conv = conventies(uzb_sleutel)
         # Een handmatig ingevulde schaal wordt niet stilzwijgend overschreven
         # (`onthoud_uzk` laat hem staan). Wijkt het bestand ervan af, dan wordt
         # dat per geval voorgelegd: bestand overnemen, of handmatig laten staan.
@@ -302,6 +314,21 @@ async def upload_lijst(
                         "handmatig": rij.loonschaal_code,
                         "uit_bestand": regel.loonschaal,
                         "door": rij.schaal_door,
+                    }
+                )
+            if (
+                kaart is not None
+                and rij.loonschaal_code
+                and kaart.schaal(conv.kaartcode(rij.loonschaal_code)) is None
+            ):
+                zonder_tarief.append(
+                    {
+                        "id": rij.id,
+                        "uzb_naam": UZB_NAMEN[uzb_sleutel],
+                        "naam": rij.naam,
+                        "loonschaal": rij.loonschaal_code,
+                        "kaartcode": conv.kaartcode(rij.loonschaal_code),
+                        "schalen": sorted(kaart.schalen),
                     }
                 )
         met_schaal = sum(1 for r in groep if r.loonschaal)
@@ -326,11 +353,19 @@ async def upload_lijst(
             "gebruiker": gebruiker,
             "titel": "Uitzendkrachtenlijst verwerkt",
             "samenvatting": (
-                f"{len(regels)} uitzendkrachten ingelezen voor "
-                f"{len(per_uzb)} uitzendbureau(s)."
+                f"{len(regels)} namen ingelezen; "
+                f"{len(regels) - len(niet_geplaatst)} ingeladen voor "
+                f"{len(per_uzb)} uitzendbureau(s)"
+                + (
+                    f", {len(niet_geplaatst)} overgeslagen (zie onderaan)."
+                    if niet_geplaatst
+                    else "."
+                )
             ),
             "samenvattingen": samenvattingen,
             "waarschuwingen": waarschuwingen,
             "conflicten": conflicten,
+            "zonder_tarief": sorted(zonder_tarief, key=lambda r: r["naam"]),
+            "niet_geplaatst": sorted(niet_geplaatst, key=lambda r: r["naam"]),
         },
     )

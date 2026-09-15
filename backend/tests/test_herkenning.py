@@ -145,12 +145,60 @@ def test_lijst_met_alle_bureaus_wordt_per_bureau_verdeeld():
         _mw(werkgever="SterkWerk", loonschaal="B2 Sw"),
         _mw(werkgever=None, loonschaal="C3 SW"),  # bureau uit de schaal
     ]
-    verdeeld = verdeel_per_uzb(regels, NAMEN)
+    verdeeld, niet_geplaatst = verdeel_per_uzb(regels, NAMEN)
     assert {k: len(v) for k, v in verdeeld.items()} == {"L1": 1, "L1_JEUGD": 1, "SW": 2}
+    assert niet_geplaatst == []
 
 
-def test_regel_zonder_herkenbaar_bureau_wordt_bij_naam_genoemd():
+def test_kordaat_is_cervokordaat():
+    """SNOOP schrijft Cervokordaat kortweg als 'Kordaat'; de schalen staan daar
+    zonder achtervoegsel ('B2', 'C4') en passen op de CK-kaart."""
     from app.services.ingest.herkenning import verdeel_per_uzb
 
-    with pytest.raises(ValueError, match="Marius Mic"):
+    verdeeld, niet_geplaatst = verdeel_per_uzb(
+        [_mw(werkgever="Kordaat", loonschaal="C4")], NAMEN
+    )
+    assert {k: len(v) for k, v in verdeeld.items()} == {"CK": 1}
+    assert niet_geplaatst == []
+
+
+def test_eigen_medewerkers_en_onbekende_bureaus_worden_overgeslagen():
+    """Een jaarlijst bevat naast de bureaus ook eigen medewerkers en bureaus
+    zonder tariefkaart. Die mogen de overige driehonderd niet tegenhouden,
+    maar moeten wel gemeld worden: voor hen komt geen tarief uit SNOOP."""
+    from app.services.ingest.herkenning import verdeel_per_uzb
+
+    regels = [
+        _mw(werkgever="Level One", loonschaal="B2 Flex"),
+        _mw(werkgever="Temper", loonschaal="Temper 2026"),
+        _mw(),
+    ]
+    regels[1].naam = "Temper Kracht"
+    verdeeld, niet_geplaatst = verdeel_per_uzb(regels, NAMEN)
+    assert {k: len(v) for k, v in verdeeld.items()} == {"L1": 1}
+    assert [r["naam"] for r in niet_geplaatst] == ["Temper Kracht", "Marius Mic"]
+    assert "niet in de app ingericht" in niet_geplaatst[0]["reden"]
+    assert "Werkgever op datum shift" in niet_geplaatst[1]["reden"]
+
+
+def test_eigen_organisatie_telt_alleen_als_er_niets_anders_is():
+    """Iemand die deels via Level One en deels rechtstreeks werkt, staat in de
+    lijst met werkgever 'Kwekerij Baas' maar met een Level One-schaal; die
+    schaal is leidend. Zonder zo'n schaal is het een eigen medewerker."""
+    from app.services.ingest.herkenning import verdeel_per_uzb
+
+    via_schaal = _mw(werkgever="Kwekerij Baas", loonschaal="D7 Vast")
+    eigen = _mw(werkgever="Kwekerij Baas")
+    eigen.naam = "Eigen Medewerker"
+    verdeeld, niet_geplaatst = verdeel_per_uzb([via_schaal, eigen], NAMEN)
+    assert {k: len(v) for k, v in verdeeld.items()} == {"L1": 1}
+    assert [r["naam"] for r in niet_geplaatst] == ["Eigen Medewerker"]
+    assert "eigen organisatie" in niet_geplaatst[0]["reden"]
+
+
+def test_lijst_zonder_enkel_herkenbaar_bureau_wordt_geweigerd():
+    """Niets te plaatsen is geen jaarlijst maar een verkeerd bestand."""
+    from app.services.ingest.herkenning import verdeel_per_uzb
+
+    with pytest.raises(ValueError, match="geen enkele regel"):
         verdeel_per_uzb([_mw()], NAMEN)
