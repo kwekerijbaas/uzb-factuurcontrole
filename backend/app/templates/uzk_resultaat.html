@@ -21,7 +21,7 @@
   <p>Deze schalen zijn eerder met de hand ingevuld en zijn daarom <strong>niet</strong>
      overschreven. Kies per persoon: de waarde uit het bestand overnemen, of de
      handmatige waarde laten staan (dan hoef je niets te doen).</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Bureau</th><th>Naam</th><th>Handmatig ingevuld</th><th>Door</th>
         <th>In het bestand</th><th>Mag het bestand overschrijven?</th></tr>
     {% for c in conflicten %}
@@ -43,7 +43,7 @@
       </td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
   <p class="hint">Neem je de bestandswaarde over, dan vervalt de bescherming en
      volgt deze persoon voortaan weer gewoon de bestanden.</p>
 </div>
@@ -57,7 +57,7 @@
      ("B2" in plaats van "B2 Flex", "B2 Vast" of "B2 Seizoen", die elk een
      ander tarief hebben). Zet de juiste schaal erbij; tot die tijd staan zij
      met uren maar zonder bedrag in het weekoverzicht.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Bureau</th><th>Naam</th><th>Schaal in het bestand</th><th>Gelezen als</th><th>Aanpassen</th></tr>
     {% for r in zonder_tarief %}
     <tr>
@@ -74,7 +74,7 @@
       </td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
@@ -85,7 +85,7 @@
      uitzendbureau. Ze zijn <strong>overgeslagen</strong>: er is geen
      tariefkaart, dus er komt voor hen geen tarief uit SNOOP. Gebruiken we dit
      bureau vaker, laat het dan inrichten met een eigen tariefkaart.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Werkgever in het bestand</th><th>Schaal in het bestand</th><th>Waarom overgeslagen</th></tr>
     {% for r in niet_geplaatst %}
     <tr>
@@ -95,7 +95,7 @@
       <td>{{ r.reden }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 

@@ -1,18 +1,85 @@
 {% extends "basis.html" %}
 {% block inhoud %}
 <h1>UZB-urencontrole</h1>
+
+{% if not gebruiker %}
 <div class="kaart">
   <p>Wekelijkse controle van de uitzendbureau-uren tegen de eigen registratie.</p>
-  <h2>Zo werkt het</h2>
-  <ol>
-    <li><strong>Week verwerken</strong> — kies het uitzendbureau en de week, upload de
-      SNOOP-export (Excel) en het Nitea-overzicht (PDF). Je krijgt het urenoverzicht
-      met bedragen als Excel-bestand terug.</li>
-    <li><strong>Lonen &amp; tarieven</strong> — bij een CAO-loonronde upload je alleen de
-      nieuwe loontabel; de tarieven bewegen vanaf de ingangsdatum automatisch mee.
-      Krijg je een nieuwe tariefkaart van een bureau, upload dan die kaart.</li>
-  </ol>
-  <p class="hint">Eerdere weken blijven met de tarieven van toen gerekend, dus een
-    controle achteraf klopt altijd.</p>
+  <p><a class="knop" href="/inloggen">Inloggen</a></p>
 </div>
+{% else %}
+
+{% if aandacht %}
+<div class="kaart">
+  <h2>Dit vraagt aandacht</h2>
+  <div class="tabelkader">
+    <table>
+      {% for punt in aandacht %}
+      <tr>
+        <td><span class="pil let-op">let op</span></td>
+        <td><strong>{{ punt.tekst }}</strong><br><span class="hint">{{ punt.gevolg }}</span></td>
+        <td style="text-align:right"><a class="knop klein stil" href="{{ punt.href }}">{{ punt.knop }}</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="melding goed"><strong>Alles staat klaar.</strong> Iedereen heeft een
+  loonschaal en er is een loontabel geladen.</div>
+{% endif %}
+
+<div class="kaart">
+  <h2>Wat wil je doen?</h2>
+  <div class="tabelkader">
+    <table>
+      <tr>
+        <td style="width:15rem"><a class="knop" href="/week">Week verwerken</a></td>
+        <td>Upload de SNOOP-export en het Nitea-overzicht van één week. Het
+          uitzendbureau en het weeknummer haalt de app uit de bestanden zelf.</td>
+      </tr>
+      <tr>
+        <td><a class="knop stil" href="/facturen">Factuurcontrole</a></td>
+        <td>Leg de ontvangen facturen naast een eerder verwerkte week. Je krijgt
+          de afwijkingen met een concept-bevindingenmail.</td>
+      </tr>
+      <tr>
+        <td><a class="knop stil" href="/uzk">Uitzendkrachten</a></td>
+        <td>Loonschaal per persoon nakijken of invullen, en instellen wie het
+          bureau apart factureert.</td>
+      </tr>
+      <tr>
+        <td><a class="knop stil" href="/tarieven">Lonen &amp; tarieven</a></td>
+        <td>Bij een CAO-loonronde de nieuwe loontabel uploaden; de tarieven
+          bewegen vanaf de ingangsdatum automatisch mee.</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+{% if laatste_weken %}
+<div class="kaart">
+  <div class="titelbalk">
+    <h2>Laatst verwerkte weken</h2>
+    <a href="/facturen">Alle bewaarde weken</a>
+  </div>
+  <div class="tabelkader">
+    <table>
+      <tr><th>Uitzendbureau</th><th>Week</th><th>Medewerkers</th><th>Uren</th><th>Bedrag</th></tr>
+      {% for week in laatste_weken %}
+      <tr>
+        <td>{{ week.uzb_naam }}</td>
+        <td>{{ week.iso_week }}/{{ week.iso_jaar }}</td>
+        <td>{{ week.medewerkers }}</td>
+        <td>{{ '%.2f'|format(week.uren) }}</td>
+        <td>€ {{ '%.2f'|format(week.bedrag) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <p class="hint">Eerdere weken blijven met de tarieven van toen gerekend, dus
+     een controle achteraf klopt altijd.</p>
+</div>
+{% endif %}
+{% endif %}
 {% endblock %}

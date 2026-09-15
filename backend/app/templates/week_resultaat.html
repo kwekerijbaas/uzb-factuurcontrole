@@ -28,7 +28,7 @@
   <p>Deze uitzendkrachten staan met hun uren in het overzicht, maar
      <strong>zonder bedrag</strong>. Vul de loonschaal in en verwerk de week
      daarna opnieuw; tot die tijd is hun factuurregel niet te controleren.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Uren</th><th>Waarom geen tarief</th><th>Wat te doen</th></tr>
     {% for m in zonder_tarief %}
     <tr>
@@ -45,7 +45,7 @@
           {% endif %}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
@@ -57,7 +57,7 @@
      staan wel in het overzicht en niet in het bedrag, dus het weektotaal is te
      laag. Vul de ontbrekende kolom aan bij <a href="/tarieven">Lonen &amp;
      tarieven</a> en verwerk de week opnieuw.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Loonschaal</th><th>Zonder tarief</th><th>Uren zonder bedrag</th><th>Bedrag nu</th></tr>
     {% for m in deels_zonder_tarief %}
     <tr>
@@ -68,7 +68,7 @@
       <td>€ {{ '%.2f'|format(m.bedrag.totaal) }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 

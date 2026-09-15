@@ -3,67 +3,83 @@
 {% block inhoud %}
 <h1>Lonen &amp; tarieven</h1>
 {% if gewijzigd == 'handmatig' %}
-  <div class="kaart"><p>Handmatige tarieven bijgewerkt.</p></div>
+  <div class="melding goed">Handmatige tarieven bijgewerkt.</div>
 {% endif %}
 
 <div class="kaart">
-  <h2>Hoe de tarieven tot stand komen</h2>
-  <p>Een tarief wordt niet ingevoerd maar berekend:
-     <strong>tarief = CAO-uurloon &times; omrekenfactor</strong>.
-     De omrekenfactor ligt vast met het uitzendbureau; de lonen veranderen periodiek.</p>
-  <p class="hint">Loonronde? Upload alleen de loontabel. Nieuwe kaart van een bureau
-     (na onderhandeling)? Upload de tariefkaart, dan worden de factoren opnieuw bepaald.</p>
-  <p class="hint">Elke tabel geldt vanaf zijn eigen ingangsdatum, en een week
-     wordt <strong>per dag</strong> afgerekend — valt 1 juli of 1 augustus midden
-     in de week, dan lopen de uren ervóór en erná tegen hun eigen tarief. Een
-     nieuwe tabel hoeft alleen de gewijzigde schalen te bevatten; de rest houdt
-     het loon uit de vorige tabel.</p>
-</div>
-
-<div class="kaart">
-  <h2>Huidige stand</h2>
+  <div class="titelbalk">
+    <h2>Huidige stand</h2>
+    <span class="hint">tarief = CAO-uurloon &times; omrekenfactor</span>
+  </div>
   {% if actieve_loontabel %}
     <p>Er gelden nu <strong>{{ actieve_loontabel.lonen|length }} schalen</strong>,
        opgebouwd uit de tabellen hieronder (een nieuwere tabel overschrijft
        alleen de schalen die hij zelf noemt).</p>
-    <table>
-      <tr><th>Ingangsdatum</th><th>Naam</th><th>Bronbestand</th>
-          <th>Schalen</th><th>Status</th></tr>
-      {% for tabel in tabellen_overzicht %}
-      <tr>
-        <td>{{ tabel.ingangsdatum.strftime('%d-%m-%Y') }}</td>
-        <td>{{ tabel.naam }}</td>
-        <td class="hint">{{ tabel.bron_bestand or '' }}</td>
-        <td>{{ tabel.aantal }}</td>
-        <td>{% if tabel.actueel %}<strong>ACTUEEL</strong>
-            {% elif tabel.toekomstig %}gaat nog in
-            {% else %}gold eerder{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    <p class="hint"><strong>Let op bij opnieuw uploaden:</strong> een upload met
-       een ingangsdatum die hierboven al staat, <strong>vervangt</strong> die
-       tabel volledig. Controleer dus eerst of de datum al in de lijst staat —
-       alleen uploaden wat nieuw is, tenzij je bewust corrigeert.</p>
+    <div class="tabelkader">
+      <table>
+        <tr><th>Status</th><th>Ingangsdatum</th><th>Naam</th><th>Bronbestand</th>
+            <th>Schalen</th></tr>
+        {% for tabel in tabellen_overzicht %}
+        <tr>
+          <td>{% if tabel.actueel %}<span class="pil goed">geldt nu</span>
+              {% elif tabel.toekomstig %}<span class="pil rustig">gaat nog in</span>
+              {% else %}<span class="pil rustig">vervangen</span>{% endif %}</td>
+          <td>{{ tabel.ingangsdatum.strftime('%d-%m-%Y') }}</td>
+          <td>{{ tabel.naam }}</td>
+          <td class="hint">{{ tabel.bron_bestand or '—' }}</td>
+          <td>{{ tabel.aantal }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
   {% else %}
     <p class="fout">Nog geen CAO-loontabel geladen — zonder lonen kunnen er geen bedragen berekend worden.</p>
   {% endif %}
-  <table>
-    <tr><th>Uitzendbureau</th><th>Omrekenfactoren</th></tr>
-    {% for uzb in per_uzb %}
-    <tr>
-      <td>{{ uzb.naam }}</td>
-      <td>{% if uzb.aantal_factoren %}{{ uzb.aantal_factoren }}{% else %}<span class="fout">geen</span>{% endif %}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  <div class="tabelkader">
+    <table>
+      <tr><th>Uitzendbureau</th><th>Omrekenfactoren</th></tr>
+      {% for uzb in per_uzb %}
+      <tr>
+        <td>{{ uzb.naam }}</td>
+        <td>{% if uzb.aantal_factoren %}{{ uzb.aantal_factoren }}{% else %}<span class="pil let-op">geen</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <details class="uitleg">
+    <summary>Hoe komt een tarief tot stand, en wanneer upload ik wat?</summary>
+    <div>
+      <p>Een tarief wordt niet ingevoerd maar berekend:
+         <strong>tarief = CAO-uurloon &times; omrekenfactor</strong>. De
+         omrekenfactor ligt vast met het uitzendbureau; de lonen veranderen
+         periodiek.</p>
+      <p><strong>Loonronde?</strong> Upload alleen de loontabel. <strong>Nieuwe
+         kaart van een bureau</strong> (na onderhandeling)? Upload de
+         tariefkaart, dan worden de factoren opnieuw bepaald.</p>
+      <p>Elke tabel geldt vanaf zijn eigen ingangsdatum, en een week wordt
+         <strong>per dag</strong> afgerekend — valt 1 juli of 1 augustus midden
+         in de week, dan lopen de uren ervóór en erná tegen hun eigen tarief. Een
+         nieuwe tabel hoeft alleen de gewijzigde schalen te bevatten; de rest
+         houdt het loon uit de vorige tabel.</p>
+      <p><strong>Let op bij opnieuw uploaden:</strong> een upload met een
+         ingangsdatum die al in de lijst staat, <strong>vervangt</strong> die
+         tabel volledig. Controleer dus eerst of de datum er al bij staat.</p>
+    </div>
+  </details>
 </div>
 
 <div class="kaart">
   <h2>CAO-loontabel uploaden</h2>
-  <form method="post" action="/tarieven/loontabel" enctype="multipart/form-data">
-    <label for="lb">Bestand (.pdf of .xlsx)</label>
-    <input id="lb" type="file" name="bestand" accept=".pdf,.xlsx" required>
+  <p class="hint">Bij een CAO-loonronde. De tarieven van alle bureaus bewegen
+     vanaf de ingangsdatum automatisch mee.</p>
+  <form method="post" action="/tarieven/loontabel" enctype="multipart/form-data"
+        data-bezig="Bezig met inlezen…">
+    <label for="lb">Bestand <span class="hint">(.pdf of .xlsx)</span></label>
+    <div class="bestand">
+      <input id="lb" type="file" name="bestand" accept=".pdf,.xlsx" required>
+      <span class="gekozen"></span>
+    </div>
     <p class="hint">De cao-PDF kan rechtstreeks; omschrijving en ingangsdatum worden
        daaruit gehaald. Bij een Excel-bestand volstaat een kolom met de schaalcode
        en een kolom met het uurloon, maar is de ingangsdatum verplicht.</p>
@@ -77,12 +93,17 @@
 
 <div class="kaart">
   <h2>UZB-tariefkaart uploaden</h2>
-  <form method="post" action="/tarieven/tariefkaart" enctype="multipart/form-data">
+  <p class="hint">Alleen als een bureau na onderhandeling een nieuwe kaart
+     stuurt; de omrekenfactoren worden dan opnieuw bepaald.</p>
+  <form method="post" action="/tarieven/tariefkaart" enctype="multipart/form-data"
+        data-bezig="Bezig met verwerken…">
+    <label for="tb">Bestand <span class="hint">(.xlsx, tabblad per uitzendbureau)</span></label>
+    <div class="bestand">
+      <input id="tb" type="file" name="bestand" accept=".xlsx" required>
+      <span class="gekozen"></span>
+    </div>
     <label for="td">Ingangsdatum</label>
     <input id="td" type="date" name="ingangsdatum" required>
-    <label for="tb">Bestand (.xlsx)</label>
-    <input id="tb" type="file" name="bestand" accept=".xlsx" required>
-    <p class="hint">De geconsolideerde kaart met een tabblad per uitzendbureau.</p>
     <label style="font-weight:400"><input type="checkbox" name="ook_lonen" value="true" style="width:auto" checked> ook de CAO-lonen uit dit bestand overnemen</label>
     <button type="submit">Tariefkaart verwerken</button>
   </form>
@@ -90,15 +111,17 @@
 
 <div class="kaart">
   <h2>Level One-tariefexport uploaden</h2>
-  <form method="post" action="/tarieven/level-one" enctype="multipart/form-data">
-    <label for="lb2">Bestand (.xlsx)</label>
-    <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
-    <label for="ld2">Ingangsdatum (alleen als hij niet in het bestand staat)</label>
+  <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
+     kolommen voor Vast, Flex en Seizoen.</p>
+  <form method="post" action="/tarieven/level-one" enctype="multipart/form-data"
+        data-bezig="Bezig met verwerken…">
+    <label for="lb2">Bestand <span class="hint">(.xlsx)</span></label>
+    <div class="bestand">
+      <input id="lb2" type="file" name="bestand" accept=".xlsx" required>
+      <span class="gekozen"></span>
+    </div>
+    <label for="ld2">Ingangsdatum <span class="hint">(leeg laten als hij in het bestand of de bestandsnaam staat)</span></label>
     <input id="ld2" type="date" name="ingangsdatum">
-    <p class="hint">Leeg laten: de app leest de datum uit de kolomkop, zoals
-       &#39;Loon per 1/7/26&#39;.</p>
-    <p class="hint">Level One&#39;s eigen opzet: een blok per schaal met aparte
-       kolommen voor Vast, Flex en Seizoen.</p>
     <label for="lk">Welke kolommen</label>
     <select id="lk" name="kolom">
       <option value="nieuw">de nieuwe tarieven</option>
@@ -159,6 +182,7 @@
   </form>
 
   {% if handmatige_tarieven %}
+  <div class="tabelkader">
   <table>
     <tr><th>Bureau</th><th>Kaartcode</th><th>Categorie</th><th>Tarief</th>
         <th>Geldig</th><th>Ingevoerd door</th><th></th></tr>
@@ -175,12 +199,13 @@
         <form method="post" action="/tarieven/handmatig/verwijder" class="inline"
               onsubmit="return confirm('Handmatig tarief {{ h.kaartcode }} {{ h.categorie }} verwijderen?')">
           <input type="hidden" name="tarief_id" value="{{ h.id }}">
-          <button type="submit">Verwijderen</button>
+          <button type="submit" class="gevaar klein">Verwijderen</button>
         </form>
       </td>
     </tr>
     {% endfor %}
   </table>
+  </div>
   {% else %}
   <p class="leeg">Nog geen handmatige tarieven.</p>
   {% endif %}

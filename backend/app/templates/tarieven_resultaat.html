@@ -16,7 +16,7 @@
      de import gebruiken (oude weken houden het handmatige tarief; daarna
      overschrijven volgende imports geruisloos). <strong>Nee</strong> = niets
      doen, het handmatige tarief blijft gelden.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Bureau</th><th>Kaartcode</th><th>Handmatig tarief</th>
         <th>Ingevoerd door</th><th>Sinds</th><th>Keuze</th></tr>
     {% for c in tarief_conflicten %}
@@ -38,7 +38,7 @@
       </td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
@@ -47,7 +47,7 @@
   <h2>Controle ({{ bevindingen|length }})</h2>
   <p class="hint">Deze punten zijn gevonden in het geüploade bestand. Fouten wijzen meestal
      op een typefout of een kapotte formule; leg ze voor aan het uitzendbureau.</p>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Ernst</th><th>Bureau</th><th>Schaal</th><th>Categorie</th><th>Melding</th></tr>
     {% for b in bevindingen %}
     <tr>
@@ -56,14 +56,14 @@
       <td>{{ b.categorie or '' }}</td><td>{{ b.melding }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
 </div>
 {% endif %}
 
 {% if resultaten %}
 <div class="kaart">
   <h2>Per uitzendbureau</h2>
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Bureau</th><th>Schalen</th><th>Factoren</th><th>Gewijzigd</th></tr>
     {% for r in resultaten %}
     <tr>
@@ -71,15 +71,15 @@
       <td>{{ r.verschillen|length }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% for r in resultaten if r.verschillen %}
     <h2>Wijzigingen — {{ r.naam }}</h2>
-    <table>
+    <div class="tabelkader"><table>
       <tr><th>Schaal</th><th>Categorie</th><th>Wijziging</th></tr>
       {% for v in r.verschillen %}
       <tr><td>{{ v.kaartcode }}</td><td>{{ v.categorie }}</td><td>{{ v.melding }}</td></tr>
       {% endfor %}
-    </table>
+    </table></div>
   {% endfor %}
 </div>
 {% endif %}

@@ -8,14 +8,14 @@
 <div class="kaart">
   <h2>{{ r.label }}</h2>
   {% if c.factuurnummers %}<p class="hint">Facturen: {{ c.factuurnummers|join(', ') }}</p>{% endif %}
-  <table>
+  <div class="tabelkader"><table>
     <tr><th></th><th>Ons overzicht</th><th>Factuur</th><th>Verschil</th></tr>
     <tr><td>Uren</td><td>{{ '%.2f'|format(c.uren_overzicht) }}</td><td>{{ '%.2f'|format(c.uren_factuur) }}</td><td>{{ '%+.2f'|format(c.uren_verschil) }}</td></tr>
     <tr><td>Bedrag</td><td>€ {{ '%.2f'|format(c.bedrag_overzicht) }}</td><td>€ {{ '%.2f'|format(c.bedrag_factuur) }}</td><td>€ {{ '%+.2f'|format(c.bedrag_verschil) }}</td></tr>
-  </table>
+  </table></div>
   <p>{{ c.koppelingen|length }} gekoppeld, {{ c.bevindingen|length }} bevinding(en).</p>
   {% if c.bevindingen %}
-  <table>
+  <div class="tabelkader"><table>
     <tr><th>Soort</th><th>Naam</th><th>Toelichting</th><th>Wat te doen</th></tr>
     {% for b in c.bevindingen %}
     <tr>
@@ -25,7 +25,7 @@
       <td>{{ b.actie }}</td>
     </tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% else %}
   <p>Geen afwijkingen.</p>
   {% endif %}

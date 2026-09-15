@@ -171,8 +171,75 @@ def gezondheid() -> dict[str, str]:
 
 @app.get("/", response_class=HTMLResponse)
 def start(request: Request) -> Response:
+    """De startpagina toont wat er nu te doen staat.
+
+    Een pagina met alleen uitleg wordt na de eerste week niet meer gelezen; wat
+    wél elke week telt is: wie mist een loonschaal, en welke week is verwerkt
+    maar nog niet naast een factuur gelegd.
+    """
+    gebruiker = gebruiker_uit_cookie(request)
+    if gebruiker is None and not settings.auth_vereist:
+        from app.auth import Gebruiker
+
+        gebruiker = Gebruiker(email=settings.dev_gebruiker)
+
+    aandacht: list[dict] = []
+    laatste_weken: list[dict] = []
+    if gebruiker is not None:
+        from app.db import SessionLocal
+        from app.routers.tarieven import UZB_NAMEN
+        from app.services.opslag import bewaarde_weken, loontabel_overzicht
+        from sqlalchemy import func, select as _select
+
+        from app.models import Uzb, Uzk
+
+        try:
+            with SessionLocal() as sessie:
+                zonder = sessie.execute(
+                    _select(Uzb.naam, func.count(Uzk.id))
+                    .join(Uzk, Uzk.uzb_id == Uzb.id)
+                    .where(Uzk.loonschaal_code.is_(None))
+                    .group_by(Uzb.naam)
+                ).all()
+                for sleutel, aantal in zonder:
+                    aandacht.append(
+                        {
+                            "soort": "loonschaal",
+                            "tekst": (
+                                f"{aantal} uitzendkracht"
+                                f"{'' if aantal == 1 else 'en'} van "
+                                f"{UZB_NAMEN.get(sleutel, sleutel)} zonder loonschaal"
+                            ),
+                            "gevolg": "zij staan zonder bedrag in het weekoverzicht",
+                            "href": "/uzk",
+                            "knop": "Loonschaal invullen",
+                        }
+                    )
+                if not loontabel_overzicht(sessie):
+                    aandacht.append(
+                        {
+                            "soort": "tarief",
+                            "tekst": "Nog geen CAO-loontabel geladen",
+                            "gevolg": "zonder loontabel zijn er geen tarieven",
+                            "href": "/tarieven",
+                            "knop": "Loontabel uploaden",
+                        }
+                    )
+                weken = bewaarde_weken(sessie)
+                for week in weken[:6]:
+                    week["uzb_naam"] = UZB_NAMEN.get(
+                        week["uzb_sleutel"], week["uzb_sleutel"]
+                    )
+                laatste_weken = weken[:6]
+        except Exception:  # pragma: no cover - de startpagina mag nooit stuk
+            log.exception("startpagina kon de stand niet ophalen")
+
     return templates.TemplateResponse(
         request=request,
         name="start.html",
-        context={"gebruiker": gebruiker_uit_cookie(request)},
+        context={
+            "gebruiker": gebruiker,
+            "aandacht": aandacht,
+            "laatste_weken": laatste_weken,
+        },
     )

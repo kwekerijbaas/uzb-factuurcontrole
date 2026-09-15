@@ -2,32 +2,44 @@
 {% block titel %}Week verwerken — UF{% endblock %}
 {% block inhoud %}
 <h1>Week verwerken</h1>
+
 <div class="kaart">
   <form method="post" action="/week/verwerk" enctype="multipart/form-data"
-        onsubmit="setTimeout(() =&gt; { this.reset(); document.getElementById('klaar').hidden = false; }, 1500)">
-    <p class="hint">Het weeknummer hoef je niet in te vullen: dat wordt uit de
-       datums in de bestanden afgeleid. Horen de twee bestanden niet bij
-       dezelfde week, dan wordt de upload geweigerd.</p>
-    <label for="snoop">SNOOP-export (.xlsx)</label>
-    <input id="snoop" type="file" name="snoop_bestand" accept=".xlsx" required>
-    <p class="hint">Loonschaal per medewerker. Het uitzendbureau wordt hieruit
-       afgeleid, dus je hoeft dat niet te kiezen.</p>
-    <label for="nitea">Nitea-overzicht (.pdf)</label>
-    <input id="nitea" type="file" name="nitea_bestand" accept=".pdf" required>
-    <p class="hint">De werkelijk gewerkte uren; deze zijn leidend.</p>
-    <p class="hint">Iedereen die deze week gewerkt heeft, hoort een loonschaal
-       te hebben — zonder schaal is er geen tarief. Ontbreekt er een, dan wordt
-       de week tóch verwerkt: die persoon staat met uren maar zonder bedrag in
-       het overzicht en wordt op het resultaatscherm genoemd. Vul de schaal dan in bij
-       <a href="/uzk">Uitzendkrachten</a> en verwerk de week opnieuw.</p>
-    <button type="submit">Verwerken en overzicht downloaden</button>
-    <p class="hint">De eerste keer op een dag kan het verwerken een halve tot
-       hele minuut duren; de server start dan op. Wacht dat af en klik niet
-       nog een keer.</p>
+        data-bezig="Bezig met verwerken…">
+    <label for="snoop">1. SNOOP-export van deze week <span class="hint">(.xlsx)</span></label>
+    <div class="bestand">
+      <input id="snoop" type="file" name="snoop_bestand" accept=".xlsx" required>
+      <span class="gekozen"></span>
+    </div>
+
+    <label for="nitea">2. Nitea-overzicht 'Medewerker uren' <span class="hint">(.pdf)</span></label>
+    <div class="bestand">
+      <input id="nitea" type="file" name="nitea_bestand" accept=".pdf" required>
+      <span class="gekozen"></span>
+    </div>
+
+    <button type="submit">Week verwerken</button>
+    <p class="hint">Het uitzendbureau en het weeknummer haalt de app uit de
+       bestanden. De eerste keer op een dag duurt dit tot een minuut omdat de
+       server opstart — de knop zegt zolang dat hij bezig is.</p>
   </form>
-  <p id="klaar" hidden class="hint">De gekozen bestanden zijn gewist. Na het
-     verwerken verschijnt een scherm met wie er verwerkt is en wie er zonder
-     tarief in staat, met de download van het overzicht. Klopt er iets aan de
-     bestanden niet, dan verschijnt in plaats daarvan een melding.</p>
+
+  <details class="uitleg">
+    <summary>Wat gebeurt er met deze twee bestanden?</summary>
+    <div>
+      <p><strong>Nitea is leidend voor de uren.</strong> Wie daar geklokt heeft,
+         staat in het overzicht. SNOOP levert alleen de loonschaal, en daarmee
+         het tarief.</p>
+      <p><strong>Het weeknummer komt uit de datums.</strong> Horen de twee
+         bestanden niet bij dezelfde week, dan wordt de upload geweigerd. Zo kan
+         een week niet onder een verkeerd nummer terechtkomen.</p>
+      <p><strong>Zonder loonschaal geen bedrag.</strong> Mist iemand een schaal,
+         dan gaat de week gewoon door: die persoon staat met uren maar zonder
+         bedrag in het overzicht en wordt op het resultaatscherm genoemd, met
+         een link om de schaal meteen in te vullen.</p>
+      <p><strong>Opnieuw verwerken mag altijd.</strong> Dezelfde week opnieuw
+         uploaden vervangt de vorige uitkomst.</p>
+    </div>
+  </details>
 </div>
 {% endblock %}
