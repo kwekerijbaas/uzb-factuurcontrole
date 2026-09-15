@@ -23,6 +23,11 @@ _WERKGEVERS = {
     "levelonejeugd": "L1_JEUGD",
     "levelonepayroll": "L1_JEUGD",
     "levelonepayrolljeugd": "L1_JEUGD",
+    # Payroll voor volwassenen deelt juist de gewone Level One-kaart
+    # ("C6 Payroll" -> C6V); zonder deze regel kwam die export op de
+    # jeugdkaart terecht.
+    "levelonepayrollvolwassenen": "L1",
+    "levelonevolwassenen": "L1",
     "sterkwerk": "SW",
     # SNOOP schrijft Cervokordaat ook kortweg als "Kordaat". De schalen staan
     # daar zonder achtervoegsel ("B2", "C4") en passen op de CK-kaart.

@@ -654,6 +654,21 @@ def bewaar_weekresultaat(sessie: Session, uzb: Uzb, verwerking) -> int:
                         medewerker.bedrag.regels, lambda r: r.bedrag
                     ).items()
                 },
+                ontbrekende_minuten=dict(medewerker.bedrag.ontbrekende_minuten) or None,
+                # De gewerkte blokken, zodat de factuurcontrole dagen later nog
+                # kan zeggen op welke dagen iemand werkte ("gewerkt op 22-06
+                # t/m 26-06") in plaats van "geen dagen in de registratie".
+                trace=[
+                    {
+                        "datum": segment.datum.isoformat(),
+                        "van": segment.minuut_van,
+                        "tot": segment.minuut_tot,
+                        "pct": str(segment.percentage),
+                        "bron": segment.bron,
+                    }
+                    for segment in medewerker.resultaat.trace
+                ]
+                or None,
                 bedrag_totaal=medewerker.bedrag.totaal,
             )
         )
@@ -722,7 +737,7 @@ def bewaarde_weken(sessie: Session, uzb_sleutel: str | None = None) -> list[dict
 def haal_weekresultaat(sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_week: int):
     """Herbouw een bewaarde week zodat de factuurcontrole ermee kan rekenen."""
     from app.models import BerekendeUren, MatchPeriode
-    from app.services.calc.types import WeekResultaat
+    from app.services.calc.types import TraceSegment, WeekResultaat
     from app.services.tarief.types import BedragRegel, BedragResultaat
     from app.services.verwerking import MedewerkerResultaat, WeekVerwerking
 
@@ -762,8 +777,24 @@ def haal_weekresultaat(sessie: Session, uzb_sleutel: str, iso_jaar: int, iso_wee
                 resultaat=WeekResultaat(
                     netto_minuten=berekend.netto_minuten,
                     minuten_per_percentage={},
+                    trace=[
+                        TraceSegment(
+                            datum=date.fromisoformat(segment["datum"]),
+                            minuut_van=int(segment["van"]),
+                            minuut_tot=int(segment["tot"]),
+                            percentage=Decimal(str(segment.get("pct", "0"))),
+                            bron=str(segment.get("bron", "normaal")),
+                        )
+                        for segment in (berekend.trace or [])
+                    ],
                 ),
-                bedrag=BedragResultaat(regels=regels),
+                bedrag=BedragResultaat(
+                    regels=regels,
+                    ontbrekende_minuten={
+                        categorie: int(minuten)
+                        for categorie, minuten in (berekend.ontbrekende_minuten or {}).items()
+                    },
+                ),
                 # De markering van nú: wie inmiddels apart gefactureerd wordt,
                 # krijgt ook voor een eerder bewaarde week zijn eigen controle.
                 apart=bool(uzk.apart_gefactureerd),

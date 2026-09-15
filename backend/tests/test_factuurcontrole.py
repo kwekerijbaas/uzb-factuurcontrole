@@ -304,3 +304,42 @@ def test_apart_deel_noemt_alleen_zijn_eigen_factuur():
     assert hoofd.factuurnummers == ["H1"]
     assert deel_s.factuurnummers == ["A7"] and deel_k.factuurnummers == ["A7"]
     assert all(c.bevindingen == [] for c in (hoofd, deel_s, deel_k))
+
+
+def test_factuurnaam_met_tussenvoegsel_wordt_gelezen():
+    """"A.I. van Dijk" viel buiten het patroon: zijn uren belandden bij de
+    vorige persoon op de factuur, die daardoor te veel leek te factureren."""
+    from app.services.ingest.factuur import _lees_sterk_werk
+
+    factuur = _lees_sterk_werk([
+        "Factuurnummer : 12345",
+        "25 A.I. Boca 38,00 100,00 uren 29,43 21,00 1.118,34",
+        "10,00 135,00 overuren 29,43 21,00 294,30",
+        "25 A.I. van Dijk 38,00 100,00 uren 29,43 21,00 1.118,34",
+        "8,00 150,00 toeslag 29,43 21,00 235,44",
+        "25 J. de Boer 20,00 100,00 uren 29,43 21,00 588,60",
+    ])
+    per_naam = {k.naam_ruw: k.uren for k in factuur.krachten}
+    assert per_naam == {
+        "A.I. Boca": Decimal("48.00"),
+        "A.I. van Dijk": Decimal("46.00"),
+        "J. de Boer": Decimal("20.00"),
+    }
+    assert factuur.overgeslagen == []
+
+
+def test_ontbrekende_tariefkolom_wijst_niet_naar_het_bureau():
+    """Ons bedrag is te laag doordat de kaart een kolom mist; dat is geen fout
+    van het uitzendbureau."""
+    from app.services.tarief.types import BedragResultaat as BR
+
+    medewerker = _medewerker("Marius Mic", "40", "1000.00")
+    medewerker.bedrag = BR(regels=medewerker.bedrag.regels, ontbrekende_minuten={"200": 480})
+    controle = controleer(
+        _week([medewerker]), _factuur([_kracht("M. Mic (Marius)", "40", "1250.00")]),
+        "Level One",
+    )
+    bevinding = controle.bevindingen[0]
+    assert bevinding.soort == SOORT_GEEN_TARIEF
+    assert "geen tarief voor 200" in bevinding.melding
+    assert "niet op aan" in bevinding.actie

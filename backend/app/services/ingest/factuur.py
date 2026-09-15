@@ -43,7 +43,10 @@ _L1_FACTUUR = re.compile(r"^\d+\s+(\d+)\s+\d\d-\d\d-\d{4}€\s*([\d.,]+)")
 
 # Sterk Werk
 _SW_EERSTE = re.compile(
-    r"^(?P<week>\d{1,2})\s+(?P<naam>[A-Z](?:\.[A-Z])*\.?\s+\S+)\s+"
+    # De naam mag meerdere woorden hebben: "A.I. van Dijk", "J. de Boer".
+    # Met maar één woord viel zo'n regel buiten het patroon en werden zijn uren
+    # bij de vorige persoon op de factuur geteld.
+    r"^(?P<week>\d{1,2})\s+(?P<naam>[A-Z](?:\.[A-Z])*\.?(?:\s+[^\d\s]+)+)\s+"
     r"(?P<aantal>[\d.,]+)\s+(?P<pct>[\d,]+)\s+(?P<soort>\w+)\s+"
     r"(?P<tarief>[\d.,]+)\s+[\d,]+\s+(?P<bedrag>[\d.,]+)$"
 )
@@ -51,6 +54,10 @@ _SW_VERVOLG = re.compile(
     r"^(?P<aantal>[\d.,]+)\s+(?P<pct>[\d,]+)\s+(?P<soort>\w+)\s+"
     r"(?P<tarief>[\d.,]+)\s+[\d,]+\s+(?P<bedrag>[\d.,]+)$"
 )
+# Ziet eruit als de eerste regel van een uitzendkracht (weeknummer, initialen,
+# ergens verderop bedragen), maar is niet te lezen. Zulke regels worden gemeld
+# in plaats van stilzwijgend bij de vorige persoon te belanden.
+_SW_LIJKT_PERSOON = re.compile(r"^\d{1,2}\s+[A-Z]\.?[A-Za-z.]*\s+\D.*\d")
 _SW_FACTUUR = re.compile(r"Factuurnummer\s*:\s*(\d+)")
 _SW_TOTAAL = re.compile(r"^([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)$")
 
@@ -105,6 +112,10 @@ class Factuur:
     factuurnummers: list[str] = field(default_factory=list)
     krachten: list[FactuurKracht] = field(default_factory=list)
     totaal_op_factuur: Decimal | None = None
+    # Regels die op een factuurregel lijken maar niet te lezen waren. Stil
+    # overslaan zou betekenen dat een deel van de factuur niet gecontroleerd
+    # wordt zonder dat iemand dat ziet.
+    overgeslagen: list[str] = field(default_factory=list)
 
     @property
     def uren(self) -> Decimal:
@@ -185,6 +196,11 @@ def _lees_sterk_werk(regels: list[str]) -> Factuur:
             pass
         else:
             if gestript.startswith("Sub-totaal") or "Totaal aantal uren" in gestript:
+                huidige = None
+            elif _SW_LIJKT_PERSOON.match(gestript):
+                # Niet te lezen persoonsregel: de vervolgregels hieronder horen
+                # bij niemand, dus de vorige persoon wordt afgesloten.
+                factuur.overgeslagen.append(gestript)
                 huidige = None
             continue
         huidige.regels.append(

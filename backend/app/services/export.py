@@ -83,11 +83,14 @@ def _breedtes(ws, breedtes: list[int]) -> None:
         ws.column_dimensions[get_column_letter(i)].width = breedte
 
 
-def _categorieen(verwerking: WeekVerwerking, conventies=None) -> list[str]:
+def _categorieen(verwerking: WeekVerwerking) -> list[str]:
     gezien: set[str] = set()
     for medewerker in verwerking.medewerkers:
         gezien.update(r.categorie for r in medewerker.bedrag.regels)
-        gezien.update(_uren_zonder_tarief(medewerker))
+        # Ook de categorieën waarvoor de kaart geen tarief had: die uren zijn
+        # gewerkt en horen in een kolom te staan, anders telt de regel niet op.
+        gezien.update(medewerker.bedrag.ontbrekende_minuten)
+        gezien.update(_uren_zonder_tarief(medewerker, verwerking.uzb_sleutel))
     return sorted(gezien)
 
 
@@ -102,22 +105,40 @@ def _uren_per_categorie(medewerker) -> dict[str, Decimal]:
         per_categorie[regel.categorie] = (
             per_categorie.get(regel.categorie, Decimal("0")) + regel.uren
         )
+    # Uren waarvoor de kaart geen tariefkolom had, horen hier ook: ze zitten
+    # wel in het totaal aantal uren, dus zonder deze regel telt de rij niet op.
+    for categorie, minuten in medewerker.bedrag.ontbrekende_minuten.items():
+        per_categorie[categorie] = per_categorie.get(categorie, Decimal("0")) + (
+            Decimal(minuten) / Decimal(60)
+        ).quantize(Decimal("0.01"))
     return per_categorie
 
 
-def _uren_zonder_tarief(medewerker) -> dict[str, Decimal]:
+def _uren_zonder_tarief(medewerker, uzb_sleutel: str | None = None) -> dict[str, Decimal]:
     """Uren per categorie voor wie geen tarief heeft.
 
     Zonder loonschaal levert de bedragberekening geen regels op. De uren zijn
     dan wel gewerkt, dus die horen zichtbaar te blijven -- anders lijkt de
     medewerker nul uur te hebben gewerkt terwijl het weektotaal ze wel meetelt.
+
+    De toeslag-bron wordt vertaald met de conventies van het eigen bureau;
+    met een vaste tabel kreeg een Level One-kracht zonder schaal zijn nachturen
+    in een kolom 'nachtuur' die bij Level One niet bestaat, terwijl zijn
+    collega mét tarief dezelfde uren onder '150' had staan.
     """
     if medewerker.bedrag.regels:
         return {}
+    labels = _BRON_LABEL
+    if uzb_sleutel:
+        from app.services.tarief.uzb import CONVENTIES
+
+        conv = CONVENTIES.get(uzb_sleutel)
+        if conv is not None:
+            labels = conv.bron_naar_categorie
     per_bron = rond_op_kwartier(minuten_per_bron(medewerker.resultaat.trace))
     per_categorie: dict[str, Decimal] = {}
     for bron, minuten in per_bron.items():
-        categorie = _BRON_LABEL.get(bron, bron)
+        categorie = labels.get(bron) or labels.get("normaal") or bron
         per_categorie[categorie] = per_categorie.get(categorie, Decimal("0")) + (
             Decimal(minuten) / Decimal(60)
         ).quantize(Decimal("0.01"))
@@ -176,7 +197,7 @@ def bouw_overzicht(
     rij = 4
     for medewerker in verwerking.medewerkers:
         per_categorie = _uren_per_categorie(medewerker)
-        per_categorie.update(_uren_zonder_tarief(medewerker))
+        per_categorie.update(_uren_zonder_tarief(medewerker, verwerking.uzb_sleutel))
         ws.cell(row=rij, column=1, value=medewerker.naam)
         ws.cell(row=rij, column=2, value=medewerker.nitea_id)
         ws.cell(row=rij, column=3, value=medewerker.loonschaal)
@@ -202,6 +223,16 @@ def bouw_overzicht(
         rij += 1
 
     ws.cell(row=rij, column=1, value="TOTAAL").font = Font(bold=True)
+    for i, categorie in enumerate(categorieen):
+        som = sum(
+            (
+                _uren_per_categorie(m) | _uren_zonder_tarief(m, verwerking.uzb_sleutel)
+            ).get(categorie, Decimal("0"))
+            for m in verwerking.medewerkers
+        )
+        cel = ws.cell(row=rij, column=4 + i, value=float(som))
+        cel.font = Font(bold=True)
+        cel.number_format = _UUR
     totaal_uren = ws.cell(row=rij, column=4 + len(categorieen), value=float(verwerking.totaal_uren))
     totaal_uren.font = Font(bold=True)
     totaal_uren.number_format = _UUR
@@ -219,9 +250,12 @@ def bouw_overzicht(
     _kop(ws2, 3, ["Medewerker", "Datum", "Dag", "Begin", "Eind", "Pauze (min)", "Uren"])
     rij = 4
     for medewerker in verwerking.medewerkers:
-        for segment in sorted(
-            {s.datum for s in medewerker.resultaat.trace}
-        ):
+        # De geregistreerde begin-, eind- en pauzetijd per dag; de bevindingen
+        # van de factuurcontrole verwijzen naar juist deze kolommen.
+        registratie = {}
+        for regel in getattr(medewerker, "registratie", []) or []:
+            registratie.setdefault(regel.datum, regel)
+        for segment in sorted({s.datum for s in medewerker.resultaat.trace}):
             minuten = sum(
                 s.minuut_tot - s.minuut_van
                 for s in medewerker.resultaat.trace
@@ -230,6 +264,11 @@ def bouw_overzicht(
             ws2.cell(row=rij, column=1, value=medewerker.naam)
             ws2.cell(row=rij, column=2, value=segment).number_format = "dd-mm-yyyy"
             ws2.cell(row=rij, column=3, value=_DAGEN[segment.weekday()])
+            bron = registratie.get(segment)
+            if bron is not None:
+                ws2.cell(row=rij, column=4, value=f"{bron.begin:%H:%M}")
+                ws2.cell(row=rij, column=5, value=f"{bron.eind:%H:%M}")
+                ws2.cell(row=rij, column=6, value=bron.pauze_minuten)
             cel = ws2.cell(row=rij, column=7, value=round(minuten / 60, 2))
             cel.number_format = _UUR
             rij += 1

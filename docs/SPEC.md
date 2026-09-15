@@ -57,7 +57,19 @@ Per medewerker per week worden de gewerkte uren in **buckets** gesplitst.
 | **100%** | Zondaguren |
 | **feestdag** | Werken op een CAO-feestdag |
 
+### Feestdagen
+De doorbetaalde feestdagen (art. 16 lid 2) worden **berekend**, niet per jaar
+opgeschreven: Pasen via de gregoriaanse rekenregel, Hemelvaart en Pinksteren
+daaruit afgeleid, Koningsdag op 27 april (26 april als die op zondag valt) en
+Bevrijdingsdag alleen in een lustrumjaar. Een vaste lijst per CAO-periode liep
+af, waarna elke verwerkte week stilzwijgend nul feestdagen had en de
+feestdagtoeslag niet werd berekend.
+
 ### Regels
+- **Een regel zonder werktijd telt niet mee.** Staat Nitea's "werk tijd" op
+  0:00, dan is er die dag niets gewerkt; de regel wordt overgeslagen met een
+  afwijking. Eerder viel zo'n regel terug op "alleen pauze aftrekken", en bij
+  begin == eind werd dat een dienst van vierentwintig uur.
 - **Toeslagen stapelen niet** — de hoogste van toepassing zijnde toeslag geldt
   (CAO art. 28 lid 2b).
 - Reken op **minuut-resolutie**.

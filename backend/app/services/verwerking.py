@@ -70,6 +70,10 @@ class MedewerkerResultaat:
     kaartcode: str | None
     resultaat: WeekResultaat
     bedrag: BedragResultaat
+    # De Nitea-regels zoals ze geregistreerd zijn; het tabblad 'Per dag' toont
+    # daaruit begin, eind en pauze. De factuurcontrole verwijst naar juist die
+    # kolommen, dus ze mogen niet leeg blijven.
+    registratie: list = field(default_factory=list)
     afwijkingen: list[Afwijking] = field(default_factory=list)
     # Wordt door het bureau los gefactureerd (bv. techniek, apart geboekt):
     # krijgt een eigen overzicht en een eigen factuurcontrole.
@@ -371,6 +375,7 @@ def verwerk_week(
                 kaartcode=kaartcode,
                 resultaat=resultaat,
                 bedrag=bedrag,
+                registratie=list(medewerker.registratie),
                 afwijkingen=resultaat.afwijkingen,
                 apart=sleutel in (apart_gefactureerd or set()),
                 tarief_reden=reden,

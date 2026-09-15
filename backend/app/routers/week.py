@@ -144,8 +144,9 @@ async def verwerk(
     rauwe_snoop = await lees_upload(snoop_bestand, "SNOOP-export", EXCEL)
     rauwe_nitea = await lees_upload(nitea_bestand, "Nitea-overzicht", PDF)
 
+    snoop_opmerkingen: list[str] = []
     with leesfouten("SNOOP-export", snoop_bestand.filename):
-        snoop = lees_snoop(rauwe_snoop)
+        snoop = lees_snoop(rauwe_snoop, snoop_opmerkingen)
         uzb_sleutel = bepaal_uzb(snoop, UZB_NAMEN)
     nitea_opmerkingen: list[str] = []
     with leesfouten("Nitea-overzicht", nitea_bestand.filename):
@@ -182,6 +183,15 @@ async def verwerk(
         ),
         apart_gefactureerd=apart_gefactureerd(sessie, uzb_sleutel),
     )
+    if snoop_opmerkingen:
+        getoond = snoop_opmerkingen[:12]
+        rest = len(snoop_opmerkingen) - len(getoond)
+        verwerking.meldingen.append(
+            f"SNOOP: {len(snoop_opmerkingen)} rij(en) overgeslagen omdat datum of "
+            "tijd niet te lezen was: "
+            + " | ".join(getoond)
+            + (f" | en {rest} meer" if rest > 0 else "")
+        )
     if nitea_opmerkingen:
         # Niet-gelezen of anders gelezen Nitea-regels: een stil weggelaten dag
         # is een te laag weektotaal dat niemand opmerkt.

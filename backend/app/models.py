@@ -324,6 +324,10 @@ class BerekendeUren(Base, TijdstempelMixin):
     kaartcode: Mapped[str | None] = mapped_column(String(50))
     # {"100": 2280, "150": 120} en {"100": 1099.72, "150": 67.84}
     minuten_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
+    # Categorie -> minuten waarvoor de tariefkaart geen tarief had. Zonder dit
+    # zou de factuurcontrole dagen later het tekort aan onze kant aanzien voor
+    # een fout van het uitzendbureau.
+    ontbrekende_minuten: Mapped[dict | None] = mapped_column(JSONB)
     bedrag_per_categorie: Mapped[dict | None] = mapped_column(JSONB)
     bedrag_totaal: Mapped[float | None] = mapped_column(Numeric(12, 2))
 

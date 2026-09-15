@@ -111,6 +111,25 @@ def _verzamel_minuten(
     chronologisch gesorteerd."""
     gewerkt: list[tuple[datetime, Decimal, str]] = []
     for regel in registratie:
+        # Nitea's werktijd is leidend. Staat die op 0:00, dan is er die dag
+        # niets gewerkt: eerder viel zo'n regel terug op "alleen pauze
+        # aftrekken", en bij begin == eind werd dat een dienst van 24 uur --
+        # honderden euro's op de factuur, zonder enige melding.
+        if regel.gewerkte_minuten <= 0:
+            afwijkingen.append(
+                Afwijking(
+                    datum=regel.datum,
+                    soort=SOORT_REGISTRATIE_INCONSISTENT,
+                    detail=(
+                        f"{regel.begin:%H:%M}-{regel.eind:%H:%M} zonder werktijd "
+                        "in Nitea (0:00); deze dag is niet meegeteld. Controleer "
+                        "de registratie van deze dag."
+                    ),
+                    registratie_minuten=0,
+                )
+            )
+            continue
+
         start, eind = _span(regel)
         totaal = int((eind - start).total_seconds() // 60)
         minuten = []

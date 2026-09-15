@@ -326,6 +326,36 @@ def _vergelijk(
                     ),
                 )
             )
+        elif medewerker.bedrag.ontbrekende_minuten:
+            # Ons bedrag is te laag doordat de tariefkaart een kolom mist. Dat
+            # is een gat aan onze kant; het bureau erop aanspreken zou onterecht
+            # zijn.
+            ontbrekend = ", ".join(medewerker.bedrag.ontbrekende_tarieven)
+            controle.bevindingen.append(
+                Bevinding(
+                    soort=SOORT_GEEN_TARIEF,
+                    naam=medewerker.naam,
+                    uren_overzicht=medewerker.netto_uren,
+                    uren_factuur=kracht.uren,
+                    bedrag_overzicht=medewerker.bedrag.totaal,
+                    bedrag_factuur=kracht.bedrag,
+                    melding=(
+                        f"de uren kloppen, maar ons bedrag mist "
+                        f"{medewerker.bedrag.ontbrekende_uren} u: de tariefkaart "
+                        f"heeft geen tarief voor {ontbrekend}. Het verschil van "
+                        f"EUR {abs(bedrag_af):.2f} met de factuur zegt dus niets "
+                        "over het bureau. Waar te vinden: op het tabblad "
+                        "'Totaal week' staan die uren wel in hun kolom, maar "
+                        "niet in het bedrag."
+                    ),
+                    actie=(
+                        f"Vul de tariefkolom {ontbrekend} aan bij Lonen & "
+                        f"tarieven, verwerk week {verwerking.iso_week} opnieuw "
+                        "en controleer de factuur daarna nog een keer. Spreek "
+                        "het bureau hier niet op aan."
+                    ),
+                )
+            )
         elif abs(bedrag_af) > _CENT_TOLERANTIE:
             controle.bevindingen.append(
                 Bevinding(

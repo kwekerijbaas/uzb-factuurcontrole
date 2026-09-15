@@ -24,6 +24,7 @@ zichtbaar is in plaats van stilzwijgend een verkeerd tarief op te leveren.
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from rapidfuzz import fuzz
 
@@ -33,13 +34,26 @@ from rapidfuzz import fuzz
 _ACHTERNAAM_DREMPEL = 85
 
 
+def _zonder_accenten(tekst: str) -> str:
+    """"Śliwa" -> "sliwa", "Gheorghiţă" -> "gheorghita".
+
+    Poolse en Roemeense namen staan niet overal met dezelfde accenten. Voor
+    `fuzz.ratio` telt zo'n letter als een volledige wijziging, waardoor
+    "śliwa"/"sliwa" op 80 uitkwam en de koppeling afketste.
+    """
+    ontleed = unicodedata.normalize("NFKD", str(tekst or ""))
+    # De Poolse ł valt niet uiteen in NFKD en wordt apart vervangen.
+    ontleed = ontleed.replace("\u0142", "l").replace("\u0141", "L")
+    return "".join(teken for teken in ontleed if not unicodedata.combining(teken))
+
+
 def delen(naam: str) -> tuple[str, set[str]]:
     """Splits een naam in achternaam en de overige naamdelen (kleine letters).
 
     "K.P. Sliwa (Kamil)" -> ("sliwa", {"k", "p", "kamil"})
     "Adelina Iuliana Boca" -> ("boca", {"adelina", "iuliana"})
     """
-    tekst = re.sub(r"\s+", " ", str(naam or "")).strip()
+    tekst = re.sub(r"\s+", " ", _zonder_accenten(naam)).strip()
     haakjes = re.findall(r"\(([^)]*)\)", tekst)
     tekst = re.sub(r"\([^)]*\)", " ", tekst).strip()
     woorden = [w for w in re.split(r"\s+", tekst) if w]
