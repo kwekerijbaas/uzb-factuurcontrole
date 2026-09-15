@@ -81,19 +81,28 @@ def past(links: str, rechts: str) -> int:
     return score
 
 
-def beste_match(naam: str, kandidaten) -> str | None:
+# Een gelijke achternaam alleen is niet genoeg om een loonschaal over te
+# nemen: "Jan Bakker" en "Piet Bakker" zijn twee mensen. Er moet ook een
+# voornaam of initiaal overeenkomen, en dat is precies wat `past` boven de 100
+# uit tilt (achternaam maximaal 100, plus 20 voor een initiaal of 40 voor een
+# voornaam).
+MINIMUM_ZEKERHEID = 105
+
+
+def beste_match(naam: str, kandidaten, minimum: int = MINIMUM_ZEKERHEID) -> str | None:
     """De kandidaat die zeker dezelfde persoon is, of niets.
 
-    Zeker betekent: er is één duidelijke winnaar. Delen twee kandidaten de
-    hoogste score (twee broers met dezelfde initiaal), dan wordt er niet
-    gekoppeld -- een gok levert een verkeerd tarief op zonder dat iemand het
-    ziet.
+    Zeker betekent twee dingen: de score haalt `minimum` (dus niet alleen de
+    achternaam komt overeen), en er is één duidelijke winnaar. Delen twee
+    kandidaten de hoogste score (twee broers met dezelfde initiaal), dan wordt
+    er niet gekoppeld -- een gok levert een verkeerd tarief op zonder dat
+    iemand het ziet.
     """
     scores = sorted(
         ((past(naam, kandidaat), kandidaat) for kandidaat in kandidaten),
         key=lambda p: (-p[0], p[1]),
     )
-    if not scores or scores[0][0] == 0:
+    if not scores or scores[0][0] < minimum:
         return None
     if len(scores) > 1 and scores[1][0] == scores[0][0]:
         return None

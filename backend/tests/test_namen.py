@@ -96,3 +96,22 @@ def test_exacte_naam_levert_geen_koppelmelding_op():
         cao_toeslag_regels(), KAART, LEVEL_ONE,
     )
     assert verwerking.meldingen == []
+
+
+def test_alleen_dezelfde_achternaam_is_niet_genoeg():
+    """"Jan Bakker" en "Piet Bakker" zijn twee mensen. Zonder deze grens zou de
+    een stilzwijgend de loonschaal van de ander krijgen."""
+    assert beste_match("Jan Bakker", ["Piet Bakker"]) is None
+    assert beste_match("Jan Bakker", ["J. Bakker"]) == "J. Bakker"  # initiaal telt wel
+    assert beste_match("Jan Bakker", ["Jan Bakker jr"]) is None  # andere achternaam
+
+
+def test_week_neemt_geen_schaal_over_van_een_naamgenoot():
+    verwerking = verwerk_week(
+        "L1", 2026, 26, [], [_nitea("Jan Bakker")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+        bekende_loonschalen={"piet bakker": "B2 Flex"},
+    )
+    assert verwerking.medewerkers[0].loonschaal is None
+    assert verwerking.medewerkers[0].bedrag.totaal == Decimal("0")
+    assert not any("overgenomen van" in m for m in verwerking.meldingen)
