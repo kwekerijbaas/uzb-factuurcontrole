@@ -464,3 +464,41 @@ def test_wie_in_de_snoop_van_deze_week_staat_telt_gewoon_mee():
     )
     assert [m.naam for m in verwerking.medewerkers] == ["Cristian Bogdan Demian"]
     assert verwerking.meldingen == []
+
+
+def test_schaal_van_een_ander_bureau_wordt_bij_naam_genoemd():
+    """Een Sterk Werk-schaal bij iemand die onder Level One staat gaf een
+    bedrag van nul zonder zichtbare oorzaak: negenentwintig krachten stonden zo
+    in de app terwijl SNOOP hun schaal wel had."""
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("George Tudor", "D2 SW")], [_nitea("George Tudor")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    medewerker = verwerking.medewerkers[0]
+    assert medewerker.bedrag.totaal == Decimal("0")
+    assert medewerker.netto_uren == Decimal("8.00")  # uren blijven zichtbaar
+    assert medewerker.tarief_ontbreekt_omdat == (
+        "loonschaal 'D2 SW' hoort bij Sterk Werk, niet bij Level One"
+    )
+    melding = next(m for m in verwerking.meldingen if m.startswith("George Tudor"))
+    assert "hoort bij Sterk Werk" in melding
+    assert "Verplaats" in melding
+
+
+def test_onbekende_schaal_zonder_ander_bureau_houdt_de_gewone_melding():
+    verwerking = verwerk_week(
+        "L1", 2026, 25, [_snoop("Marius Mic", "Z9 Flex")], [_nitea("Marius Mic")],
+        cao_toeslag_regels(), KAART, LEVEL_ONE,
+    )
+    assert verwerking.medewerkers[0].tarief_ontbreekt_omdat == (
+        "loonschaal 'Z9 Flex' staat niet op de tariefkaart"
+    )
+
+
+def test_jeugdschaal_telt_niet_als_ander_bureau():
+    """Level One en zijn jeugd-payroll delen hun schalen; dat is geen fout."""
+    from app.services.verwerking import _ander_bureau
+
+    assert _ander_bureau("B2 Flex", "L1_JEUGD") is None
+    assert _ander_bureau("D2 SW", "L1") == "Sterk Werk"
+    assert _ander_bureau("B2 Flex", "L1") is None

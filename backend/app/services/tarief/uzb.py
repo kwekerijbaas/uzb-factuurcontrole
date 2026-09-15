@@ -46,12 +46,14 @@ LEVEL_ONE = UzbConventies(
         _BRON_FEESTDAG: CAT_FEESTDAG,
     },
     # "B2 Flex" -> B2F, "B4 Vast" -> B4V, "C2 Seizoens" -> C2S,
-    # "C6 Payroll" -> C6V (payroll deelt het Vast-tarief)
+    # "C6 Payroll" -> C6V (payroll deelt het Vast-tarief). SNOOP schrijft het
+    # seizoensachtervoegsel wisselend ("Seizoen", "Seizoens",
+    # "Seizoenskrachten"); alle drie horen op dezelfde kaartkolom.
     code_regels=(
         (r"^(\S+)\s+Flex$", r"\1F"),
         (r"^(\S+)\s+Vast$", r"\1V"),
         (r"^(\S+)\s+(?:Payroll)$", r"\1V"),
-        (r"^(\S+)\s+Seizoens(?:krachten)?$", r"\1S"),
+        (r"^(\S+)\s+Seizoen(?:s|skrachten|krachten)?$", r"\1S"),
     ),
     dag_grens_factureren=True,
 )
@@ -63,7 +65,10 @@ LEVEL_ONE_JEUGD = UzbConventies(
     sleutel="L1_JEUGD",
     naam="Level One jeugd-payroll",
     bron_naar_categorie=dict(LEVEL_ONE.bron_naar_categorie),
+    # "B 17 jaar Jeugd" -> 17B2 (zonder trede geldt trede 2),
+    # "C2 18 jaar jeugd" -> 18C2 (met trede telt die trede).
     code_regels=(
+        (r"^([A-Za-z])\s*(\d)\s+(\d{1,2})\s*jaar(?:\s+payroll)?\s+jeugd$", r"\3\g<1>\2"),
         (r"^([A-Za-z])\s*(\d{1,2})\s*jaar(?:\s+payroll)?\s+jeugd$", r"\2\g<1>2"),
         *LEVEL_ONE.code_regels,
     ),

@@ -239,3 +239,37 @@ def test_handmatig_tarief_wint_en_vult_de_kaart_aan():
     assert kaart.schaal("E5V").tarief(CAT_100) == Decimal("34.79")
     assert kaart.schaal("E5V").tarief(CAT_150) == Decimal("38.55")
     assert kaart.schaal("B2F").tarief(CAT_100) == Decimal("30.00")  # handmatig wint
+
+
+# --------------------------------------------------------------------------- #
+# Schalen die geen tarief opleverden terwijl SNOOP ze wel had
+# --------------------------------------------------------------------------- #
+def test_seizoensschaal_in_alle_schrijfwijzen():
+    """SNOOP schrijft het achtervoegsel wisselend; alle drie horen op de
+    S-kolom. Voorheen leverde "B2 Seizoen" (zonder s) geen tarief op."""
+    from app.services.tarief import conventies
+
+    l1 = conventies("L1")
+    assert l1.kaartcode("B2 Seizoen") == "B2S"
+    assert l1.kaartcode("B2 Seizoens") == "B2S"
+    assert l1.kaartcode("C2 Seizoenskrachten") == "C2S"
+
+
+def test_jeugdschaal_met_trede_houdt_die_trede():
+    """"C2 18 jaar jeugd" hoort op kaartcode 18C2. Voorheen matchte de regel
+    alleen op een kale letter en bleef deze schaal zonder tarief -- in de
+    jeugdlijst stond één kracht zo."""
+    from app.services.tarief import conventies
+
+    jeugd = conventies("L1_JEUGD")
+    assert jeugd.kaartcode("C2 18 jaar jeugd") == "18C2"
+    assert jeugd.kaartcode("B 17 jaar Jeugd") == "17B2"  # zonder trede: trede 2
+    assert jeugd.kaartcode("B 14 jaar jeugd") == "14B2"
+
+
+def test_kaartcode_staat_in_hoofdletters():
+    """Een kleine letter in de invoer mag geen tarief van nul opleveren."""
+    from app.services.tarief import conventies
+
+    assert conventies("L1").kaartcode("b2 flex") == "B2F"
+    assert conventies("L1").kaartcode("F3 flex") == "F3F"

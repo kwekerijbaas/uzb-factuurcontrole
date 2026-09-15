@@ -73,7 +73,10 @@ class UzbConventies:
         for patroon, vervanging in self.code_regels:
             nieuw, aantal = re.subn(patroon, vervanging, code, flags=re.IGNORECASE)
             if aantal:
-                return nieuw.strip()
+                # De schaalletter komt uit de invoer en houdt daarvan de
+                # schrijfwijze; op de kaart staat hij in hoofdletters. Zonder
+                # dit levert "b2 flex" de code "b2F" op en dus geen tarief.
+                return nieuw.strip().upper()
         return code
 
 
@@ -128,7 +131,19 @@ class BedragRegel:
 @dataclass
 class BedragResultaat:
     regels: list[BedragRegel] = field(default_factory=list)
-    ontbrekende_tarieven: list[str] = field(default_factory=list)
+    # Categorie -> gewerkte minuten waarvoor de kaart geen tarief had. Deze
+    # uren zijn wel gewerkt maar staan niet in het bedrag; zonder dit zou het
+    # weektotaal stilzwijgend te laag zijn.
+    ontbrekende_minuten: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def ontbrekende_tarieven(self) -> list[str]:
+        return sorted(self.ontbrekende_minuten)
+
+    @property
+    def ontbrekende_uren(self) -> Decimal:
+        minuten = sum(self.ontbrekende_minuten.values())
+        return (Decimal(minuten) / Decimal(60)).quantize(Decimal("0.01"))
 
     @property
     def totaal(self) -> Decimal:

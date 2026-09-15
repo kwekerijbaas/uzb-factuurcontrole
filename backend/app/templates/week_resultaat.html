@@ -49,6 +49,29 @@
 </div>
 {% endif %}
 
+{% if deels_zonder_tarief %}
+<div class="kaart">
+  <h2>Deels zonder tarief ({{ deels_zonder_tarief|length }})</h2>
+  <p>Deze uitzendkrachten zijn wél afgerekend, maar niet over al hun uren: op
+     de tariefkaart van {{ uzb_naam }} ontbreekt een tariefkolom. Die uren
+     staan wel in het overzicht en niet in het bedrag, dus het weektotaal is te
+     laag. Vul de ontbrekende kolom aan bij <a href="/tarieven">Lonen &amp;
+     tarieven</a> en verwerk de week opnieuw.</p>
+  <table>
+    <tr><th>Naam</th><th>Loonschaal</th><th>Zonder tarief</th><th>Uren zonder bedrag</th><th>Bedrag nu</th></tr>
+    {% for m in deels_zonder_tarief %}
+    <tr>
+      <td><strong>{{ m.naam }}</strong></td>
+      <td>{{ m.loonschaal }}</td>
+      <td>{{ m.bedrag.ontbrekende_tarieven|join(', ') }}</td>
+      <td>{{ '%.2f'|format(m.bedrag.ontbrekende_uren) }}</td>
+      <td>€ {{ '%.2f'|format(m.bedrag.totaal) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 {% if meldingen %}
 <div class="kaart">
   <h2>Meldingen ({{ meldingen|length }})</h2>

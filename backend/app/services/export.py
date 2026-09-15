@@ -146,13 +146,29 @@ def bouw_overzicht(
     # Wie zonder tarief in de week staat, hoort direct op te vallen: het
     # weektotaal is anders stilzwijgend te laag. De regel zelf krijgt geen
     # bedrag maar de tekst "geen tarief", en bovenaan staat wat te doen.
+    waarschuwingen = []
     zonder_tarief = verwerking.zonder_tarief
     if zonder_tarief:
-        ws["A2"] = (
-            f"LET OP: {len(zonder_tarief)} zonder tarief -- "
+        waarschuwingen.append(
+            f"{len(zonder_tarief)} zonder tarief -- "
             + ", ".join(f"{m.naam} ({m.tarief_ontbreekt_omdat})" for m in zonder_tarief)
-            + ". Vul de loonschaal in bij Uitzendkrachten en verwerk de week "
-            "opnieuw; het weektotaal is nu te laag."
+            + ". Vul de loonschaal in bij Uitzendkrachten en verwerk de week opnieuw"
+        )
+    deels = verwerking.deels_zonder_tarief
+    if deels:
+        waarschuwingen.append(
+            f"bij {len(deels)} uitzendkracht(en) ontbreekt een tariefkolom op de "
+            "kaart, dus een deel van hun uren staat zonder bedrag: "
+            + ", ".join(
+                f"{m.naam} ({', '.join(m.bedrag.ontbrekende_tarieven)}, "
+                f"{m.bedrag.ontbrekende_uren} u)"
+                for m in deels
+            )
+            + ". Vul de ontbrekende tariefkolom aan bij Lonen & tarieven"
+        )
+    if waarschuwingen:
+        ws["A2"] = (
+            "LET OP: " + "; ".join(waarschuwingen) + ". Het weektotaal is te laag."
         )
         ws["A2"].font = _WAARSCHUWING
     _kop(ws, 3, koppen)
@@ -174,6 +190,11 @@ def bouw_overzicht(
                 row=rij, column=5 + len(categorieen), value=float(medewerker.bedrag.totaal)
             )
             bedrag.number_format = _EURO
+            if medewerker.bedrag.ontbrekende_minuten:
+                # Wel een bedrag, maar niet over alle uren: zonder markering
+                # ziet niemand dat dit bedrag te laag is.
+                bedrag.font = _WAARSCHUWING
+                ws.cell(row=rij, column=1).font = _WAARSCHUWING
         else:
             bedrag = ws.cell(row=rij, column=5 + len(categorieen), value="geen tarief")
             bedrag.font = _WAARSCHUWING

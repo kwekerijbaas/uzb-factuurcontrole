@@ -29,6 +29,38 @@ def normaliseer_naam(naam: str) -> str:
     return re.sub(r"\s+", " ", str(naam or "")).strip().lower()
 
 
+def _bureaunaam(sleutel: str) -> str:
+    from app.services.tarief.uzb import CONVENTIES
+
+    conv = CONVENTIES.get(sleutel)
+    return conv.naam if conv else sleutel
+
+
+def _ander_bureau(loonschaal: str, uzb_sleutel: str) -> str | None:
+    """Hoort deze loonschaal herkenbaar bij een ánder uitzendbureau?
+
+    "D2 SW" bij iemand die onder Level One staat betekent bijna altijd dat de
+    persoon onder het verkeerde bureau is beland -- dat gebeurde toen het
+    Nitea-overzicht van een Level One-week ook Sterk Werk-krachten bevatte.
+    Zonder deze melding blijft het een bedrag van nul zonder zichtbare oorzaak.
+    """
+    from app.services.ingest.herkenning import herken_uzb
+
+    class _Regel:
+        pass
+
+    regel = _Regel()
+    regel.loonschaal = loonschaal
+    regel.werkgever = None
+    ander, _ = herken_uzb([regel])
+    if ander is None or ander == uzb_sleutel:
+        return None
+    # Level One en zijn jeugd-payroll delen hun schalen; dat is geen fout.
+    if {ander, uzb_sleutel} <= {"L1", "L1_JEUGD"}:
+        return None
+    return _bureaunaam(ander)
+
+
 @dataclass
 class MedewerkerResultaat:
     naam: str
@@ -41,6 +73,9 @@ class MedewerkerResultaat:
     # Wordt door het bureau los gefactureerd (bv. techniek, apart geboekt):
     # krijgt een eigen overzicht en een eigen factuurcontrole.
     apart: bool = False
+    # Waarom er geen tarief is, als dat meer is dan "staat niet op de kaart"
+    # (bijvoorbeeld: de schaal hoort bij een ander uitzendbureau).
+    tarief_reden: str | None = None
 
     @property
     def netto_uren(self) -> Decimal:
@@ -61,6 +96,8 @@ class MedewerkerResultaat:
         """Korte reden waarom er geen bedrag is, voor in meldingen."""
         if self.heeft_tarief:
             return None
+        if self.tarief_reden:
+            return self.tarief_reden
         if not self.loonschaal:
             return "geen loonschaal"
         return f"loonschaal '{self.loonschaal}' staat niet op de tariefkaart"
@@ -89,6 +126,23 @@ class WeekVerwerking:
         """Wie wel uren maar geen bedrag heeft, op naam gesorteerd."""
         return sorted(
             (m for m in self.medewerkers if not m.heeft_tarief), key=lambda m: m.naam
+        )
+
+    @property
+    def deels_zonder_tarief(self) -> list[MedewerkerResultaat]:
+        """Wie wél een bedrag heeft, maar niet over al zijn uren.
+
+        Ontbreekt op de kaart een tariefkolom (de jeugdkaart heeft bijvoorbeeld
+        geen feestdagtarief), dan vielen die uren stil uit het bedrag: de
+        persoon leek gewoon afgerekend terwijl zijn bedrag te laag was.
+        """
+        return sorted(
+            (
+                m
+                for m in self.medewerkers
+                if m.heeft_tarief and m.bedrag.ontbrekende_minuten
+            ),
+            key=lambda m: m.naam,
         )
 
     def gesplitst(self) -> tuple[WeekVerwerking, list[WeekVerwerking]]:
@@ -238,17 +292,49 @@ def verwerk_week(
         kaartcode = conventies.kaartcode(loonschaal)
         schalen = reeks.schalen_van(kaartcode)
         heeft_tarief = any(s is not None for _, s in schalen.periodes)
+        reden = None
         if loonschaal and not heeft_tarief and not reeks.is_leeg:
-            verwerking.meldingen.append(
-                f"{medewerker.naam}: geen tarief voor loonschaal "
-                f"'{loonschaal}' (kaartcode {kaartcode}) -- geen bedrag berekend"
-            )
+            # Hoort de schaal bij een ánder bureau ("D2 SW" bij iemand onder
+            # Level One), zeg dat dan. Anders blijft het een stil nulbedrag
+            # waarvan niemand de oorzaak ziet.
+            ander = _ander_bureau(loonschaal, uzb_sleutel)
+            if ander:
+                reden = (
+                    f"loonschaal '{loonschaal}' hoort bij {ander}, niet bij "
+                    f"{_bureaunaam(uzb_sleutel)}"
+                )
+                verwerking.meldingen.append(
+                    f"{medewerker.naam}: {reden} -- geen bedrag berekend. "
+                    f"Verplaats deze uitzendkracht bij Uitzendkrachten naar "
+                    f"{ander}, of zet de juiste schaal van "
+                    f"{_bureaunaam(uzb_sleutel)} erbij."
+                )
+            else:
+                reden = f"loonschaal '{loonschaal}' staat niet op de tariefkaart"
+                verwerking.meldingen.append(
+                    f"{medewerker.naam}: geen tarief voor loonschaal "
+                    f"'{loonschaal}' (kaartcode {kaartcode}) -- geen bedrag berekend"
+                )
         elif not loonschaal:
             verwerking.meldingen.append(
                 f"{medewerker.naam}: geen loonschaal bekend -- "
                 f"{resultaat.netto_uren} uur zonder bedrag"
             )
 
+        bedrag = bereken_bedrag(resultaat, schalen, conventies)
+        if bedrag.regels and bedrag.ontbrekende_minuten:
+            # Deels afgerekend: de kaart mist een tariefkolom voor uren die er
+            # wel zijn. Melden, anders is het bedrag stilzwijgend te laag.
+            ontbrekend = ", ".join(
+                f"{categorie} ({Decimal(minuten) / Decimal(60):.2f} u)"
+                for categorie, minuten in sorted(bedrag.ontbrekende_minuten.items())
+            )
+            verwerking.meldingen.append(
+                f"{medewerker.naam}: de tariefkaart van "
+                f"{_bureaunaam(uzb_sleutel)} heeft geen tarief voor {ontbrekend}; "
+                "die uren staan wel in het overzicht maar niet in het bedrag. "
+                "Vul de ontbrekende tariefkolom aan bij Lonen & tarieven."
+            )
         verwerking.medewerkers.append(
             MedewerkerResultaat(
                 naam=medewerker.naam,
@@ -256,9 +342,10 @@ def verwerk_week(
                 loonschaal=loonschaal,
                 kaartcode=kaartcode,
                 resultaat=resultaat,
-                bedrag=bereken_bedrag(resultaat, schalen, conventies),
+                bedrag=bedrag,
                 afwijkingen=resultaat.afwijkingen,
                 apart=sleutel in (apart_gefactureerd or set()),
+                tarief_reden=reden,
             )
         )
 

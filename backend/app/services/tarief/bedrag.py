@@ -102,14 +102,14 @@ def bereken_bedrag(
         per_periode[periode][categorie] = per_periode[periode].get(categorie, 0) + minuten
         bronnen.setdefault((periode, categorie), []).append(bron)
 
-    ontbreekt: set[str] = set()
+    ontbreekt: dict[str, int] = {}
     for periode in sorted(per_periode):
         tarieven = reeks.periodes[periode][1] if periode < len(reeks.periodes) else None
         for categorie in sorted(per_periode[periode]):
             minuten = per_periode[periode][categorie]
             tarief = tarieven.tarief(categorie) if tarieven else None
             if tarief is None:
-                ontbreekt.add(categorie)
+                ontbreekt[categorie] = ontbreekt.get(categorie, 0) + minuten
                 continue
             uitkomst.regels.append(
                 BedragRegel(
@@ -122,7 +122,7 @@ def bereken_bedrag(
                 )
             )
 
-    uitkomst.ontbrekende_tarieven = sorted(ontbreekt)
+    uitkomst.ontbrekende_minuten = ontbreekt
     return uitkomst
 
 

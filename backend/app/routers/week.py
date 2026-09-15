@@ -266,6 +266,7 @@ async def verwerk(
             "hoofd": hoofd,
             "apart": [d.medewerkers[0] for d in delen],
             "zonder_tarief": verwerking.zonder_tarief,
+            "deels_zonder_tarief": verwerking.deels_zonder_tarief,
             # De tabel 'Zonder tarief' zegt het al; de losse meldingen daarover
             # zouden op het scherm dubbel zijn (in het bestand staan ze wel).
             "meldingen": [

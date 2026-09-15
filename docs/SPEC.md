@@ -120,6 +120,30 @@ zette de week onder het verkeerde nummer vast. Een tóch verkeerd bewaarde week
 is te verwijderen op de Factuurcontrole-pagina; opnieuw verwerken zet hem goed
 terug.
 
+### Een schaal die geen tarief oplevert
+De loonschaal staat in SNOOP, maar de app kan er geen tarief bij vinden. Drie
+oorzaken, elk met een eigen melding:
+
+1. **De schaal hoort bij een ander bureau** — "D2 SW" bij iemand die onder
+   Level One staat. De melding noemt dat bureau met naam en vraagt de persoon
+   te verplaatsen; voorheen was dit een bedrag van nul zonder zichtbare
+   oorzaak. (In september 2026 stonden negenentwintig Sterk Werk-krachten zo
+   onder Level One.)
+2. **De schaal staat niet op de kaart** — bijvoorbeeld een kale "B2" bij Level
+   One, waar B2 Flex, B2 Vast en B2 Seizoen elk een ander tarief hebben.
+3. **Eén tariefkolom ontbreekt** — de kaart heeft de schaal wél, maar niet de
+   categorie waarin een deel van de uren valt (de jeugdkaart heeft geen
+   feestdagtarief). Die uren vielen stilzwijgend uit het bedrag: de persoon
+   leek gewoon afgerekend terwijl zijn bedrag te laag was. Dit staat nu als
+   **"Deels zonder tarief"** op het resultaatscherm, met de uren erbij, en het
+   bedrag is in het overzicht gemarkeerd.
+
+De schaalvertaling is verder onafhankelijk van schrijfwijze: het
+seizoensachtervoegsel mag "Seizoen", "Seizoens" of "Seizoenskrachten" zijn, de
+kaartcode komt altijd in hoofdletters, en een jeugdschaal met trede
+("C2 18 jaar jeugd") houdt die trede (18C2) in plaats van op trede 2 uit te
+komen.
+
 ### Mensen van een ander bureau in het Nitea-overzicht
 Het Nitea-overzicht bevat soms mensen van een ander bureau. Wie **niet in de
 SNOOP-export van deze week** staat maar wel op de uitzendkrachtenlijst van een

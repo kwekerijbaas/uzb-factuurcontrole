@@ -246,3 +246,26 @@ def test_kaartreeks_levert_per_schaal_de_juiste_reeks():
     assert schalen.op(date(2026, 7, 31)) is B2_JULI
     assert schalen.op(date(2026, 8, 1)) is B2_AUG
     assert reeks.schalen_van("Z9").op(date(2026, 8, 1)) is None
+
+
+def test_ontbrekende_tariefkolom_wordt_met_uren_gemeld():
+    """De jeugdkaart heeft geen feestdagtarief. Wie op een feestdag werkte,
+    kreeg wel een bedrag over zijn andere uren; de feestdaguren vielen stil uit
+    het bedrag en het weektotaal was ongemerkt te laag."""
+    from datetime import date, time
+
+    from app.services.calc import RegistratieRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels
+    from app.services.tarief import CAT_100, LEVEL_ONE, SchaalTarief, bereken_bedrag
+
+    eerste_kerstdag = date(2026, 12, 25)
+    resultaat = bereken_week(
+        [RegistratieRegel(eerste_kerstdag, time(7, 0), time(15, 0), 480, 0)],
+        [], cao_toeslag_regels(), frozenset({eerste_kerstdag}),
+    )
+    # kaart zonder feestdagkolom
+    schaal = SchaalTarief("B2F", {CAT_100: Decimal("28.94")})
+    bedrag = bereken_bedrag(resultaat, schaal, LEVEL_ONE)
+    assert bedrag.ontbrekende_tarieven == ["feestdag"]
+    assert bedrag.ontbrekende_uren == Decimal("8.00")
+    assert bedrag.totaal == Decimal("0")
