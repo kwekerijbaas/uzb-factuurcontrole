@@ -15,6 +15,10 @@ De onderste treden bestaan alleen bij de hogere schalen en staan dus rechts
 uitgelijnd. Bij het uitlezen van de tekst vallen die bedragen op volgorde
 verkeerd; daarom worden ze gekoppeld op **x-positie** -- elk bedrag hoort bij de
 kolomletter waar het onder staat.
+
+De ingangsdatum staat in de titelregel, maar niet overal met hetzelfde woord
+ervoor: "vanaf", "per", "met ingang van". Level One's eigen loontabel gebruikt
+"per"; daarop liep de upload stuk met "geen ingangsdatum gevonden".
 """
 
 from __future__ import annotations
@@ -41,8 +45,18 @@ _MAANDEN = {
     "juli": 7, "augustus": 8, "september": 9, "oktober": 10, "november": 11,
     "december": 12,
 }
+# De ingangsdatum staat in de titel, maar niet overal met hetzelfde woord
+# ervoor: "vanaf 1 augustus 2026", "per 1 augustus 2026", "met ingang van
+# 1 augustus 2026". Level One's eigen loontabel gebruikt "per"; daarop liep de
+# upload stuk met "geen ingangsdatum gevonden".
 _DATUM = re.compile(
-    r"vanaf\s+(\d{1,2})\s+(" + "|".join(_MAANDEN) + r")\s+(\d{4})", re.IGNORECASE
+    r"(?:vanaf|per|m\.?i\.?v\.?|met\s+ingang\s+van|geldig\s+(?:vanaf|per)|ingaande)"
+    r"\s+(\d{1,2})\s+(" + "|".join(_MAANDEN) + r")\s+(\d{4})",
+    re.IGNORECASE,
+)
+# Laatste redmiddel: een losse datum in de eerste regels, zonder woord ervoor.
+_DATUM_KAAL = re.compile(
+    r"\b(\d{1,2})\s+(" + "|".join(_MAANDEN) + r")\s+(\d{4})\b", re.IGNORECASE
 )
 
 
@@ -71,7 +85,12 @@ def lees_cao_pdf(
     with pdfplumber.open(data) as pdf:
         for pagina in pdf.pages:
             if gevonden_datum is None:
-                m = _DATUM.search(pagina.extract_text() or "")
+                tekst = pagina.extract_text() or ""
+                # Eerst met een woord ervoor ("per", "vanaf"); anders de eerste
+                # losse datum in de titelregels.
+                m = _DATUM.search(tekst) or _DATUM_KAAL.search(
+                    "\n".join(tekst.split("\n")[:5])
+                )
                 if m:
                     gevonden_datum = date(
                         int(m.group(3)), _MAANDEN[m.group(2).lower()], int(m.group(1))

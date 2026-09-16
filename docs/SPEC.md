@@ -183,6 +183,24 @@ De weekresultaten gaan mee met de persoon; bestaat de naam onder het
 doelbureau al, dan worden de rijen samengevoegd (schaal en code van het doel
 blijven staan en worden alleen aangevuld).
 
+### Lege begin- en eindtijd in het Nitea-overzicht
+Het overzicht 'Medewerker uren' heeft de kolommen Nr, Medewerker, Datum,
+**Begin tijd**, **Einde tijd**, **Werk tijd** en **Pauze tijd**. Bij nacht- en
+middagdiensten laat Nitea de begin- en eindtijd regelmatig leeg, terwijl de
+werktijd er wel staat. De tijden worden daarom op **kolompositie** gelezen en
+niet op volgorde: aan de volgorde alleen is niet te zien of een losse tijd de
+begin-, eind-, werk- of pauzetijd is.
+
+- Staat alleen de **begintijd**, dan volgt het einde uit begin + werktijd +
+  pauze.
+- Staat alleen de **eindtijd**, dan volgt het begin uit einde − werktijd −
+  pauze. Eerder werd die eindtijd als begintijd gelezen en liep een
+  nachtdienst als dagdienst mee.
+- Staan **beide niet**, dan tellen de gewerkte minuten gewoon mee tegen het
+  basistarief, met een afwijking per dag: zonder klok is niet vast te stellen
+  of er een nacht-, avond- of weekendtoeslag geldt. Eerder verdween zo'n regel
+  volledig — in week 32/2026 ging het om 24,25 uur bij één persoon.
+
 ### Nachtdiensten in het Nitea-overzicht
 Een dienst over middernacht kan in de PDF met een **einddatum** vóór de
 eindtijd staan (`03-08-2026 22:57 04-08-2026 8:00 8:00 1:00`); die wordt

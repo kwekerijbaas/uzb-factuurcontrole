@@ -121,12 +121,38 @@ def _verzamel_minuten(
                     datum=regel.datum,
                     soort=SOORT_REGISTRATIE_INCONSISTENT,
                     detail=(
-                        f"{regel.begin:%H:%M}-{regel.eind:%H:%M} zonder werktijd "
-                        "in Nitea (0:00); deze dag is niet meegeteld. Controleer "
-                        "de registratie van deze dag."
+                        f"{regel.klok()} zonder werktijd in Nitea (0:00); deze "
+                        "dag is niet meegeteld. Controleer de registratie van "
+                        "deze dag."
                     ),
                     registratie_minuten=0,
                 )
+            )
+            continue
+
+        # Zonder begin- én eindtijd is er geen klok om de toeslag aan op te
+        # hangen. De uren zijn wel gewerkt, dus die tellen mee tegen het
+        # basistarief; de dag wordt gemeld zodat de tijden in Nitea kunnen
+        # worden aangevuld. Eerder verdween zo'n regel helemaal.
+        if not regel.tijden_bekend:
+            afwijkingen.append(
+                Afwijking(
+                    datum=regel.datum,
+                    soort=SOORT_REGISTRATIE_INCONSISTENT,
+                    detail=(
+                        f"{regel.klok()} in Nitea; de "
+                        f"{regel.gewerkte_minuten} gewerkte minuten tellen mee, "
+                        "maar zonder tijden is niet vast te stellen of er een "
+                        "nacht-, avond- of weekendtoeslag geldt. Vul de begin- "
+                        "en eindtijd aan in Nitea en verwerk de week opnieuw."
+                    ),
+                    registratie_minuten=regel.gewerkte_minuten,
+                )
+            )
+            middernacht = datetime.combine(regel.datum, time(0, 0))
+            gewerkt.extend(
+                (middernacht + timedelta(minutes=i), Decimal("0"), "normaal")
+                for i in range(regel.gewerkte_minuten)
             )
             continue
 
@@ -283,8 +309,11 @@ def _vergelijk_planning(
                           planning_minuten=pmin, registratie_minuten=rmin)
             )
         # tijdvenster-afwijking (begin/eind), alleen bij gelijke urentelling relevant
+        met_tijd = [x for x in reg_tijden[d] if getattr(x, "begin", None) is not None]
+        if not met_tijd:
+            continue
         p0 = min(plan_tijden[d], key=lambda x: x.begin)
-        r0 = min(reg_tijden[d], key=lambda x: x.begin)
+        r0 = min(met_tijd, key=lambda x: x.begin)
         verschil_begin = abs(_naar_minuut(p0.begin) - _naar_minuut(r0.begin))
         verschil_eind = abs(_naar_minuut(p0.eind) - _naar_minuut(r0.eind))
         if max(verschil_begin, verschil_eind) > params.tolerantie_tijd_minuten:

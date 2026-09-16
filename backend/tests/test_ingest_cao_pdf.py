@@ -105,3 +105,28 @@ def test_zonder_datum_in_document_is_die_verplicht():
         lees_cao_pdf(zonder)
     tabel, _ = lees_cao_pdf(zonder, ingangsdatum=date(2026, 8, 1))
     assert tabel.loon("B2") == Decimal("14.99")
+
+
+def test_ingangsdatum_met_per_in_plaats_van_vanaf():
+    """Level One's eigen loontabel zegt 'Loontabel Loongebouw per 1 augustus
+    2026'. Alleen 'vanaf' werd herkend, dus liep die upload stuk op 'geen
+    ingangsdatum gevonden' en kon de jeugdloontabel niet worden ingeladen."""
+    from datetime import date as _date
+
+    from app.services.ingest.cao_pdf import _DATUM, _DATUM_KAAL
+
+    for zin in (
+        "Loontabel Loongebouw per 1 augustus 2026",
+        "Loontabel vanaf 1 augustus 2026",
+        "Loontabel met ingang van 1 augustus 2026",
+        "Loontabel m.i.v. 1 augustus 2026",
+        "Loontabel geldig vanaf 1 augustus 2026",
+    ):
+        m = _DATUM.search(zin)
+        assert m is not None, zin
+        assert (int(m.group(3)), m.group(2), int(m.group(1))) == (2026, "augustus", 1)
+
+    # Zonder woord ervoor blijft de datum in de titel bruikbaar.
+    m = _DATUM_KAAL.search("Loontabel Loongebouw 1 augustus 2026")
+    assert m is not None
+    assert _date(int(m.group(3)), 8, int(m.group(1))) == _date(2026, 8, 1)

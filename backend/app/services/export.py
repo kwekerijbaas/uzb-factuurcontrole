@@ -266,8 +266,14 @@ def bouw_overzicht(
             ws2.cell(row=rij, column=3, value=_DAGEN[segment.weekday()])
             bron = registratie.get(segment)
             if bron is not None:
-                ws2.cell(row=rij, column=4, value=f"{bron.begin:%H:%M}")
-                ws2.cell(row=rij, column=5, value=f"{bron.eind:%H:%M}")
+                # Bij nacht- en middagdiensten laat Nitea de tijden soms leeg.
+                if bron.begin is not None:
+                    ws2.cell(row=rij, column=4, value=f"{bron.begin:%H:%M}")
+                if bron.eind is not None:
+                    ws2.cell(row=rij, column=5, value=f"{bron.eind:%H:%M}")
+                if not bron.tijden_bekend:
+                    cel = ws2.cell(row=rij, column=4, value="tijden ontbreken in Nitea")
+                    cel.font = _WAARSCHUWING
                 ws2.cell(row=rij, column=6, value=bron.pauze_minuten)
             cel = ws2.cell(row=rij, column=7, value=round(minuten / 60, 2))
             cel.number_format = _UUR

@@ -37,13 +37,31 @@ class ToeslagRegel:
 @dataclass(frozen=True)
 class RegistratieRegel:
     """Werkelijke registratie uit Nitea. `gewerkte_minuten` is netto (pauze al
-    afgetrokken door Nitea); de engine trekt zelf géén pauze af."""
+    afgetrokken door Nitea); de engine trekt zelf géén pauze af.
+
+    Bij nacht- en middagdiensten laat Nitea begin- en eindtijd soms leeg,
+    terwijl de werktijd er wel staat. Die uren zijn gewerkt en tellen mee; van
+    de tijdgebonden toeslag is dan alleen niet vast te stellen of hij geldt,
+    dus die wordt niet gerekend en de dag wordt als afwijking gemeld.
+    """
 
     datum: date
-    begin: time
-    eind: time
+    begin: time | None
+    eind: time | None
     gewerkte_minuten: int
     pauze_minuten: int = 0
+
+    @property
+    def tijden_bekend(self) -> bool:
+        return self.begin is not None and self.eind is not None
+
+    def klok(self) -> str:
+        """Begin-eind om in een melding te tonen."""
+        if self.begin is None and self.eind is None:
+            return "zonder begin- en eindtijd"
+        return f"{self.begin:%H:%M}-{self.eind:%H:%M}" if self.tijden_bekend else (
+            f"vanaf {self.begin:%H:%M}" if self.begin else f"tot {self.eind:%H:%M}"
+        )
 
 
 @dataclass(frozen=True)
