@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titel %}UF — UZB-urencontrole{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Huisstijl Kwekerij Baas (www.kwekerijbaas.nl): limegroen als hoofdkleur,
+       magenta als accent (bloem-asterisk), bosgroen als steunkleur, ronde
+       dikke koppen. Tabellen en formulieren blijven in een systeemletter --
+       dit is een cijfer-app, leesbaarheid gaat voor. */
+    :root {
+      --lime:#bdce00; --lime-donker:#a3b200; --lime-licht:#f5f8dd;
+      --magenta:#d6007f; --magenta-donker:#a80064;
+      --groen:#3fa13c; --olijf:#4a5200;
+      --rand:#d8dee4; --grijs:#5b6570; --rood:#b42318; --oranje:#b54708;
+      --kopletter:"Baloo 2", "Trebuchet MS", system-ui, sans-serif;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; color:#232323; background:#fafbf4; }
+    header { background:var(--lime); padding:.7rem 1.5rem; display:flex; align-items:center; gap:1.4rem; flex-wrap:wrap; }
+    header nav { display:flex; gap:1.1rem; flex-wrap:wrap; }
+    header a { color:var(--olijf); text-decoration:none; font-weight:600; padding:.15rem 0; border-bottom:3px solid transparent; }
+    header a:hover { color:#fff; }
+    /* De pagina waar je bent, zodat je niet hoeft te raden waar je zit. */
+    header a[aria-current="page"] { color:#fff; border-bottom-color:#fff; }
+    header .merk { font-family:var(--kopletter); font-weight:800; font-size:1.35rem; color:#fff; letter-spacing:.02em; }
+    header .merk .bloem { color:var(--magenta); font-size:1.1em; vertical-align:-.05em; }
+    header .merk .sub { font-size:.62em; color:var(--olijf); font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-left:.4rem; }
+    header .wie { margin-left:auto; font-size:.85rem; color:var(--olijf); }
+    header .wie a { text-decoration:underline; }
+    main { max-width:1120px; margin:1.5rem auto; padding:0 1.5rem 3rem; }
+    h1, h2 { font-family:var(--kopletter); color:#2f3a00; }
+    h1 { font-size:1.7rem; margin:.2rem 0 1rem; font-weight:800; }
+    h2 { font-size:1.15rem; margin:1.8rem 0 .6rem; font-weight:700; }
+    a { color:var(--magenta); }
+    .kaart { background:#fff; border:1px solid var(--rand); border-radius:14px; padding:1.2rem 1.4rem; margin-bottom:1.2rem; }
+    label { display:block; font-weight:600; margin:.7rem 0 .25rem; font-size:.92rem; }
+    input, select { width:100%; padding:.5rem .6rem; border:1px solid var(--rand); border-radius:8px; font:inherit; background:#fff; }
+    input:focus, select:focus { outline:2px solid var(--lime); outline-offset:1px; }
+    /* Knoppen kennen drie gewichten. Zonder dat verschil zag 'Verwijderen'
+       er even uitnodigend uit als de hoofdactie op dezelfde pagina. */
+    button, a.knop { display:inline-block; background:var(--lime); color:#fff; border:2px solid var(--lime); border-radius:22px; padding:.5rem 1.3rem; font-family:var(--kopletter); font-size:1rem; font-weight:700; cursor:pointer; margin-top:1rem; text-decoration:none; line-height:1.3; }
+    button:hover, a.knop:hover { background:var(--lime-donker); border-color:var(--lime-donker); }
+    button.stil, a.knop.stil { background:#fff; color:var(--olijf); border-color:var(--rand); }
+    button.stil:hover, a.knop.stil:hover { background:var(--lime-licht); border-color:var(--lime); color:var(--olijf); }
+    button.gevaar { background:#fff; color:var(--rood); border-color:#e8c4c0; }
+    button.gevaar:hover { background:#fdf3f2; border-color:var(--rood); }
+    button.klein, a.knop.klein { padding:.28rem .8rem; font-size:.85rem; margin-top:0; }
+    button:focus-visible, a.knop:focus-visible { outline:2px solid var(--magenta); outline-offset:2px; }
+    /* Brede tabellen schuiven binnen hun eigen kader in plaats van de hele
+       pagina scheef te trekken. */
+    .tabelkader { overflow-x:auto; margin-top:.6rem; }
+    table { width:100%; border-collapse:collapse; margin-top:.6rem; font-size:.9rem; }
+    .tabelkader table { margin-top:0; }
+    tbody tr:hover { background:#fcfdf6; }
+    th, td { text-align:left; padding:.45rem .6rem; border-bottom:1px solid var(--rand); vertical-align:top; }
+    th { background:var(--lime-licht); color:var(--olijf); font-weight:700; }
+    .hint { color:var(--grijs); font-size:.86rem; margin:.3rem 0 0; }
+    /* Uitleg die je één keer leest en daarna in de weg staat. */
+    details.uitleg { margin:.2rem 0 0; }
+    details.uitleg > summary { cursor:pointer; color:var(--magenta); font-weight:600; font-size:.9rem; list-style:none; padding:.2rem 0; }
+    td details.uitleg > summary { color:var(--grijs); font-weight:400; }
+    td details.uitleg > div { border-left-color:var(--rand); }
+    details.uitleg > summary::before { content:"\25b8"; display:inline-block; margin-right:.4rem; transition:transform .15s; }
+    details.uitleg[open] > summary::before { transform:rotate(90deg); }
+    details.uitleg > summary::-webkit-details-marker { display:none; }
+    details.uitleg > div { padding:.2rem 0 .2rem 1rem; border-left:3px solid var(--lime-licht); }
+    /* Bestandskiezer: de eigen knop van de browser is klein en zegt na het
+       kiezen niet duidelijk wélk bestand gekozen is. */
+    .bestand { display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; border:2px dashed var(--rand); border-radius:12px; padding:.8rem 1rem; background:#fcfdf6; }
+    .bestand:focus-within { border-color:var(--lime); background:var(--lime-licht); }
+    .bestand input[type=file] { width:auto; border:0; padding:0; background:none; font-size:.9rem; }
+    .bestand .gekozen { font-size:.88rem; color:var(--groen); font-weight:600; }
+    /* Korte statusaanduiding in een tabel of kop. */
+    .pil { display:inline-block; border-radius:999px; padding:.1rem .6rem; font-size:.78rem; font-weight:700; letter-spacing:.02em; }
+    .pil.let-op { background:#fdece9; color:var(--rood); }
+    .pil.goed { background:#eaf6e9; color:#2f7a2c; }
+    .pil.rustig { background:var(--lime-licht); color:var(--olijf); }
+    .melding { border-radius:12px; padding:.8rem 1rem; margin-bottom:1rem; border:1px solid; }
+    .melding.goed { background:#f2faf1; border-color:#bfe3bd; }
+    .melding.let-op { background:#fdf3f2; border-color:#e8c4c0; }
+    .balk { display:flex; gap:1rem; align-items:flex-end; flex-wrap:wrap; }
+    .balk > * { margin-top:0; }
+    .titelbalk { display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; justify-content:space-between; }
+    .fout { color:var(--rood); font-weight:600; }
+    .waarschuwing { color:var(--oranje); }
+    .leeg { color:var(--grijs); font-style:italic; }
+    .rij { display:flex; gap:1rem; flex-wrap:wrap; }
+    .rij > div { flex:1 1 200px; }
+    .inline { display:flex; gap:.4rem; align-items:center; }
+    .inline input { padding:.3rem .5rem; font-size:.88rem; min-width:9rem; }
+    .inline button { margin-top:0; padding:.3rem .8rem; font-size:.85rem; white-space:nowrap; }
+    .inline select { width:auto; padding:.3rem .5rem; font-size:.88rem; }
+    ul { margin:.4rem 0 .8rem 1.2rem; padding:0; }
+    li { margin:.15rem 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="merk">BAAS<span class="bloem">&#10033;</span><span class="sub">urencontrole</span></span>
+    {% if gebruiker %}
+      {% set hier = request.url.path if request else '/' %}
+      <nav>
+        {% for pad, tekst in [('/', 'Start'), ('/week', 'Week verwerken'),
+                              ('/facturen', 'Factuurcontrole'),
+                              ('/tarieven', 'Lonen &amp; tarieven'),
+                              ('/uzk', 'Uitzendkrachten')] %}
+          <a href="{{ pad }}"
+             {% if hier == pad or (pad != '/' and hier.startswith(pad)) %}aria-current="page"{% endif %}>{{ tekst|safe }}</a>
+        {% endfor %}
+      </nav>
+      <span class="wie">{{ gebruiker.naam }}{% if gebruiker.is_ontwikkelaar %} (lokaal){% endif %}
+        &middot; <a href="/uitloggen">uitloggen</a></span>
+    {% endif %}
+  </header>
+  <main>{% block inhoud %}{% endblock %}</main>
+  <script>
+    // Toon welk bestand gekozen is; de eigen tekst van de browser valt weg
+    // zodra het veld smal is, en dan lijkt er niets gekozen.
+    document.querySelectorAll(".bestand input[type=file]").forEach(veld => {
+      const uit = veld.parentElement.querySelector(".gekozen");
+      if (!uit) return;
+      veld.addEventListener("change", () => {
+        const namen = [...veld.files].map(f => f.name);
+        uit.textContent = namen.length ? "\u2713 " + namen.join(", ") : "";
+      });
+    });
+    // Eén klik is genoeg: een tweede indruk tijdens het verwerken levert een
+    // tweede upload op. De knop zegt meteen dat hij bezig is.
+    document.querySelectorAll("form[data-bezig]").forEach(formulier => {
+      formulier.addEventListener("submit", () => {
+        const knop = formulier.querySelector("button[type=submit]");
+        if (!knop) return;
+        knop.dataset.oud = knop.textContent;
+        knop.textContent = formulier.dataset.bezig;
+        knop.disabled = true;
+        setTimeout(() => { knop.disabled = false; knop.textContent = knop.dataset.oud; }, 120000);
+      });
+    });
+  </script>
+</body>
+</html>

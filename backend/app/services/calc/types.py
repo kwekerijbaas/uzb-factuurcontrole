@@ -37,13 +37,31 @@ class ToeslagRegel:
 @dataclass(frozen=True)
 class RegistratieRegel:
     """Werkelijke registratie uit Nitea. `gewerkte_minuten` is netto (pauze al
-    afgetrokken door Nitea); de engine trekt zelf géén pauze af."""
+    afgetrokken door Nitea); de engine trekt zelf géén pauze af.
+
+    Bij nacht- en middagdiensten laat Nitea begin- en eindtijd soms leeg,
+    terwijl de werktijd er wel staat. Die uren zijn gewerkt en tellen mee; van
+    de tijdgebonden toeslag is dan alleen niet vast te stellen of hij geldt,
+    dus die wordt niet gerekend en de dag wordt als afwijking gemeld.
+    """
 
     datum: date
-    begin: time
-    eind: time
+    begin: time | None
+    eind: time | None
     gewerkte_minuten: int
     pauze_minuten: int = 0
+
+    @property
+    def tijden_bekend(self) -> bool:
+        return self.begin is not None and self.eind is not None
+
+    def klok(self) -> str:
+        """Begin-eind om in een melding te tonen."""
+        if self.begin is None and self.eind is None:
+            return "zonder begin- en eindtijd"
+        return f"{self.begin:%H:%M}-{self.eind:%H:%M}" if self.tijden_bekend else (
+            f"vanaf {self.begin:%H:%M}" if self.begin else f"tot {self.eind:%H:%M}"
+        )
 
 
 @dataclass(frozen=True)
@@ -94,6 +112,20 @@ class WeekParameters:
     dag_grens_percentage: Decimal = Decimal("50")
     week_grens_percentage: Decimal = Decimal("50")
     week_50u_uitzondering: bool = False  # art. 18 lid 4d: 8 weken/jaar geen 50% >48u
+
+    # Nitea rondt af op kwartieren, SNOOP plant op hele tijden en er wordt op
+    # de minuut in- en uitgeklokt. Vergelijken op minuutniveau levert daarom
+    # bij vrijwel elke dag een melding op zonder dat er iets mis is. Onder deze
+    # grenzen wordt niets gemeld.
+    tolerantie_registratie_minuten: int = 15
+    tolerantie_uren_minuten: int = 15
+    tolerantie_tijd_minuten: int = 15
+
+    # De SNOOP-planning naast de Nitea-registratie leggen. Staat uit: Nitea is
+    # leidend en wordt vóór het verwerken al gecontroleerd, dus een afwijking
+    # ten opzichte van de planning zegt niets over de te factureren uren. Zet
+    # aan wie de planning wél wil bewaken.
+    vergelijk_planning: bool = False
 
 
 @dataclass
