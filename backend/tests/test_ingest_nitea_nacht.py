@@ -287,3 +287,89 @@ def test_week_met_planning_fallback_via_verwerk_week():
     assert any("SNOOP-planning" in m for m in verwerking.meldingen) or any(
         "SNOOP-planning" in a.detail for a in medewerker.afwijkingen
     )
+
+
+# --------------------------------------------------------------------------- #
+# Verificatie van nachtdiensten die Nitea wél met tijden geeft
+# --------------------------------------------------------------------------- #
+def test_verkeerd_gelezen_nachtdienst_wordt_gevangen_via_de_planning():
+    """Het historische bugpatroon: een eindtijd die als begintijd werd gelezen
+    schuift een nachtdienst naar een onschuldig ogende dagbracket. Aan de
+    Nitea-tijd zelf is dat niet meer te zien -- die raakt geen toeslag meer --
+    dus moet ook de geplande tijd meetellen bij het bepalen of dit een dienst
+    is die extra aandacht verdient."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import SOORT_NACHTDIENST_AFWIJKEND
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 7), time(6, 7), time(12, 7), 315, 45)]
+    planning = [PlanningRegel(date(2026, 8, 7), time(22, 0), time(6, 0), 480)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 7)),
+    )
+    melding = next(a for a in resultaat.afwijkingen if a.soort == SOORT_NACHTDIENST_AFWIJKEND)
+    assert "06:07-12:07" in melding.detail and "22:00-06:00" in melding.detail
+    assert "verkeerde datum of tijd" in melding.detail
+
+
+def test_normale_afwijking_in_een_nachtdienst_wordt_niet_gemeld():
+    """Een half uur eerder beginnen dan gepland is normaal bij een nachtdienst
+    en hoort geen melding op te leveren."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import SOORT_NACHTDIENST_AFWIJKEND
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), time(22, 30), time(6, 0), 420, 30)]
+    planning = [PlanningRegel(date(2026, 8, 4), time(22, 0), time(6, 0), 480)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert not any(a.soort == SOORT_NACHTDIENST_AFWIJKEND for a in resultaat.afwijkingen)
+
+
+def test_dagdienst_zonder_toeslag_wordt_niet_gecontroleerd():
+    """Deze controle is specifiek voor nacht- en avonddiensten; een gewone
+    dagdienst die afwijkt van de planning is de taak van vergelijk_planning,
+    niet van deze altijd-aan check."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import SOORT_NACHTDIENST_AFWIJKEND
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), time(10, 0), time(18, 0), 450, 30)]
+    planning = [PlanningRegel(date(2026, 8, 4), time(7, 0), time(15, 0), 450)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert not any(a.soort == SOORT_NACHTDIENST_AFWIJKEND for a in resultaat.afwijkingen)
+
+
+def test_dubbelzinnige_of_ontbrekende_planning_wordt_niet_vergeleken():
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import SOORT_NACHTDIENST_AFWIJKEND
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), time(22, 0), time(6, 0), 420, 60)]
+    twee_diensten = [
+        PlanningRegel(date(2026, 8, 4), time(6, 0), time(10, 0), 240),
+        PlanningRegel(date(2026, 8, 4), time(22, 0), time(6, 0), 480),
+    ]
+    for planning in (twee_diensten, []):
+        resultaat = bereken_week(
+            registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+        )
+        assert not any(a.soort == SOORT_NACHTDIENST_AFWIJKEND for a in resultaat.afwijkingen)
+
+
+def test_verkeerde_dienst_op_de_dag_wordt_ook_gevangen():
+    """Nitea zegt nachtdienst, SNOOP had een dagdienst gepland: dat is net zo
+    verdacht als andersom."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import SOORT_NACHTDIENST_AFWIJKEND
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), time(22, 0), time(6, 0), 420, 60)]
+    planning = [PlanningRegel(date(2026, 8, 4), time(7, 0), time(15, 0), 480)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert any(a.soort == SOORT_NACHTDIENST_AFWIJKEND for a in resultaat.afwijkingen)

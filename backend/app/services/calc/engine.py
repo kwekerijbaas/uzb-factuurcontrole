@@ -24,6 +24,7 @@ from typing import TypeVar
 from .types import (
     SOORT_GEEN_PLANNING,
     SOORT_GEEN_REGISTRATIE,
+    SOORT_NACHTDIENST_AFWIJKEND,
     SOORT_REGISTRATIE_INCONSISTENT,
     SOORT_TIJD_VERSCHIL,
     SOORT_UREN_VERSCHIL,
@@ -100,6 +101,79 @@ def _tod_percentage(
     return beste, bron
 
 
+def _verifieer_nachtdienst(
+    regel: RegistratieRegel,
+    start: datetime,
+    eind: datetime,
+    plan_per_dag: dict[date, list[PlanningRegel]],
+    regels: list[ToeslagRegel],
+    feestdagen: frozenset[date],
+    afwijkingen: list[Afwijking],
+    params: WeekParameters,
+) -> None:
+    """Extra controle als Nitea wél tijden geeft, maar de dienst nacht- of
+    avondtoeslag raakt.
+
+    De vorige fout in deze diensten kwam niet van ontbrekende tijden, maar van
+    een verkéérd gelezen of verkeerd geklokte tijd (een eindtijd die als
+    begintijd werd gelezen, een dienst die over de verkeerde datum liep). Dat
+    soort fouten valt niet op als de bracket zelf intern klopt -- alleen een
+    onafhankelijke tweede bron kan hem vangen. De SNOOP-planning van dezelfde
+    dag is die tweede bron: wijkt de Nitea-tijd er te ver vanaf, dan is dat
+    reden om de registratie na te kijken, ook al is er niets inconsistents aan
+    de Nitea-regel zelf.
+
+    Bewust ruimer dan de gewone tijd-vergelijking (`tolerantie_tijd_minuten`,
+    `vergelijk_planning`): die is optioneel en bedoeld om elke afwijking van de
+    planning te volgen; dit is altijd aan en bedoeld om alleen een
+    waarschijnlijke fout te signaleren, niet een dienst die gewoon iets eerder
+    of later begon dan gepland.
+    """
+    if int((eind - start).total_seconds()) <= 0:
+        return
+
+    kandidaten = plan_per_dag.get(regel.datum, [])
+    if len(kandidaten) != 1:
+        return  # geen of dubbelzinnige planning: geen tweede bron om tegen af te zetten
+    plan = kandidaten[0]
+    p_start, p_eind = _span(plan)
+
+    def _raakt_toeslag(van: datetime, tot: datetime) -> bool:
+        return any(
+            _tod_percentage(van + timedelta(minutes=i), regels, feestdagen)[0] > 0
+            for i in range(int((tot - van).total_seconds() // 60))
+        )
+
+    # Zowel de Nitea-tijd als de geplande tijd tellen mee: een misgelezen of
+    # verkeerd geklokte tijd verschuift een nacht- of avonddienst juist vaak
+    # ná het toeslagvenster (de dienst lijkt dan een gewone dagdienst), dus aan
+    # de Nitea-tijd alléén is zo'n fout niet meer te zien.
+    if not (_raakt_toeslag(start, eind) or _raakt_toeslag(p_start, p_eind)):
+        return
+
+    verschil_begin = abs((start - p_start).total_seconds()) // 60
+    verschil_eind = abs((eind - p_eind).total_seconds()) // 60
+    if max(verschil_begin, verschil_eind) <= params.tolerantie_nachtdienst_minuten:
+        return
+
+    afwijkingen.append(
+        Afwijking(
+            datum=regel.datum,
+            soort=SOORT_NACHTDIENST_AFWIJKEND,
+            detail=(
+                f"nacht- of avonddienst {regel.begin:%H:%M}-{regel.eind:%H:%M} in "
+                f"Nitea wijkt sterk af van de SNOOP-planning van die dag "
+                f"({plan.begin:%H:%M}-{plan.eind:%H:%M}). Controleer of de tijd "
+                "in Nitea goed geklokt en gelezen is; dit is precies het soort "
+                "dienst waarbij een verkeerde datum of tijd het makkelijkst "
+                "misgaat."
+            ),
+            planning_minuten=plan.geplande_minuten,
+            registratie_minuten=regel.gewerkte_minuten,
+        )
+    )
+
+
 def _verzamel_minuten(
     registratie: list[RegistratieRegel],
     planning: list[PlanningRegel],
@@ -147,6 +221,9 @@ def _verzamel_minuten(
         uit_planning = False
         if regel.tijden_bekend:
             start, eind = _span(regel)
+            _verifieer_nachtdienst(
+                regel, start, eind, plan_per_dag, regels, feestdagen, afwijkingen, params
+            )
         else:
             # Zonder begin- én eindtijd is er geen klok om de toeslag aan op te
             # hangen. Val terug op de SNOOP-planning van dezelfde dag, maar

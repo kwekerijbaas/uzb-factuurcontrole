@@ -65,6 +65,12 @@ _AFWIJKING_ACTIE = {
         "Begin- of eindtijd wijkt af van de planning. Nitea is leidend; alleen "
         "controleren bij structurele afwijkingen."
     ),
+    "nachtdienst_afwijkend": (
+        "Vergelijk de Nitea-tijd met de SNOOP-planning van die dag. Bij zo'n "
+        "groot verschil op een nacht- of avonddienst is een verkeerd gelezen "
+        "of verkeerd geklokte tijd de meest waarschijnlijke oorzaak. Klopt de "
+        "Nitea-tijd wel, dan is er niets te doen."
+    ),
 }
 
 

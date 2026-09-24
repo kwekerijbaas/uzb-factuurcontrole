@@ -208,6 +208,32 @@ begin-, eind-, werk- of pauzetijd is.
   24,25 uur bij één persoon — en gaf elke nacht- of middagdienst zonder klok
   een handmatig te controleren afwijking op de factuur.
 
+### Verificatie van nachtdiensten die Nitea wél met tijden geeft
+De SNOOP-planning dient ook als tweede, onafhankelijke bron wanneer Nitea de
+begin- en eindtijd wél geeft, specifiek voor diensten die nacht- of
+avondtoeslag raken (00:00–06:00 of 20:00–24:00). Dit vangt het patroon
+waardoor de vorige fouten ontstonden: niet een lege tijd, maar een **verkeerd
+gelezen of verkeerd geklokte** tijd — een eindtijd die als begintijd wordt
+gelezen, of een dienst die op de verkeerde datum terechtkomt. Zo'n fout is aan
+de Nitea-bracket zelf vaak niet te zien: hij verschuift de dienst juist weg uit
+het toeslagvenster, waardoor hij een gewone dagdienst lijkt.
+
+Daarom telt zowel de Nitea-tijd als de **geplande** tijd mee bij het bepalen of
+een dienst gecontroleerd moet worden: raakt een van beide een toeslagvenster,
+en wijkt de Nitea-tijd meer dan **90 minuten** (`tolerantie_nachtdienst_minuten`)
+af van de planning, dan volgt een afwijking (`nachtdienst_afwijkend`). Net als
+bij de terugval hierboven geldt dit alleen bij precies **één** geplande dienst
+die dag; bij twee of meer, of geen planning, is er geen eenduidige tweede bron
+om tegen af te zetten en blijft het stil.
+
+Deze controle staat **altijd aan**, los van `vergelijk_planning` (dat de
+algemene, optionele vergelijking van uren en tijden regelt — SPEC hierboven,
+"De SNOOP-planning wordt niet met de registratie vergeleken"). De marge van 90
+minuten is bewust ruimer dan de 15 minuten die daar geldt: een nachtdienst
+begint of eindigt vaker een half uur eerder of later zonder dat er iets mis
+is, en dat is geen reden om te melden. Deze check is bedoeld om een
+waarschijnlijke fout te signaleren, niet elke normale afwijking.
+
 ### Nachtdiensten in het Nitea-overzicht
 Een dienst over middernacht kan in de PDF met een **einddatum** vóór de
 eindtijd staan (`03-08-2026 22:57 04-08-2026 8:00 8:00 1:00`); die wordt

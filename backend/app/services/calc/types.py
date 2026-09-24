@@ -88,6 +88,7 @@ SOORT_TIJD_VERSCHIL = "tijd_verschil"
 SOORT_REGISTRATIE_INCONSISTENT = "registratie_inconsistent"
 SOORT_GEEN_PLANNING = "geen_planning"
 SOORT_GEEN_REGISTRATIE = "geen_registratie"
+SOORT_NACHTDIENST_AFWIJKEND = "nachtdienst_afwijkend"
 
 
 @dataclass
@@ -120,6 +121,12 @@ class WeekParameters:
     tolerantie_registratie_minuten: int = 15
     tolerantie_uren_minuten: int = 15
     tolerantie_tijd_minuten: int = 15
+    # Grens voor de nachtdienst-verificatie hieronder: ruimer dan
+    # `tolerantie_tijd_minuten` omdat een nacht- of avonddienst vaker een half
+    # uur eerder of later begint zonder dat er iets mis is. Deze controle is
+    # bedoeld om een verkeerd gelezen of verkeerd geklokte tijd te vangen, niet
+    # om elke normale afwijking te melden.
+    tolerantie_nachtdienst_minuten: int = 90
 
     # De SNOOP-planning naast de Nitea-registratie leggen. Staat uit: Nitea is
     # leidend en wordt vóór het verwerken al gecontroleerd, dus een afwijking
