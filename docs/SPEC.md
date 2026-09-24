@@ -196,10 +196,17 @@ begin-, eind-, werk- of pauzetijd is.
 - Staat alleen de **eindtijd**, dan volgt het begin uit einde − werktijd −
   pauze. Eerder werd die eindtijd als begintijd gelezen en liep een
   nachtdienst als dagdienst mee.
-- Staan **beide niet**, dan tellen de gewerkte minuten gewoon mee tegen het
-  basistarief, met een afwijking per dag: zonder klok is niet vast te stellen
-  of er een nacht-, avond- of weekendtoeslag geldt. Eerder verdween zo'n regel
-  volledig — in week 32/2026 ging het om 24,25 uur bij één persoon.
+- Staan **beide niet**, dan valt de app terug op de **SNOOP-planning** van
+  diezelfde medewerker en dag: Nitea blijft leidend voor het aantal uren, maar
+  de klok waarop de toeslag wordt bepaald komt dan uit de geplande dienst. Dat
+  kan alleen als die dag precies **één** geplande dienst heeft die lang genoeg
+  is om de gewerkte tijd in kwijt te kunnen; bij twee of meer geplande
+  diensten, of een planning die korter is dan de gewerkte tijd, is de aanname
+  te onzeker en telt de tijd alsnog tegen 0% mee. In alle gevallen komt er een
+  afwijking bij, zodat te zien is waar de toeslag op gebaseerd is en waar hij
+  ontbreekt. Eerder verdween zo'n regel volledig — in week 32/2026 ging het om
+  24,25 uur bij één persoon — en gaf elke nacht- of middagdienst zonder klok
+  een handmatig te controleren afwijking op de factuur.
 
 ### Nachtdiensten in het Nitea-overzicht
 Een dienst over middernacht kan in de PDF met een **einddatum** vóór de

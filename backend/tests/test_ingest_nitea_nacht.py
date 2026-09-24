@@ -13,6 +13,8 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from app.services.calc.types import RegistratieRegel
+
 from app.services.ingest.nitea import _REGEL, _regel_uit, lees_nitea
 
 
@@ -180,3 +182,108 @@ def test_week_zonder_tijden_telt_de_uren_en_meldt_de_dag():
     ]
     assert len(zonder_tijden) == 3
     assert "tellen mee" in zonder_tijden[0].detail
+
+
+# --------------------------------------------------------------------------- #
+# Terugval op de SNOOP-planning voor de tijdgebonden toeslag
+# --------------------------------------------------------------------------- #
+def test_ontbrekende_tijden_vallen_terug_op_de_snoop_planning():
+    """Ola's kernprobleem: Nitea laat bij nacht- en middagdiensten de tijden
+    leeg, waardoor er geen toeslag werd berekend en de factuur handmatig moest.
+    SNOOP kent de dienst wel; de klok komt dan daarvandaan, de uren blijven van
+    Nitea."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), None, None, 480, 60)]
+    planning = [PlanningRegel(date(2026, 8, 4), time(15, 0), time(23, 30), 480)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert resultaat.netto_uren == Decimal("8.00")
+    assert resultaat.minuten_per_percentage.get(Decimal("50"), 0) > 0  # avondtoeslag
+    melding = next(a for a in resultaat.afwijkingen if a.datum == date(2026, 8, 4))
+    assert "overgenomen uit de SNOOP-planning" in melding.detail
+    assert "15:00-23:30" in melding.detail
+
+
+def test_meerdere_geplande_diensten_zijn_te_dubbelzinnig():
+    """Twee geplande diensten op één dag: niet gokken welke het was."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), None, None, 240, 0)]
+    planning = [
+        PlanningRegel(date(2026, 8, 4), time(6, 0), time(10, 0), 240),
+        PlanningRegel(date(2026, 8, 4), time(15, 0), time(19, 0), 240),
+    ]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert resultaat.netto_uren == Decimal("4.00")
+    assert resultaat.minuten_per_percentage == {Decimal("0"): 240}  # geen toeslag toegekend
+    melding = next(a for a in resultaat.afwijkingen if a.datum == date(2026, 8, 4))
+    assert "meerdere geplande diensten" in melding.detail
+
+
+def test_planning_korter_dan_de_gewerkte_tijd_wordt_niet_gebruikt():
+    """Werkte iemand langer dan gepland, dan past de Nitea-tijd niet in de
+    planning-bracket; de terugval blijft dan achterwege."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), None, None, 600, 0)]  # 10 uur
+    planning = [PlanningRegel(date(2026, 8, 4), time(15, 0), time(19, 0), 240)]  # 4 uur
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert resultaat.netto_uren == Decimal("10.00")
+    assert resultaat.minuten_per_percentage == {Decimal("0"): 600}
+    melding = next(a for a in resultaat.afwijkingen if a.datum == date(2026, 8, 4))
+    assert "korter dan de gewerkte tijd" in melding.detail
+
+
+def test_geen_planning_die_dag_blijft_zonder_toeslag_zoals_eerst():
+    from app.services.calc import bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 8, 4), None, None, 480, 60)]
+    resultaat = bereken_week(
+        registratie, [], cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    assert resultaat.minuten_per_percentage == {Decimal("0"): 480}
+    melding = next(a for a in resultaat.afwijkingen if a.datum == date(2026, 8, 4))
+    assert "geen (passende) planning" in melding.detail
+
+
+def test_week_met_planning_fallback_via_verwerk_week():
+    """End-to-end: de SNOOP-planning van dezelfde medewerker bereikt de engine
+    ook via verwerk_week, zonder dat vergelijk_planning aan hoeft te staan."""
+    from app.services.calc.types import PlanningRegel as PR
+    from app.services.ingest import NiteaMedewerker, SnoopMedewerker
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+    from app.services.tarief import CAT_100, CAT_150, LEVEL_ONE, SchaalTarief, TariefKaart
+    from app.services.verwerking import verwerk_week
+
+    kaart = TariefKaart(
+        "L1", date(2026, 1, 1), None,
+        {"B2F": SchaalTarief("B2F", {CAT_100: Decimal("28.94"), CAT_150: Decimal("33.92")})},
+    )
+    nitea = [NiteaMedewerker(
+        naam="Nacht Werker", nitea_id="1",
+        registratie=[RegistratieRegel(date(2026, 8, 4), None, None, 480, 60)],
+    )]
+    snoop = [SnoopMedewerker(
+        naam="Nacht Werker", loonschaal="B2 Flex",
+        planning=[PR(date(2026, 8, 4), time(15, 0), time(23, 30), 480)],
+    )]
+    verwerking = verwerk_week(
+        "L1", 2026, 32, snoop, nitea, cao_toeslag_regels(), kaart, LEVEL_ONE,
+        feestdagen=feestdagen_cao_periode(date(2026, 8, 4)),
+    )
+    medewerker = verwerking.medewerkers[0]
+    assert medewerker.netto_uren == Decimal("8.00")
+    assert medewerker.bedrag.totaal > Decimal("8") * Decimal("28.94")  # avondtoeslag telt mee
+    assert any("SNOOP-planning" in m for m in verwerking.meldingen) or any(
+        "SNOOP-planning" in a.detail for a in medewerker.afwijkingen
+    )

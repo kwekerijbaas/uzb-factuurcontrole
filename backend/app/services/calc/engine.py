@@ -102,14 +102,28 @@ def _tod_percentage(
 
 def _verzamel_minuten(
     registratie: list[RegistratieRegel],
+    planning: list[PlanningRegel],
     regels: list[ToeslagRegel],
     feestdagen: frozenset[date],
     afwijkingen: list[Afwijking],
     params: WeekParameters,
 ) -> list[tuple[datetime, Decimal, str]]:
     """Geeft de gewerkte minuten (na pauze-aftrek) met hun tijdgebonden toeslag,
-    chronologisch gesorteerd."""
+    chronologisch gesorteerd.
+
+    `planning` (de SNOOP-planning van dezelfde persoon) is alleen nodig als
+    Nitea voor een dag geen begin- en eindtijd geeft: het aantal uren blijft
+    dan van Nitea, maar de klok waarop de toeslag wordt bepaald komt uit de
+    planning van die dag -- mits die dag precies één geplande dienst heeft die
+    lang genoeg is. Zonder die terugval was zo'n dag altijd 0% toeslag, wat bij
+    nacht- en middagdiensten in het spenenseizoen op grote schaal een te laag
+    bedrag oplevert.
+    """
     gewerkt: list[tuple[datetime, Decimal, str]] = []
+    plan_per_dag: dict[date, list[PlanningRegel]] = defaultdict(list)
+    for p in planning:
+        plan_per_dag[p.datum].append(p)
+
     for regel in registratie:
         # Nitea's werktijd is leidend. Staat die op 0:00, dan is er die dag
         # niets gewerkt: eerder viel zo'n regel terug op "alleen pauze
@@ -130,33 +144,68 @@ def _verzamel_minuten(
             )
             continue
 
-        # Zonder begin- én eindtijd is er geen klok om de toeslag aan op te
-        # hangen. De uren zijn wel gewerkt, dus die tellen mee tegen het
-        # basistarief; de dag wordt gemeld zodat de tijden in Nitea kunnen
-        # worden aangevuld. Eerder verdween zo'n regel helemaal.
-        if not regel.tijden_bekend:
+        uit_planning = False
+        if regel.tijden_bekend:
+            start, eind = _span(regel)
+        else:
+            # Zonder begin- én eindtijd is er geen klok om de toeslag aan op te
+            # hangen. Val terug op de SNOOP-planning van dezelfde dag, maar
+            # alleen als die eenduidig is (precies één geplande dienst) en lang
+            # genoeg om de Nitea-uren in kwijt te kunnen -- anders is de
+            # aanname te onzeker om op te rekenen.
+            kandidaten = plan_per_dag.get(regel.datum, [])
+            plan_span = None
+            if len(kandidaten) == 1:
+                p_start, p_eind = _span(kandidaten[0])
+                if int((p_eind - p_start).total_seconds() // 60) >= regel.gewerkte_minuten:
+                    plan_span = (p_start, p_eind)
+
+            if plan_span is None:
+                reden = (
+                    "meerdere geplande diensten die dag" if len(kandidaten) > 1
+                    else "geen (passende) planning die dag" if not kandidaten
+                    else "de planning is korter dan de gewerkte tijd"
+                )
+                afwijkingen.append(
+                    Afwijking(
+                        datum=regel.datum,
+                        soort=SOORT_REGISTRATIE_INCONSISTENT,
+                        detail=(
+                            f"{regel.klok()} in Nitea; de "
+                            f"{regel.gewerkte_minuten} gewerkte minuten tellen "
+                            f"mee, maar zonder tijden ({reden}) is niet vast te "
+                            "stellen of er een nacht-, avond- of "
+                            "weekendtoeslag geldt. Vul de begin- en eindtijd "
+                            "aan in Nitea en verwerk de week opnieuw."
+                        ),
+                        registratie_minuten=regel.gewerkte_minuten,
+                    )
+                )
+                middernacht = datetime.combine(regel.datum, time(0, 0))
+                gewerkt.extend(
+                    (middernacht + timedelta(minutes=i), Decimal("0"), "normaal")
+                    for i in range(regel.gewerkte_minuten)
+                )
+                continue
+
+            start, eind = plan_span
+            uit_planning = True
+            plan = kandidaten[0]
             afwijkingen.append(
                 Afwijking(
                     datum=regel.datum,
                     soort=SOORT_REGISTRATIE_INCONSISTENT,
                     detail=(
-                        f"{regel.klok()} in Nitea; de "
-                        f"{regel.gewerkte_minuten} gewerkte minuten tellen mee, "
-                        "maar zonder tijden is niet vast te stellen of er een "
-                        "nacht-, avond- of weekendtoeslag geldt. Vul de begin- "
-                        "en eindtijd aan in Nitea en verwerk de week opnieuw."
+                        f"{regel.klok()} in Nitea; voor de toeslag is de tijd "
+                        f"overgenomen uit de SNOOP-planning van die dag "
+                        f"({plan.begin:%H:%M}-{plan.eind:%H:%M}). Controleer of "
+                        "dat de werkelijke dienst was; klopt de planning niet, "
+                        "vul dan de tijden in Nitea zelf aan."
                     ),
                     registratie_minuten=regel.gewerkte_minuten,
                 )
             )
-            middernacht = datetime.combine(regel.datum, time(0, 0))
-            gewerkt.extend(
-                (middernacht + timedelta(minutes=i), Decimal("0"), "normaal")
-                for i in range(regel.gewerkte_minuten)
-            )
-            continue
 
-        start, eind = _span(regel)
         totaal = int((eind - start).total_seconds() // 60)
         minuten = []
         for i in range(totaal):
@@ -175,22 +224,26 @@ def _verzamel_minuten(
 
         # Informatief: bracket − pauze verklaart de werktijd niet (split shift
         # of afwijkende registratie). Kleine verschillen zijn Nitea's
-        # kwartierafronding en worden niet gemeld.
-        onverklaard = abs(totaal - regel.pauze_minuten - regel.gewerkte_minuten)
-        if regel.gewerkte_minuten and onverklaard > params.tolerantie_registratie_minuten:
-            afwijkingen.append(
-                Afwijking(
-                    datum=regel.datum,
-                    soort=SOORT_REGISTRATIE_INCONSISTENT,
-                    detail=(
-                        f"onderbroken dienst: {regel.begin:%H:%M}-{regel.eind:%H:%M} "
-                        f"met {regel.gewerkte_minuten} gewerkte minuten volgens "
-                        f"Nitea; {te_verwijderen} min als niet-gewerkt afgetrokken, "
-                        "bij de laagste toeslag"
-                    ),
-                    registratie_minuten=regel.gewerkte_minuten,
+        # kwartierafronding en worden niet gemeld. Bij een uit de planning
+        # afgeleide bracket is "onverklaard" hier per definitie de pauze die de
+        # planning meetelt maar Nitea niet noemt -- dat is geen inconsistentie
+        # en wordt niet apart gemeld (de melding hierboven dekt dit al).
+        if not uit_planning:
+            onverklaard = abs(totaal - regel.pauze_minuten - regel.gewerkte_minuten)
+            if regel.gewerkte_minuten and onverklaard > params.tolerantie_registratie_minuten:
+                afwijkingen.append(
+                    Afwijking(
+                        datum=regel.datum,
+                        soort=SOORT_REGISTRATIE_INCONSISTENT,
+                        detail=(
+                            f"onderbroken dienst: {regel.begin:%H:%M}-{regel.eind:%H:%M} "
+                            f"met {regel.gewerkte_minuten} gewerkte minuten volgens "
+                            f"Nitea; {te_verwijderen} min als niet-gewerkt afgetrokken, "
+                            "bij de laagste toeslag"
+                        ),
+                        registratie_minuten=regel.gewerkte_minuten,
+                    )
                 )
-            )
 
         # verwijder de niet-gewerkte minuten met de LAAGSTE toeslag (asc pct, dan
         # tijd) — zo blijven nacht-/avond-/zaterdaguren behouden.
@@ -234,7 +287,7 @@ def bereken_week(
     params = parameters or WeekParameters()
     afwijkingen: list[Afwijking] = []
 
-    gewerkt = _verzamel_minuten(registratie, toeslag_regels, feestdagen, afwijkingen, params)
+    gewerkt = _verzamel_minuten(registratie, planning, toeslag_regels, feestdagen, afwijkingen, params)
 
     minuten_per_pct: dict[Decimal, int] = defaultdict(int)
     rauw_trace: list[tuple[datetime, Decimal, str]] = []
