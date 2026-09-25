@@ -134,6 +134,22 @@ bescherming (en de naam) en overschrijven volgende imports geruisloos; bij nee
 blijft de handmatige waarde staan en wordt het bij een volgende afwijkende
 upload opnieuw gevraagd.
 
+**Loskoppelen als de vergrendelde waarde achterhaald raakt.** Een jeugdkracht
+die van leeftijd verandert krijgt in SNOOP vanzelf een nieuwe schaal; staat de
+oude nog handmatig vast, dan blijft de app die gebruiken totdat iemand het
+merkt (typisch bij een afwijking op de factuurcontrole). Bij elke uitzendkracht
+met een ✎-markering staat daarom de knop **"volgt weer SNOOP"**: die heft de
+vergrendeling op zónder de waarde te wijzigen. De schaal blijft zichtbaar staan
+tot de eerstvolgende verwerkte week; die neemt dan automatisch over wat SNOOP
+op dat moment meelevert, precies zoals bij een nieuwe uitzendkracht.
+
+Zonder deze knop was de enige weg om een vergrendeling op te heffen de
+ja/nee-vraag bij een upload — die verschijnt alleen als de nieuwe waarde al
+bekend is uit dat bestand. Voor een groeiende jeugdkracht is er geen upload die
+dat triggert; de schaal moest dan telkens met de hand worden bijgewerkt, wat in
+de praktijk resulteerde in een schaal die maanden achterliep totdat het
+opviel (september 2026: Level One jeugd).
+
 **Het weeknummer komt uit de bestanden.** Nitea is leidend; het overzicht moet
 precies één ISO-week beslaan en de SNOOP-export moet dezelfde week dekken,
 anders wordt de upload geweigerd. Een getypt weeknummer ging te vaak fout en

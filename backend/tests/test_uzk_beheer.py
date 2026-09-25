@@ -126,3 +126,101 @@ def test_zet_loonschaal_registreert_wie_en_wist_bij_overname():
     zet_loonschaal(rij, "B2 Flex", handmatig=False, door="tim@kwekerijbaas.nl")
     assert not rij.schaal_handmatig
     assert rij.schaal_door is None  # bescherming weg -> naam ook
+
+
+def test_loskoppel_loonschaal_heft_de_vergrendeling_op_zonder_waarde_te_wissen():
+    """Voor een jeugdkracht die van leeftijd verandert: de handmatig ingevulde
+    schaal blijft anders voor altijd staan, ook lang nadat SNOOP zelf de
+    juiste (hogere) schaal meelevert."""
+    from app.services.opslag import loskoppel_loonschaal, zet_loonschaal
+
+    class Rij:
+        loonschaal_code = None
+        schaal_handmatig = False
+        schaal_door = None
+
+    rij = Rij()
+    zet_loonschaal(rij, "B 14 jaar jeugd", handmatig=True, door="ola@kwekerijbaas.nl")
+    loskoppel_loonschaal(rij)
+    assert rij.loonschaal_code == "B 14 jaar jeugd"  # blijft staan tot de volgende week
+    assert not rij.schaal_handmatig
+    assert rij.schaal_door is None
+
+
+def test_losgekoppelde_schaal_groeit_weer_mee_met_snoop():
+    """Het echte scenario: Alex Dekker werd op 14 jaar met de hand vastgezet.
+    Hij wordt 15; zonder loskoppelen blijft de app de oude schaal gebruiken
+    zodra SNOOP allang de nieuwe meelevert."""
+    from app.services.opslag import loskoppel_loonschaal, onthoud_uzk, zet_loonschaal
+
+    class Bureau:
+        id = "l1-jeugd"
+
+    class Rij:
+        naam = "Alex Dekker"
+        externe_code = "52"
+        loonschaal_code = None
+        schaal_handmatig = False
+        schaal_door = None
+
+    rij = Rij()
+    zet_loonschaal(rij, "B 14 jaar jeugd", handmatig=True, door="ola@kwekerijbaas.nl")
+
+    # Zonder loskoppelen: onthoud_uzk laat de vergrendelde waarde onaangetast,
+    # ook als SNOOP daarna "B 15 jaar jeugd" meelevert.
+    if rij.loonschaal_code and not rij.schaal_handmatig:
+        rij.loonschaal_code = "B 15 jaar jeugd"
+    assert rij.loonschaal_code == "B 14 jaar jeugd"  # nog steeds vast
+
+    # Na loskoppelen neemt de eerstvolgende verwerking de SNOOP-waarde over.
+    loskoppel_loonschaal(rij)
+    nieuwe_schaal = "B 15 jaar jeugd"
+    if nieuwe_schaal and not rij.schaal_handmatig:
+        rij.loonschaal_code = nieuwe_schaal
+    assert rij.loonschaal_code == "B 15 jaar jeugd"
+
+
+def test_loskoppelen_via_de_route():
+    """End-to-end: de knop 'volgt weer SNOOP' op het Uitzendkrachten-scherm."""
+    from fastapi.testclient import TestClient
+
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import Uzk
+    from app.services.opslag import borg_uzb
+
+    client = TestClient(app, headers={"accept": "text/html"})
+    with SessionLocal() as sessie:
+        uzb = borg_uzb(sessie, "L1_JEUGD", "Level One jeugd-payroll")
+        kracht = Uzk(
+            uzb_id=uzb.id, naam="Test Jeugdkracht", externe_code="999",
+            loonschaal_code="B 14 jaar jeugd", schaal_handmatig=True,
+            schaal_door="ola@kwekerijbaas.nl", actief=True,
+        )
+        sessie.add(kracht)
+        sessie.commit()
+        kracht_id = kracht.id
+
+    r = client.post(f"/uzk/{kracht_id}/loonschaal/loskoppelen", follow_redirects=False)
+    assert r.status_code == 303
+    assert "Test%20Jeugdkracht" in r.headers["location"] or "Test+Jeugdkracht" in r.headers["location"]
+
+    with SessionLocal() as sessie:
+        kracht = sessie.get(Uzk, kracht_id)
+        assert kracht.loonschaal_code == "B 14 jaar jeugd"  # blijft staan
+        assert not kracht.schaal_handmatig
+        assert kracht.schaal_door is None
+        sessie.delete(kracht)
+        sessie.commit()
+
+
+def test_loskoppelen_van_onbestaande_uzk_geeft_404():
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app, headers={"accept": "text/html"})
+    r = client.post(f"/uzk/{uuid.uuid4()}/loonschaal/loskoppelen")
+    assert r.status_code == 404

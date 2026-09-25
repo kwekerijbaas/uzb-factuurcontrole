@@ -471,6 +471,20 @@ def zet_loonschaal(
     rij.schaal_door = door if handmatig else None
 
 
+def loskoppel_loonschaal(rij: Uzk) -> None:
+    """Hef de handmatige vergrendeling op, zonder de waarde te wijzigen.
+
+    Nodig voor een jeugdkracht die van leeftijd verandert: een handmatig
+    ingevulde schaal blijft voor altijd staan, ook als SNOOP zelf allang de
+    juiste (hogere) schaal meelevert -- die wordt genegeerd zolang de
+    vergrendeling actief is. De huidige waarde blijft zichtbaar staan tot de
+    eerstvolgende verwerkte week: `onthoud_uzk` neemt dan vanzelf de actuele
+    SNOOP-waarde over, precies zoals bij een nieuwe uitzendkracht.
+    """
+    rij.schaal_handmatig = False
+    rij.schaal_door = None
+
+
 def zet_apart(rij: Uzk, apart: bool, door: str | None = None) -> None:
     """Markeer (of ontmarkeer) een uitzendkracht als apart gefactureerd."""
     rij.apart_gefactureerd = apart

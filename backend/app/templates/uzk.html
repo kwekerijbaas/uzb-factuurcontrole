@@ -72,6 +72,10 @@
             {% if not k.loonschaal_code %} <span class="pil let-op">nog invullen</span>{% endif %}
             {% if k.schaal_handmatig %}
               <br><span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig{% if k.schaal_door %} door {{ k.schaal_door }}{% endif %}</span>
+              <form method="post" action="/uzk/{{ k.id }}/loonschaal/loskoppelen" class="inline"
+                    onsubmit="return confirm('Vergrendeling van {{ k.naam }} opheffen? De schaal blijft nu staan, maar een volgende verwerkte week neemt weer automatisch de SNOOP-waarde over.')">
+                <button type="submit" class="stil klein" title="Laat SNOOP deze schaal vanaf de volgende week weer bijhouden, bijvoorbeeld als iemand van leeftijd is veranderd.">volgt weer SNOOP</button>
+              </form>
             {% endif %}
           </td>
           <td>

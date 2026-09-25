@@ -21,6 +21,7 @@ from app.services.ingest.uzk_lijst import lees_uzk_lijst
 from app.services.opslag import (
     borg_uzb,
     kaart_op,
+    loskoppel_loonschaal,
     onthoud_uzk,
     uzb_op_sleutel,
     verplaats_uzk,
@@ -237,6 +238,30 @@ def wijzig_apart(
     if kracht is None:
         raise HTTPException(status_code=404, detail="Deze uitzendkracht bestaat niet.")
     zet_apart(kracht, apart == "ja", door=gebruiker.naam)
+    sessie.commit()
+    return RedirectResponse(
+        f"/uzk?gewijzigd={quote(kracht.naam)}&zoek={quote(kracht.naam)}", status_code=303
+    )
+
+
+@router.post("/{uzk_id}/loonschaal/loskoppelen", response_model=None)
+def loskoppelen_loonschaal(
+    uzk_id: uuid.UUID,
+    sessie: Session = Depends(get_session),
+    gebruiker: Gebruiker = Depends(huidige_gebruiker),
+) -> Response:
+    """Hef de handmatige vergrendeling van een loonschaal op.
+
+    Voor een jeugdkracht die van leeftijd verandert: een eerder met de hand
+    ingevulde schaal blokkeert anders voorgoed de actuele SNOOP-waarde, ook
+    lang nadat die schaal is achterhaald. Na het loskoppelen blijft de huidige
+    waarde nog even staan; de eerstvolgende verwerkte week neemt automatisch
+    over wat SNOOP dan meelevert.
+    """
+    kracht = sessie.get(Uzk, uzk_id)
+    if kracht is None:
+        raise HTTPException(status_code=404, detail="Deze uitzendkracht bestaat niet.")
+    loskoppel_loonschaal(kracht)
     sessie.commit()
     return RedirectResponse(
         f"/uzk?gewijzigd={quote(kracht.naam)}&zoek={quote(kracht.naam)}", status_code=303
