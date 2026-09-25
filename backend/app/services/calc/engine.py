@@ -19,10 +19,12 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from typing import TypeVar
 
 from .types import (
     SOORT_GEEN_PLANNING,
     SOORT_GEEN_REGISTRATIE,
+    SOORT_NACHTDIENST_AFWIJKEND,
     SOORT_REGISTRATIE_INCONSISTENT,
     SOORT_TIJD_VERSCHIL,
     SOORT_UREN_VERSCHIL,
@@ -35,8 +37,39 @@ from .types import (
     WeekResultaat,
 )
 
-# tolerantie voor uren-afwijking tussen planning en registratie
-_UREN_TOLERANTIE_MIN = 0
+_KWARTIER = 15
+_K = TypeVar("_K")
+
+
+def rond_op_kwartier(minuten_per_bucket: dict[_K, int]) -> dict[_K, int]:
+    """Rond elke bucket af op kwartieren, met behoud van het weektotaal
+    (SPEC §4). Nitea-uren staan al op kwartieren, dus het totaal is een veelvoud
+    van 15; de afrondingsrest wordt op de grootste bucket gelegd.
+
+    Werkt op zowel percentage- als bron-buckets (zie `minuten_per_bron`)."""
+    afgerond = {
+        sleutel: int(round(m / _KWARTIER) * _KWARTIER)
+        for sleutel, m in minuten_per_bucket.items()
+    }
+    totaal = sum(minuten_per_bucket.values())
+    doel = int(round(totaal / _KWARTIER) * _KWARTIER)
+    rest = doel - sum(afgerond.values())
+    if rest and afgerond:
+        grootste = max(afgerond, key=lambda s: afgerond[s])
+        afgerond[grootste] += rest
+    return {sleutel: m for sleutel, m in afgerond.items() if m}
+
+
+def minuten_per_bron(trace: list[TraceSegment]) -> dict[str, int]:
+    """Aggregeer de trace naar minuten per toeslag-bron.
+
+    Nodig omdat één percentage meerdere tarieven kan hebben: nacht, avond,
+    zaterdagmiddag en feestdag vallen alle onder 50%, maar Sterk Werk kent een
+    apart nachtuur-tarief en Level One een apart feestdag-tarief (SPEC §5)."""
+    per_bron: dict[str, int] = defaultdict(int)
+    for seg in trace:
+        per_bron[seg.bron] += seg.minuut_tot - seg.minuut_van
+    return dict(per_bron)
 
 
 def _naar_minuut(t: time) -> int:
@@ -68,17 +101,188 @@ def _tod_percentage(
     return beste, bron
 
 
-def _verzamel_minuten(
-    registratie: list[RegistratieRegel],
+def _verifieer_nachtdienst(
+    regel: RegistratieRegel,
+    start: datetime,
+    eind: datetime,
+    plan_per_dag: dict[date, list[PlanningRegel]],
     regels: list[ToeslagRegel],
     feestdagen: frozenset[date],
     afwijkingen: list[Afwijking],
+    params: WeekParameters,
+) -> None:
+    """Extra controle als Nitea wél tijden geeft, maar de dienst nacht- of
+    avondtoeslag raakt.
+
+    De vorige fout in deze diensten kwam niet van ontbrekende tijden, maar van
+    een verkéérd gelezen of verkeerd geklokte tijd (een eindtijd die als
+    begintijd werd gelezen, een dienst die over de verkeerde datum liep). Dat
+    soort fouten valt niet op als de bracket zelf intern klopt -- alleen een
+    onafhankelijke tweede bron kan hem vangen. De SNOOP-planning van dezelfde
+    dag is die tweede bron: wijkt de Nitea-tijd er te ver vanaf, dan is dat
+    reden om de registratie na te kijken, ook al is er niets inconsistents aan
+    de Nitea-regel zelf.
+
+    Bewust ruimer dan de gewone tijd-vergelijking (`tolerantie_tijd_minuten`,
+    `vergelijk_planning`): die is optioneel en bedoeld om elke afwijking van de
+    planning te volgen; dit is altijd aan en bedoeld om alleen een
+    waarschijnlijke fout te signaleren, niet een dienst die gewoon iets eerder
+    of later begon dan gepland.
+    """
+    if int((eind - start).total_seconds()) <= 0:
+        return
+
+    kandidaten = plan_per_dag.get(regel.datum, [])
+    if len(kandidaten) != 1:
+        return  # geen of dubbelzinnige planning: geen tweede bron om tegen af te zetten
+    plan = kandidaten[0]
+    p_start, p_eind = _span(plan)
+
+    def _raakt_toeslag(van: datetime, tot: datetime) -> bool:
+        return any(
+            _tod_percentage(van + timedelta(minutes=i), regels, feestdagen)[0] > 0
+            for i in range(int((tot - van).total_seconds() // 60))
+        )
+
+    # Zowel de Nitea-tijd als de geplande tijd tellen mee: een misgelezen of
+    # verkeerd geklokte tijd verschuift een nacht- of avonddienst juist vaak
+    # ná het toeslagvenster (de dienst lijkt dan een gewone dagdienst), dus aan
+    # de Nitea-tijd alléén is zo'n fout niet meer te zien.
+    if not (_raakt_toeslag(start, eind) or _raakt_toeslag(p_start, p_eind)):
+        return
+
+    verschil_begin = abs((start - p_start).total_seconds()) // 60
+    verschil_eind = abs((eind - p_eind).total_seconds()) // 60
+    if max(verschil_begin, verschil_eind) <= params.tolerantie_nachtdienst_minuten:
+        return
+
+    afwijkingen.append(
+        Afwijking(
+            datum=regel.datum,
+            soort=SOORT_NACHTDIENST_AFWIJKEND,
+            detail=(
+                f"nacht- of avonddienst {regel.begin:%H:%M}-{regel.eind:%H:%M} in "
+                f"Nitea wijkt sterk af van de SNOOP-planning van die dag "
+                f"({plan.begin:%H:%M}-{plan.eind:%H:%M}). Controleer of de tijd "
+                "in Nitea goed geklokt en gelezen is; dit is precies het soort "
+                "dienst waarbij een verkeerde datum of tijd het makkelijkst "
+                "misgaat."
+            ),
+            planning_minuten=plan.geplande_minuten,
+            registratie_minuten=regel.gewerkte_minuten,
+        )
+    )
+
+
+def _verzamel_minuten(
+    registratie: list[RegistratieRegel],
+    planning: list[PlanningRegel],
+    regels: list[ToeslagRegel],
+    feestdagen: frozenset[date],
+    afwijkingen: list[Afwijking],
+    params: WeekParameters,
 ) -> list[tuple[datetime, Decimal, str]]:
     """Geeft de gewerkte minuten (na pauze-aftrek) met hun tijdgebonden toeslag,
-    chronologisch gesorteerd."""
+    chronologisch gesorteerd.
+
+    `planning` (de SNOOP-planning van dezelfde persoon) is alleen nodig als
+    Nitea voor een dag geen begin- en eindtijd geeft: het aantal uren blijft
+    dan van Nitea, maar de klok waarop de toeslag wordt bepaald komt uit de
+    planning van die dag -- mits die dag precies één geplande dienst heeft die
+    lang genoeg is. Zonder die terugval was zo'n dag altijd 0% toeslag, wat bij
+    nacht- en middagdiensten in het spenenseizoen op grote schaal een te laag
+    bedrag oplevert.
+    """
     gewerkt: list[tuple[datetime, Decimal, str]] = []
+    plan_per_dag: dict[date, list[PlanningRegel]] = defaultdict(list)
+    for p in planning:
+        plan_per_dag[p.datum].append(p)
+
     for regel in registratie:
-        start, eind = _span(regel)
+        # Nitea's werktijd is leidend. Staat die op 0:00, dan is er die dag
+        # niets gewerkt: eerder viel zo'n regel terug op "alleen pauze
+        # aftrekken", en bij begin == eind werd dat een dienst van 24 uur --
+        # honderden euro's op de factuur, zonder enige melding.
+        if regel.gewerkte_minuten <= 0:
+            afwijkingen.append(
+                Afwijking(
+                    datum=regel.datum,
+                    soort=SOORT_REGISTRATIE_INCONSISTENT,
+                    detail=(
+                        f"{regel.klok()} zonder werktijd in Nitea (0:00); deze "
+                        "dag is niet meegeteld. Controleer de registratie van "
+                        "deze dag."
+                    ),
+                    registratie_minuten=0,
+                )
+            )
+            continue
+
+        uit_planning = False
+        if regel.tijden_bekend:
+            start, eind = _span(regel)
+            _verifieer_nachtdienst(
+                regel, start, eind, plan_per_dag, regels, feestdagen, afwijkingen, params
+            )
+        else:
+            # Zonder begin- én eindtijd is er geen klok om de toeslag aan op te
+            # hangen. Val terug op de SNOOP-planning van dezelfde dag, maar
+            # alleen als die eenduidig is (precies één geplande dienst) en lang
+            # genoeg om de Nitea-uren in kwijt te kunnen -- anders is de
+            # aanname te onzeker om op te rekenen.
+            kandidaten = plan_per_dag.get(regel.datum, [])
+            plan_span = None
+            if len(kandidaten) == 1:
+                p_start, p_eind = _span(kandidaten[0])
+                if int((p_eind - p_start).total_seconds() // 60) >= regel.gewerkte_minuten:
+                    plan_span = (p_start, p_eind)
+
+            if plan_span is None:
+                reden = (
+                    "meerdere geplande diensten die dag" if len(kandidaten) > 1
+                    else "geen (passende) planning die dag" if not kandidaten
+                    else "de planning is korter dan de gewerkte tijd"
+                )
+                afwijkingen.append(
+                    Afwijking(
+                        datum=regel.datum,
+                        soort=SOORT_REGISTRATIE_INCONSISTENT,
+                        detail=(
+                            f"{regel.klok()} in Nitea; de "
+                            f"{regel.gewerkte_minuten} gewerkte minuten tellen "
+                            f"mee, maar zonder tijden ({reden}) is niet vast te "
+                            "stellen of er een nacht-, avond- of "
+                            "weekendtoeslag geldt. Vul de begin- en eindtijd "
+                            "aan in Nitea en verwerk de week opnieuw."
+                        ),
+                        registratie_minuten=regel.gewerkte_minuten,
+                    )
+                )
+                middernacht = datetime.combine(regel.datum, time(0, 0))
+                gewerkt.extend(
+                    (middernacht + timedelta(minutes=i), Decimal("0"), "normaal")
+                    for i in range(regel.gewerkte_minuten)
+                )
+                continue
+
+            start, eind = plan_span
+            uit_planning = True
+            plan = kandidaten[0]
+            afwijkingen.append(
+                Afwijking(
+                    datum=regel.datum,
+                    soort=SOORT_REGISTRATIE_INCONSISTENT,
+                    detail=(
+                        f"{regel.klok()} in Nitea; voor de toeslag is de tijd "
+                        f"overgenomen uit de SNOOP-planning van die dag "
+                        f"({plan.begin:%H:%M}-{plan.eind:%H:%M}). Controleer of "
+                        "dat de werkelijke dienst was; klopt de planning niet, "
+                        "vul dan de tijden in Nitea zelf aan."
+                    ),
+                    registratie_minuten=regel.gewerkte_minuten,
+                )
+            )
+
         totaal = int((eind - start).total_seconds() // 60)
         minuten = []
         for i in range(totaal):
@@ -86,29 +290,46 @@ def _verzamel_minuten(
             pct, bron = _tod_percentage(m, regels, feestdagen)
             minuten.append((m, pct, bron))
 
-        # consistentie-check: bruto - pauze moet de Nitea-nettotijd zijn
-        if totaal - regel.pauze_minuten != regel.gewerkte_minuten:
-            afwijkingen.append(
-                Afwijking(
-                    datum=regel.datum,
-                    soort=SOORT_REGISTRATIE_INCONSISTENT,
-                    detail=(
-                        f"begin/eind ({totaal} min) − pauze ({regel.pauze_minuten}) "
-                        f"= {totaal - regel.pauze_minuten}, maar Nitea meldt "
-                        f"{regel.gewerkte_minuten} gewerkte minuten"
-                    ),
-                    registratie_minuten=regel.gewerkte_minuten,
-                )
-            )
-
-        # pauze valt op de minuten met de laagste toeslag (asc op pct, dan tijd)
-        pauze = max(0, regel.pauze_minuten)
-        if pauze:
-            volgorde = sorted(range(len(minuten)), key=lambda i: (minuten[i][1], minuten[i][0]))
-            pauze_idx = set(volgorde[:pauze])
+        # Nitea 'Werk tijd' is leidend: de niet-gewerkte tijd binnen de bracket
+        # (pauze én eventuele onderbrekingen bij split shifts) wordt weggehaald,
+        # zodat het gewerkte totaal exact de Nitea-nettotijd is. Bij ontbrekende
+        # of onmogelijke werktijd vallen we terug op pure pauze-aftrek.
+        if 0 < regel.gewerkte_minuten <= totaal:
+            te_verwijderen = totaal - regel.gewerkte_minuten
         else:
-            pauze_idx = set()
-        gewerkt.extend(m for i, m in enumerate(minuten) if i not in pauze_idx)
+            te_verwijderen = max(0, regel.pauze_minuten)
+
+        # Informatief: bracket − pauze verklaart de werktijd niet (split shift
+        # of afwijkende registratie). Kleine verschillen zijn Nitea's
+        # kwartierafronding en worden niet gemeld. Bij een uit de planning
+        # afgeleide bracket is "onverklaard" hier per definitie de pauze die de
+        # planning meetelt maar Nitea niet noemt -- dat is geen inconsistentie
+        # en wordt niet apart gemeld (de melding hierboven dekt dit al).
+        if not uit_planning:
+            onverklaard = abs(totaal - regel.pauze_minuten - regel.gewerkte_minuten)
+            if regel.gewerkte_minuten and onverklaard > params.tolerantie_registratie_minuten:
+                afwijkingen.append(
+                    Afwijking(
+                        datum=regel.datum,
+                        soort=SOORT_REGISTRATIE_INCONSISTENT,
+                        detail=(
+                            f"onderbroken dienst: {regel.begin:%H:%M}-{regel.eind:%H:%M} "
+                            f"met {regel.gewerkte_minuten} gewerkte minuten volgens "
+                            f"Nitea; {te_verwijderen} min als niet-gewerkt afgetrokken, "
+                            "bij de laagste toeslag"
+                        ),
+                        registratie_minuten=regel.gewerkte_minuten,
+                    )
+                )
+
+        # verwijder de niet-gewerkte minuten met de LAAGSTE toeslag (asc pct, dan
+        # tijd) — zo blijven nacht-/avond-/zaterdaguren behouden.
+        if te_verwijderen > 0:
+            volgorde = sorted(range(len(minuten)), key=lambda i: (minuten[i][1], minuten[i][0]))
+            weg_idx = set(volgorde[:te_verwijderen])
+        else:
+            weg_idx = set()
+        gewerkt.extend(m for i, m in enumerate(minuten) if i not in weg_idx)
 
     gewerkt.sort(key=lambda x: x[0])
     return gewerkt
@@ -143,7 +364,7 @@ def bereken_week(
     params = parameters or WeekParameters()
     afwijkingen: list[Afwijking] = []
 
-    gewerkt = _verzamel_minuten(registratie, toeslag_regels, feestdagen, afwijkingen)
+    gewerkt = _verzamel_minuten(registratie, planning, toeslag_regels, feestdagen, afwijkingen, params)
 
     minuten_per_pct: dict[Decimal, int] = defaultdict(int)
     rauw_trace: list[tuple[datetime, Decimal, str]] = []
@@ -167,7 +388,8 @@ def bereken_week(
         minuten_per_pct[pct] += 1
         rauw_trace.append((moment, pct, bron))
 
-    _vergelijk_planning(registratie, planning, afwijkingen)
+    if params.vergelijk_planning:
+        _vergelijk_planning(registratie, planning, afwijkingen, params)
 
     return WeekResultaat(
         netto_minuten=sum(minuten_per_pct.values()),
@@ -181,6 +403,7 @@ def _vergelijk_planning(
     registratie: list[RegistratieRegel],
     planning: list[PlanningRegel],
     afwijkingen: list[Afwijking],
+    params: WeekParameters,
 ) -> None:
     reg_per_dag: dict[date, int] = defaultdict(int)
     reg_tijden: dict[date, list[RegistratieRegel]] = defaultdict(list)
@@ -209,18 +432,21 @@ def _vergelijk_planning(
                           planning_minuten=pmin)
             )
             continue
-        if abs(rmin - pmin) > _UREN_TOLERANTIE_MIN:
+        if abs(rmin - pmin) > params.tolerantie_uren_minuten:
             afwijkingen.append(
                 Afwijking(d, SOORT_UREN_VERSCHIL,
                           f"gepland {pmin} min, gewerkt {rmin} min",
                           planning_minuten=pmin, registratie_minuten=rmin)
             )
         # tijdvenster-afwijking (begin/eind), alleen bij gelijke urentelling relevant
+        met_tijd = [x for x in reg_tijden[d] if getattr(x, "begin", None) is not None]
+        if not met_tijd:
+            continue
         p0 = min(plan_tijden[d], key=lambda x: x.begin)
-        r0 = min(reg_tijden[d], key=lambda x: x.begin)
-        if _naar_minuut(p0.begin) != _naar_minuut(r0.begin) or _naar_minuut(
-            p0.eind
-        ) != _naar_minuut(r0.eind):
+        r0 = min(met_tijd, key=lambda x: x.begin)
+        verschil_begin = abs(_naar_minuut(p0.begin) - _naar_minuut(r0.begin))
+        verschil_eind = abs(_naar_minuut(p0.eind) - _naar_minuut(r0.eind))
+        if max(verschil_begin, verschil_eind) > params.tolerantie_tijd_minuten:
             afwijkingen.append(
                 Afwijking(d, SOORT_TIJD_VERSCHIL,
                           f"gepland {p0.begin:%H:%M}-{p0.eind:%H:%M}, "
