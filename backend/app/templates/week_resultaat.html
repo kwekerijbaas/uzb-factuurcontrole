@@ -76,17 +76,19 @@
 {% if t.ontbreekt or t.uit_planning or t.afgeleid %}
 <div class="kaart">
   <h2>Nitea-tijden die ontbraken</h2>
-  <p class="hint">Bij nacht- en middagdiensten laat Nitea de begin- en eindtijd
-     soms leeg. De uren zijn dan wél van Nitea; alleen voor de toeslag is een
-     klok nodig. Hieronder staat wat de app per dag heeft gedaan.</p>
+  <p class="hint">Nitea kan een dienst over middernacht niet vastleggen en laat
+     dan de begin- en/of eindtijd weg. De uren zijn wél van Nitea; alleen voor de
+     toeslag is een klok nodig. Hieronder staat wat de app per dag heeft gedaan.
+     In Nitea zelf is dit niet aan te vullen: de oplossing zit in SNOOP.</p>
 
   {% macro dagen(lijst) %}{% for d in lijst %}{{ ['ma','di','wo','do','vr','za','zo'][d.weekday()] }} {{ d.strftime('%d-%m') }}{% if not loop.last %}, {% endif %}{% endfor %}{% endmacro %}
 
   {% if t.ontbreekt %}
   <h3><span class="pil let-op">actie</span> Geen tijden en geen planning</h3>
   <p>De uren tellen mee, maar <strong>zonder nacht-, avond- of weekendtoeslag</strong>,
-     omdat er geen klok is. Vul de begin- en eindtijd aan in Nitea, of zorg dat
-     SNOOP die dag één geplande dienst heeft, en verwerk de week opnieuw.</p>
+     omdat er geen klok is. Zet die dag in SNOOP als <strong>één geplande
+     dienst</strong>; de app neemt de klok dan over. Verwerk daarna de week
+     opnieuw.</p>
   <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Dagen</th><th>Uren zonder toeslag</th></tr>
     {% for r in t.ontbreekt %}
@@ -98,8 +100,8 @@
   {% if t.uit_planning %}
   <h3><span class="pil rustig">opgelost</span> Tijden uit de SNOOP-planning</h3>
   <p>Beide tijden ontbraken in Nitea. De app gebruikt de geplande dienst van die
-     dag voor de toeslag. Klopt de planning niet met wat er gewerkt is, vul dan de
-     tijden in Nitea aan.</p>
+     dag voor de toeslag. Klopt de planning niet met wat er gewerkt is, dan is de
+     toeslag van die dag niet exact.</p>
   <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Dagen</th></tr>
     {% for r in t.uit_planning %}
@@ -111,8 +113,8 @@
   {% if t.afgeleid %}
   <h3><span class="pil rustig">opgelost</span> Eén tijd berekend</h3>
   <p>Begin of eind ontbrak in Nitea; de app berekent die uit de andere tijd, de
-     werktijd en de pauze. Je hoeft alleen in te grijpen als de berekende tijd niet
-     klopt.</p>
+     werktijd en de pauze. Klopt de berekende tijd niet, dan is de toeslag van die
+     dag niet exact.</p>
   <div class="tabelkader"><table>
     <tr><th>Naam</th><th>Dagen</th></tr>
     {% for r in t.afgeleid %}

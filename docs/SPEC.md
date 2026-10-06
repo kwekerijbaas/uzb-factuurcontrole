@@ -200,6 +200,15 @@ doelbureau al, dan worden de rijen samengevoegd (schaal en code van het doel
 blijven staan en worden alleen aangevuld).
 
 ### Lege begin- en eindtijd in het Nitea-overzicht
+**Oorzaak (bevestigd door Kwekerij Baas, oktober 2026): Nitea kan een dienst over
+middernacht niet vastleggen** en laat dan de begin- en/of eindtijd weg. Dat is dus
+geen incidentele fout die in Nitea te herstellen is, maar een vaste beperking van
+de bron; elke middagdienst die tot middernacht loopt en elke nachtdienst raakt
+ervan (spenenseizoen, perceel 36T). Een advies als "vul de tijden aan in Nitea"
+is daarom niet uitvoerbaar. De oplossing zit aan de SNOOP-kant: staat die dag als
+**één geplande dienst** in SNOOP, dan neemt de app de klok daarvandaan over (zie
+hieronder).
+
 Het overzicht 'Medewerker uren' heeft de kolommen Nr, Medewerker, Datum,
 **Begin tijd**, **Einde tijd**, **Werk tijd** en **Pauze tijd**. Bij nacht- en
 middagdiensten laat Nitea de begin- en eindtijd regelmatig leeg, terwijl de
@@ -230,8 +239,8 @@ begin-, eind-, werk- of pauzetijd is.
 | Situatie | Afwijking | Aandacht |
 |---|---|---|
 | Eén tijd ontbrak, berekend uit de andere + werktijd + pauze | `tijden_afgeleid` | alleen als de berekende tijd niet klopt |
-| Beide ontbraken, klok uit de SNOOP-planning | `tijden_uit_planning` | alleen als de planning niet klopt |
-| Beide ontbraken, geen eenduidige planning | `tijden_ontbreken` | **actie**: tijden in Nitea aanvullen, week opnieuw verwerken |
+| Beide ontbraken, klok uit de SNOOP-planning | `tijden_uit_planning` | alleen als de planning niet klopt met wat er gewerkt is |
+| Beide ontbraken, geen eenduidige planning | `tijden_ontbreken` | **actie**: de dag in SNOOP als één geplande dienst zetten, week opnieuw verwerken |
 
 Alleen de laatste groep is een actiepunt; de uren tellen in alle drie mee. De
 leesstap zelf meldt alleen nog regels die echt **niet te lezen** waren en dus

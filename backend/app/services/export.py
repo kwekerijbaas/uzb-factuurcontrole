@@ -66,19 +66,21 @@ _AFWIJKING_ACTIE = {
         "controleren bij structurele afwijkingen."
     ),
     "tijden_afgeleid": (
-        "Eén van de twee tijden ontbrak in Nitea en is berekend. Klopt de "
-        "berekende tijd, dan is er niets te doen; anders de tijd in Nitea "
-        "aanvullen en de week opnieuw verwerken."
+        "Eén van de twee tijden ontbrak in Nitea (Nitea legt een dienst over "
+        "middernacht niet vast) en is berekend. Klopt de berekende tijd, dan "
+        "is er niets te doen."
     ),
     "tijden_uit_planning": (
-        "Beide tijden ontbraken in Nitea; de klok voor de toeslag komt uit de "
-        "SNOOP-planning. Klopt de planning niet met wat er gewerkt is, vul "
-        "dan de tijden in Nitea aan en verwerk de week opnieuw."
+        "Beide tijden ontbraken in Nitea (Nitea legt een dienst over "
+        "middernacht niet vast); de klok voor de toeslag komt uit de "
+        "SNOOP-planning. Klopt de planning niet met wat er gewerkt is, dan is "
+        "de toeslag van deze dag niet exact."
     ),
     "tijden_ontbreken": (
         "Geen tijden in Nitea en geen eenduidige planning in SNOOP: de uren "
-        "tellen, maar zonder nacht-, avond- of weekendtoeslag. Vul de begin- "
-        "en eindtijd aan in Nitea en verwerk de week opnieuw."
+        "tellen, maar zonder nacht-, avond- of weekendtoeslag. Nitea kan de "
+        "tijden niet leveren (dienst over middernacht); zet deze dag in SNOOP "
+        "als één geplande dienst en verwerk de week opnieuw."
     ),
     "nachtdienst_afwijkend": (
         "Vergelijk de Nitea-tijd met de SNOOP-planning van die dag. Bij zo'n "

@@ -232,9 +232,10 @@ def _verzamel_minuten(
                         detail=(
                             f"{regel.klok()}: één van de twee tijden stond niet "
                             "in Nitea en is berekend uit de andere tijd, de "
-                            "werktijd en de pauze. De uren zijn van Nitea; "
-                            "klopt de berekende tijd niet, vul hem dan aan in "
-                            "Nitea."
+                            "werktijd en de pauze (Nitea legt een dienst over "
+                            "middernacht niet vast). De uren zijn van Nitea; "
+                            "klopt de berekende tijd niet, dan is de toeslag "
+                            "van deze dag niet exact."
                         ),
                         registratie_minuten=regel.gewerkte_minuten,
                     )
@@ -270,8 +271,11 @@ def _verzamel_minuten(
                             f"{regel.gewerkte_minuten} gewerkte minuten tellen "
                             f"mee, maar zonder tijden ({reden}) is niet vast te "
                             "stellen of er een nacht-, avond- of "
-                            "weekendtoeslag geldt. Vul de begin- en eindtijd "
-                            "aan in Nitea en verwerk de week opnieuw."
+                            "weekendtoeslag geldt. Nitea legt een dienst over "
+                            "middernacht niet vast en laat de tijden dan weg; "
+                            "zet deze dag in SNOOP als één geplande dienst, "
+                            "dan neemt de app de klok daarvandaan over. "
+                            "Verwerk de week daarna opnieuw."
                         ),
                         registratie_minuten=regel.gewerkte_minuten,
                     )
@@ -294,8 +298,9 @@ def _verzamel_minuten(
                         f"{regel.klok()} in Nitea; voor de toeslag is de tijd "
                         f"overgenomen uit de SNOOP-planning van die dag "
                         f"({plan.begin:%H:%M}-{plan.eind:%H:%M}). Controleer of "
-                        "dat de werkelijke dienst was; klopt de planning niet, "
-                        "vul dan de tijden in Nitea zelf aan."
+                        "dat de werkelijke dienst was (Nitea legt een dienst "
+                        "over middernacht niet vast); klopt de planning niet, "
+                        "dan is de toeslag van deze dag niet exact."
                     ),
                     registratie_minuten=regel.gewerkte_minuten,
                 )
