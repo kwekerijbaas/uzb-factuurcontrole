@@ -204,7 +204,7 @@ blijven staan en worden alleen aangevuld).
 middernacht niet vastleggen** en laat dan de begin- en/of eindtijd weg. Dat is dus
 geen incidentele fout die in Nitea te herstellen is, maar een vaste beperking van
 de bron; elke middagdienst die tot middernacht loopt en elke nachtdienst raakt
-ervan (spenenseizoen, perceel 36T). Een advies als "vul de tijden aan in Nitea"
+ervan (verspeenseizoen, perceel 36T). Een advies als "vul de tijden aan in Nitea"
 is daarom niet uitvoerbaar. De oplossing zit aan de SNOOP-kant: staat die dag als
 **één geplande dienst** in SNOOP, dan neemt de app de klok daarvandaan over (zie
 hieronder).

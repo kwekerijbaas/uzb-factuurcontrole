@@ -193,7 +193,7 @@ def _verzamel_minuten(
     dan van Nitea, maar de klok waarop de toeslag wordt bepaald komt uit de
     planning van die dag -- mits die dag precies één geplande dienst heeft die
     lang genoeg is. Zonder die terugval was zo'n dag altijd 0% toeslag, wat bij
-    nacht- en middagdiensten in het spenenseizoen op grote schaal een te laag
+    nacht- en middagdiensten in het verspeenseizoen op grote schaal een te laag
     bedrag oplevert.
     """
     gewerkt: list[tuple[datetime, Decimal, str]] = []
