@@ -27,6 +27,9 @@ from .types import (
     SOORT_NACHTDIENST_AFWIJKEND,
     SOORT_REGISTRATIE_INCONSISTENT,
     SOORT_TIJD_VERSCHIL,
+    SOORT_TIJDEN_AFGELEID,
+    SOORT_TIJDEN_ONTBREKEN,
+    SOORT_TIJDEN_UIT_PLANNING,
     SOORT_UREN_VERSCHIL,
     Afwijking,
     PlanningRegel,
@@ -221,6 +224,21 @@ def _verzamel_minuten(
         uit_planning = False
         if regel.tijden_bekend:
             start, eind = _span(regel)
+            if regel.afgeleid:
+                afwijkingen.append(
+                    Afwijking(
+                        datum=regel.datum,
+                        soort=SOORT_TIJDEN_AFGELEID,
+                        detail=(
+                            f"{regel.klok()}: één van de twee tijden stond niet "
+                            "in Nitea en is berekend uit de andere tijd, de "
+                            "werktijd en de pauze. De uren zijn van Nitea; "
+                            "klopt de berekende tijd niet, vul hem dan aan in "
+                            "Nitea."
+                        ),
+                        registratie_minuten=regel.gewerkte_minuten,
+                    )
+                )
             _verifieer_nachtdienst(
                 regel, start, eind, plan_per_dag, regels, feestdagen, afwijkingen, params
             )
@@ -246,7 +264,7 @@ def _verzamel_minuten(
                 afwijkingen.append(
                     Afwijking(
                         datum=regel.datum,
-                        soort=SOORT_REGISTRATIE_INCONSISTENT,
+                        soort=SOORT_TIJDEN_ONTBREKEN,
                         detail=(
                             f"{regel.klok()} in Nitea; de "
                             f"{regel.gewerkte_minuten} gewerkte minuten tellen "
@@ -271,7 +289,7 @@ def _verzamel_minuten(
             afwijkingen.append(
                 Afwijking(
                     datum=regel.datum,
-                    soort=SOORT_REGISTRATIE_INCONSISTENT,
+                    soort=SOORT_TIJDEN_UIT_PLANNING,
                     detail=(
                         f"{regel.klok()} in Nitea; voor de toeslag is de tijd "
                         f"overgenomen uit de SNOOP-planning van die dag "

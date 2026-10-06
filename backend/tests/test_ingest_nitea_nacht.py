@@ -373,3 +373,101 @@ def test_verkeerde_dienst_op_de_dag_wordt_ook_gevangen():
         registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 8, 4)),
     )
     assert any(a.soort == SOORT_NACHTDIENST_AFWIJKEND for a in resultaat.afwijkingen)
+
+
+# --------------------------------------------------------------------------- #
+# Wat de gebruiker ziet: opgelost, af te leiden, of echt actie nodig
+# --------------------------------------------------------------------------- #
+# Week 38/2026 Level One, Pawel Brzuszek, zoals Nitea hem afdrukte.
+WEEK_38_PAWEL = [
+    (29, "327 - Pawel Brzuszek", "14-09-2026", "14:58", "", "8:00", "1:00"),
+    (30, "327 - Pawel Brzuszek", "15-09-2026", "", "", "8:00", "1:00"),
+    (31, "327 - Pawel Brzuszek", "16-09-2026", "", "", "8:00", "1:00"),
+    (32, "327 - Pawel Brzuszek", "17-09-2026", "", "", "8:00", "1:00"),
+    (33, "327 - Pawel Brzuszek", "18-09-2026", "", "20:02", "7:00", "1:00"),
+    (34, "327 - Pawel Brzuszek", "19-09-2026", "6:57", "13:15", "5:45", "0:30"),
+]
+
+
+def test_leesstap_meldt_alleen_echt_onleesbare_regels():
+    """De leesstap gaf voor elke dag zonder tijden een waarschuwing, ook als de
+    app het daarna zelf oploste. Alleen een regel die ontbreekt is een
+    leesprobleem; de rest regelt de berekening."""
+    onleesbaar: list[str] = []
+    medewerkers = lees_nitea(_nitea_pdf(WEEK_38_PAWEL), onleesbaar=onleesbaar)
+    assert len(medewerkers[0].registratie) == 6  # alle zes dagen gelezen
+    assert onleesbaar == []
+
+
+def test_afgeleide_tijd_is_gemarkeerd_op_de_regel():
+    medewerkers = lees_nitea(_nitea_pdf(WEEK_38_PAWEL))
+    per_dag = {r.datum.day: r for r in medewerkers[0].registratie}
+    assert per_dag[14].afgeleid and per_dag[14].eind == time(23, 58)  # begin bekend
+    assert per_dag[18].afgeleid and per_dag[18].begin == time(12, 2)  # eind bekend
+    assert not per_dag[19].afgeleid  # beide tijden stonden er
+    assert not per_dag[15].afgeleid and per_dag[15].begin is None  # niets af te leiden
+
+
+def test_drie_situaties_krijgen_elk_hun_eigen_afwijking():
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.calc.types import (
+        SOORT_TIJDEN_AFGELEID,
+        SOORT_TIJDEN_ONTBREKEN,
+        SOORT_TIJDEN_UIT_PLANNING,
+    )
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    pawel = lees_nitea(_nitea_pdf(WEEK_38_PAWEL))[0]
+    planning = [PlanningRegel(date(2026, 9, 15), time(15, 0), time(0, 0), 540),
+                PlanningRegel(date(2026, 9, 16), time(15, 0), time(0, 0), 540)]
+    resultaat = bereken_week(
+        pawel.registratie, planning, cao_toeslag_regels(),
+        feestdagen_cao_periode(date(2026, 9, 14)),
+    )
+    per_soort = {}
+    for a in resultaat.afwijkingen:
+        per_soort.setdefault(a.soort, []).append(a.datum.day)
+    assert sorted(per_soort[SOORT_TIJDEN_AFGELEID]) == [14, 18]
+    assert sorted(per_soort[SOORT_TIJDEN_UIT_PLANNING]) == [15, 16]
+    assert per_soort[SOORT_TIJDEN_ONTBREKEN] == [17]  # de enige die actie vraagt
+
+
+def test_avonddienst_tot_middernacht_krijgt_zijn_avondtoeslag_via_de_planning():
+    """Een dienst 15:00-24:00 zonder tijden in Nitea: de planning geeft de klok,
+    de uren (8) blijven van Nitea, de pauze valt in de toeslagvrije uren en de
+    avond (20:00-24:00) blijft op 50%."""
+    from app.services.calc import PlanningRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    registratie = [RegistratieRegel(date(2026, 9, 15), None, None, 480, 60)]
+    planning = [PlanningRegel(date(2026, 9, 15), time(15, 0), time(0, 0), 540)]
+    resultaat = bereken_week(
+        registratie, planning, cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 9, 15)),
+    )
+    assert resultaat.netto_uren == Decimal("8.00")
+    assert resultaat.minuten_per_percentage == {Decimal("0"): 240, Decimal("50"): 240}
+
+
+def test_tijden_overzicht_vat_de_week_samen_per_persoon():
+    from app.services.calc import PlanningRegel
+    from app.services.ingest import NiteaMedewerker, SnoopMedewerker
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+    from app.services.tarief import CAT_100, LEVEL_ONE, SchaalTarief, TariefKaart
+    from app.services.verwerking import tijden_overzicht, verwerk_week
+
+    kaart = TariefKaart("L1", date(2026, 1, 1), None,
+                        {"C4F": SchaalTarief("C4F", {CAT_100: Decimal("32.00")})})
+    pawel = lees_nitea(_nitea_pdf(WEEK_38_PAWEL))[0]
+    snoop = [SnoopMedewerker(
+        naam="Pawel Brzuszek", loonschaal="C4 Flex",
+        planning=[PlanningRegel(date(2026, 9, 15), time(15, 0), time(0, 0), 540)],
+    )]
+    verwerking = verwerk_week(
+        "L1", 2026, 38, snoop, [pawel], cao_toeslag_regels(), kaart, LEVEL_ONE,
+        feestdagen=feestdagen_cao_periode(date(2026, 9, 14)),
+    )
+    overzicht = tijden_overzicht(verwerking)
+    assert [r["naam"] for r in overzicht["ontbreekt"]] == ["Pawel Brzuszek"]
+    assert [d.day for d in overzicht["ontbreekt"][0]["dagen"]] == [16, 17]
+    assert [d.day for d in overzicht["uit_planning"][0]["dagen"]] == [15]
+    assert [d.day for d in overzicht["afgeleid"][0]["dagen"]] == [14, 18]

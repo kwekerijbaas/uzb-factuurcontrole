@@ -50,6 +50,9 @@ class RegistratieRegel:
     eind: time | None
     gewerkte_minuten: int
     pauze_minuten: int = 0
+    # Eén van de twee tijden stond niet in Nitea en is berekend uit de andere
+    # plus werktijd en pauze. De uren zijn dan van Nitea, de klok niet.
+    afgeleid: bool = False
 
     @property
     def tijden_bekend(self) -> bool:
@@ -89,6 +92,15 @@ SOORT_REGISTRATIE_INCONSISTENT = "registratie_inconsistent"
 SOORT_GEEN_PLANNING = "geen_planning"
 SOORT_GEEN_REGISTRATIE = "geen_registratie"
 SOORT_NACHTDIENST_AFWIJKEND = "nachtdienst_afwijkend"
+# Nitea liet begin- en/of eindtijd leeg. Drie uitkomsten, met oplopende
+# aandacht: de ene tijd is uit de andere plus werktijd en pauze af te leiden
+# (`tijden_afgeleid`), beide ontbreken maar de planning geeft de klok
+# (`tijden_uit_planning`), of er is niets om op terug te vallen en dan telt
+# de dag zonder toeslag (`tijden_ontbreken`). Alleen die laatste vraagt om
+# actie; de eerste twee zijn informatief.
+SOORT_TIJDEN_AFGELEID = "tijden_afgeleid"
+SOORT_TIJDEN_UIT_PLANNING = "tijden_uit_planning"
+SOORT_TIJDEN_ONTBREKEN = "tijden_ontbreken"
 
 
 @dataclass

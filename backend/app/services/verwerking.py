@@ -194,6 +194,47 @@ def ontbrekende_loonschalen(verwerking: WeekVerwerking) -> list[str]:
     return sorted(m.naam for m in verwerking.medewerkers if not m.loonschaal)
 
 
+def tijden_overzicht(verwerking: WeekVerwerking) -> dict[str, list[dict]]:
+    """Per situatie wie op welke dagen geen (volledige) Nitea-tijden had.
+
+    Drie groepen, van geen aandacht naar actie:
+    - `afgeleid`: één tijd berekend uit de andere plus werktijd en pauze;
+    - `uit_planning`: beide tijden ontbraken, de klok komt uit SNOOP;
+    - `ontbreekt`: beide ontbraken en er was niets om op terug te vallen, dus
+      de uren tellen zonder nacht-, avond- of weekendtoeslag.
+    Alleen de laatste groep vraagt om iets te doen.
+    """
+    from app.services.calc.types import (
+        SOORT_TIJDEN_AFGELEID,
+        SOORT_TIJDEN_ONTBREKEN,
+        SOORT_TIJDEN_UIT_PLANNING,
+    )
+
+    groepen = {
+        "afgeleid": SOORT_TIJDEN_AFGELEID,
+        "uit_planning": SOORT_TIJDEN_UIT_PLANNING,
+        "ontbreekt": SOORT_TIJDEN_ONTBREKEN,
+    }
+    uit: dict[str, list[dict]] = {sleutel: [] for sleutel in groepen}
+    for medewerker in sorted(verwerking.medewerkers, key=lambda m: m.naam):
+        for sleutel, soort in groepen.items():
+            dagen = sorted(a.datum for a in medewerker.afwijkingen if a.soort == soort)
+            if dagen:
+                uit[sleutel].append(
+                    {
+                        "naam": medewerker.naam,
+                        "dagen": dagen,
+                        "uren": sum(
+                            a.registratie_minuten or 0
+                            for a in medewerker.afwijkingen
+                            if a.soort == soort
+                        )
+                        / 60,
+                    }
+                )
+    return uit
+
+
 def melding_zonder_tarief(verwerking: WeekVerwerking) -> str | None:
     """De waarschuwing bovenaan het overzicht als niet iedereen een tarief heeft."""
     zonder = verwerking.zonder_tarief

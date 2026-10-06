@@ -32,7 +32,7 @@ from app.services.opslag import (
 )
 from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
 from app.services.tarief import Kaartreeks, TariefKaart, conventies
-from app.services.verwerking import melding_zonder_tarief, verwerk_week
+from app.services.verwerking import melding_zonder_tarief, tijden_overzicht, verwerk_week
 from app.uploads import EXCEL, PDF, lees_upload, leesfouten
 
 from .tarieven import UZB_NAMEN
@@ -148,9 +148,9 @@ async def verwerk(
     with leesfouten("SNOOP-export", snoop_bestand.filename):
         snoop = lees_snoop(rauwe_snoop, snoop_opmerkingen)
         uzb_sleutel = bepaal_uzb(snoop, UZB_NAMEN)
-    nitea_opmerkingen: list[str] = []
+    nitea_onleesbaar: list[str] = []
     with leesfouten("Nitea-overzicht", nitea_bestand.filename):
-        nitea = lees_nitea(rauwe_nitea, nitea_opmerkingen)
+        nitea = lees_nitea(rauwe_nitea, onleesbaar=nitea_onleesbaar)
     if not nitea:
         raise HTTPException(
             status_code=400,
@@ -192,14 +192,16 @@ async def verwerk(
             + " | ".join(getoond)
             + (f" | en {rest} meer" if rest > 0 else "")
         )
-    if nitea_opmerkingen:
-        # Niet-gelezen of anders gelezen Nitea-regels: een stil weggelaten dag
-        # is een te laag weektotaal dat niemand opmerkt.
-        getoond = nitea_opmerkingen[:12]
-        rest = len(nitea_opmerkingen) - len(getoond)
+    if nitea_onleesbaar:
+        # Alleen regels die echt niet te lezen waren en dus ontbreken: een stil
+        # weggelaten dag is een te laag weektotaal dat niemand opmerkt. Regels
+        # waarvan een tijd ontbrak zijn wél gelezen; die staan in het blok
+        # 'Nitea-tijden' hieronder, met wat de app eraan heeft gedaan.
+        getoond = nitea_onleesbaar[:12]
+        rest = len(nitea_onleesbaar) - len(getoond)
         verwerking.meldingen.append(
-            f"Nitea: {len(nitea_opmerkingen)} regel(s) niet of anders gelezen -- "
-            "controleer deze dagen in het overzicht: "
+            f"Nitea: {len(nitea_onleesbaar)} regel(s) niet te lezen en dus niet "
+            "meegeteld -- controleer deze dagen in Nitea: "
             + " | ".join(getoond)
             + (f" | en {rest} meer" if rest > 0 else "")
         )
@@ -277,6 +279,7 @@ async def verwerk(
             "apart": [d.medewerkers[0] for d in delen],
             "zonder_tarief": verwerking.zonder_tarief,
             "deels_zonder_tarief": verwerking.deels_zonder_tarief,
+            "tijden": tijden_overzicht(verwerking),
             # De tabel 'Zonder tarief' zegt het al; de losse meldingen daarover
             # zouden op het scherm dubbel zijn (in het bestand staan ze wel).
             "meldingen": [

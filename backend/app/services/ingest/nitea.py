@@ -99,6 +99,7 @@ def _regel_uit(m: re.Match) -> tuple[RegistratieRegel, str | None]:
     werk = _hm_naar_min(m.group("werk"))
     pauze = _hm_naar_min(m.group("pauze") or "0:00")
     opmerking = None
+    afgeleid = False
 
     if m.group("einddatum"):
         einddatum = datetime.strptime(m.group("einddatum"), "%d-%m-%Y").date()
@@ -124,8 +125,9 @@ def _regel_uit(m: re.Match) -> tuple[RegistratieRegel, str | None]:
                     f"{eind_alt // 60:02d}:{eind_alt % 60:02d}"
                 )
                 eind, werk, pauze = time(eind_alt // 60, eind_alt % 60), werk_alt, pauze_alt
+                afgeleid = True
 
-    return RegistratieRegel(datum, begin, eind, werk, pauze), opmerking
+    return RegistratieRegel(datum, begin, eind, werk, pauze, afgeleid=afgeleid), opmerking
 
 
 def _naar_min(t: time) -> int:
@@ -205,8 +207,10 @@ def _uit_kolommen(
     begin = _tijd(kolommen["begin"]) if "begin" in kolommen else None
     eind = _tijd(kolommen["eind"]) if "eind" in kolommen else None
     opmerking = None
+    afgeleid = False
 
     if begin is not None and eind is None:
+        afgeleid = True
         einde_min = (_naar_min(begin) + werk + pauze) % (24 * 60)
         eind = time(einde_min // 60, einde_min % 60)
         opmerking = (
@@ -214,6 +218,7 @@ def _uit_kolommen(
             f"{begin:%H:%M} + werktijd + pauze = einde {eind:%H:%M}"
         )
     elif eind is not None and begin is None:
+        afgeleid = True
         begin_min = (_naar_min(eind) - werk - pauze) % (24 * 60)
         begin = time(begin_min // 60, begin_min % 60)
         opmerking = (
@@ -227,17 +232,26 @@ def _uit_kolommen(
             "nacht-, avond- of weekendtoeslag vast te stellen."
         )
 
-    return RegistratieRegel(datum, begin, eind, werk, pauze), opmerking
+    return RegistratieRegel(datum, begin, eind, werk, pauze, afgeleid=afgeleid), opmerking
 
 
 def lees_nitea(
-    bron: str | Path | bytes, overgeslagen: list[str] | None = None
+    bron: str | Path | bytes,
+    overgeslagen: list[str] | None = None,
+    onleesbaar: list[str] | None = None,
 ) -> list[NiteaMedewerker]:
     """Parse een Nitea-PDF naar één NiteaMedewerker per medewerker.
 
     `overgeslagen` (optioneel) wordt gevuld met regels die op een
     registratieregel lijken maar niet te lezen waren, en met opmerkingen over
     regels die anders gelezen zijn dan ze er staan.
+
+    `onleesbaar` (optioneel) krijgt alleen de eerste soort: regels die echt
+    niet te lezen waren en dus ontbreken in het resultaat. Een regel waarvan
+    een tijd is afgeleid of ontbreekt, is wél gelezen en telt mee; wat daarvan
+    het gevolg is bepaalt de berekening (zie `RegistratieRegel.afgeleid` en de
+    afwijkingen `tijden_afgeleid`, `tijden_uit_planning`, `tijden_ontbreken`),
+    niet de leesstap.
     """
     data = BytesIO(bron) if isinstance(bron, (bytes, bytearray)) else bron
     per_id: dict[str, NiteaMedewerker] = {}
@@ -254,8 +268,12 @@ def lees_nitea(
             for regel, kolommen in regels:
                 m = _KOPSTUK.match(regel) if kolommen else _REGEL.match(regel)
                 if not m:
-                    if overgeslagen is not None and _LIJKT_OP_REGEL.match(regel):
-                        overgeslagen.append(re.sub(r"\s+", " ", regel).strip())
+                    if _LIJKT_OP_REGEL.match(regel):
+                        tekst = re.sub(r"\s+", " ", regel).strip()
+                        if overgeslagen is not None:
+                            overgeslagen.append(tekst)
+                        if onleesbaar is not None:
+                            onleesbaar.append(tekst)
                     continue
                 nid = m.group("id")
                 naam = re.sub(r"\s+", " ", m.group("naam")).strip()
@@ -263,8 +281,11 @@ def lees_nitea(
                 if kolommen:
                     uitkomst = _uit_kolommen(m, kolommen)
                     if uitkomst is None:
+                        tekst = re.sub(r"\s+", " ", regel).strip()
                         if overgeslagen is not None:
-                            overgeslagen.append(re.sub(r"\s+", " ", regel).strip())
+                            overgeslagen.append(tekst)
+                        if onleesbaar is not None:
+                            onleesbaar.append(tekst)
                         continue
                     registratie, opmerking = uitkomst
                 else:

@@ -224,6 +224,23 @@ begin-, eind-, werk- of pauzetijd is.
   24,25 uur bij één persoon — en gaf elke nacht- of middagdienst zonder klok
   een handmatig te controleren afwijking op de factuur.
 
+**Wat de gebruiker erover ziet.** Op het resultaatscherm staat een blok
+**"Nitea-tijden die ontbraken"** met per situatie wie op welke dagen:
+
+| Situatie | Afwijking | Aandacht |
+|---|---|---|
+| Eén tijd ontbrak, berekend uit de andere + werktijd + pauze | `tijden_afgeleid` | alleen als de berekende tijd niet klopt |
+| Beide ontbraken, klok uit de SNOOP-planning | `tijden_uit_planning` | alleen als de planning niet klopt |
+| Beide ontbraken, geen eenduidige planning | `tijden_ontbreken` | **actie**: tijden in Nitea aanvullen, week opnieuw verwerken |
+
+Alleen de laatste groep is een actiepunt; de uren tellen in alle drie mee. De
+leesstap zelf meldt alleen nog regels die echt **niet te lezen** waren en dus
+ontbreken in het weektotaal. Eerder gaf de leesstap voor elke dag zonder tijden
+een waarschuwing, ook als de berekening die dag daarna zelf oploste, waardoor
+een week met veel nacht- en middagdiensten één lange, nietszeggende melding gaf
+(week 38/2026, Pawel Brzuszek). Dezelfde drie soorten staan, met een
+vervolgstap, op het tabblad Afwijkingen van het overzicht.
+
 ### Verificatie van nachtdiensten die Nitea wél met tijden geeft
 De SNOOP-planning dient ook als tweede, onafhankelijke bron wanneer Nitea de
 begin- en eindtijd wél geeft, specifiek voor diensten die nacht- of
