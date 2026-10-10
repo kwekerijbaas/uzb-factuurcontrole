@@ -37,13 +37,34 @@ class ToeslagRegel:
 @dataclass(frozen=True)
 class RegistratieRegel:
     """Werkelijke registratie uit Nitea. `gewerkte_minuten` is netto (pauze al
-    afgetrokken door Nitea); de engine trekt zelf géén pauze af."""
+    afgetrokken door Nitea); de engine trekt zelf géén pauze af.
+
+    Bij nacht- en middagdiensten laat Nitea begin- en eindtijd soms leeg,
+    terwijl de werktijd er wel staat. Die uren zijn gewerkt en tellen mee; van
+    de tijdgebonden toeslag is dan alleen niet vast te stellen of hij geldt,
+    dus die wordt niet gerekend en de dag wordt als afwijking gemeld.
+    """
 
     datum: date
-    begin: time
-    eind: time
+    begin: time | None
+    eind: time | None
     gewerkte_minuten: int
     pauze_minuten: int = 0
+    # Eén van de twee tijden stond niet in Nitea en is berekend uit de andere
+    # plus werktijd en pauze. De uren zijn dan van Nitea, de klok niet.
+    afgeleid: bool = False
+
+    @property
+    def tijden_bekend(self) -> bool:
+        return self.begin is not None and self.eind is not None
+
+    def klok(self) -> str:
+        """Begin-eind om in een melding te tonen."""
+        if self.begin is None and self.eind is None:
+            return "zonder begin- en eindtijd"
+        return f"{self.begin:%H:%M}-{self.eind:%H:%M}" if self.tijden_bekend else (
+            f"vanaf {self.begin:%H:%M}" if self.begin else f"tot {self.eind:%H:%M}"
+        )
 
 
 @dataclass(frozen=True)
@@ -70,6 +91,16 @@ SOORT_TIJD_VERSCHIL = "tijd_verschil"
 SOORT_REGISTRATIE_INCONSISTENT = "registratie_inconsistent"
 SOORT_GEEN_PLANNING = "geen_planning"
 SOORT_GEEN_REGISTRATIE = "geen_registratie"
+SOORT_NACHTDIENST_AFWIJKEND = "nachtdienst_afwijkend"
+# Nitea liet begin- en/of eindtijd leeg. Drie uitkomsten, met oplopende
+# aandacht: de ene tijd is uit de andere plus werktijd en pauze af te leiden
+# (`tijden_afgeleid`), beide ontbreken maar de planning geeft de klok
+# (`tijden_uit_planning`), of er is niets om op terug te vallen en dan telt
+# de dag zonder toeslag (`tijden_ontbreken`). Alleen die laatste vraagt om
+# actie; de eerste twee zijn informatief.
+SOORT_TIJDEN_AFGELEID = "tijden_afgeleid"
+SOORT_TIJDEN_UIT_PLANNING = "tijden_uit_planning"
+SOORT_TIJDEN_ONTBREKEN = "tijden_ontbreken"
 
 
 @dataclass
@@ -94,6 +125,26 @@ class WeekParameters:
     dag_grens_percentage: Decimal = Decimal("50")
     week_grens_percentage: Decimal = Decimal("50")
     week_50u_uitzondering: bool = False  # art. 18 lid 4d: 8 weken/jaar geen 50% >48u
+
+    # Nitea rondt af op kwartieren, SNOOP plant op hele tijden en er wordt op
+    # de minuut in- en uitgeklokt. Vergelijken op minuutniveau levert daarom
+    # bij vrijwel elke dag een melding op zonder dat er iets mis is. Onder deze
+    # grenzen wordt niets gemeld.
+    tolerantie_registratie_minuten: int = 15
+    tolerantie_uren_minuten: int = 15
+    tolerantie_tijd_minuten: int = 15
+    # Grens voor de nachtdienst-verificatie hieronder: ruimer dan
+    # `tolerantie_tijd_minuten` omdat een nacht- of avonddienst vaker een half
+    # uur eerder of later begint zonder dat er iets mis is. Deze controle is
+    # bedoeld om een verkeerd gelezen of verkeerd geklokte tijd te vangen, niet
+    # om elke normale afwijking te melden.
+    tolerantie_nachtdienst_minuten: int = 90
+
+    # De SNOOP-planning naast de Nitea-registratie leggen. Staat uit: Nitea is
+    # leidend en wordt vóór het verwerken al gecontroleerd, dus een afwijking
+    # ten opzichte van de planning zegt niets over de te factureren uren. Zet
+    # aan wie de planning wél wil bewaken.
+    vergelijk_planning: bool = False
 
 
 @dataclass

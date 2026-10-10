@@ -126,7 +126,7 @@ def test_11_consistentie_check_flag():
 def test_12_planning_afwijkingen():
     r = [reg(MA, 8, 0, 17, 0)]  # 9u gewerkt
     p = [PlanningRegel(MA, time(8, 0), time(16, 0), 480)]  # 8u gepland
-    res = bereken_week(r, p, REGELS, FEEST)
+    res = bereken_week(r, p, REGELS, FEEST, WeekParameters(vergelijk_planning=True))
     soorten = {a.soort for a in res.afwijkingen}
     assert SOORT_UREN_VERSCHIL in soorten
     assert SOORT_TIJD_VERSCHIL in soorten
@@ -157,3 +157,67 @@ def test_13b_week_grens_50_zonder_uitzondering():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# --------------------------------------------------------------------------- #
+# Feestdagen en lege registratieregels
+# --------------------------------------------------------------------------- #
+def test_feestdagen_lopen_door_na_de_oude_cao_periode():
+    """De vaste lijst liep tot 31-03-2026; daarna had elke verwerkte week nul
+    feestdagen en werd de feestdagtoeslag stil niet berekend."""
+    from datetime import date
+
+    from app.services.seed.cao_glastuinbouw import feestdagen_cao_periode, feestdagen_jaar
+
+    # Eerste en Tweede Paasdag 2026 vallen op 5 en 6 april.
+    assert date(2026, 4, 5) in feestdagen_jaar(2026)
+    assert date(2026, 4, 6) in feestdagen_jaar(2026)
+    assert date(2026, 4, 27) in feestdagen_jaar(2026)  # Koningsdag
+    assert date(2026, 5, 14) in feestdagen_jaar(2026)  # Hemelvaartsdag
+    assert date(2026, 12, 25) in feestdagen_jaar(2026)  # Eerste Kerstdag
+
+    rond_nu = feestdagen_cao_periode(date(2026, 9, 15))
+    assert date(2026, 12, 25) in rond_nu
+    assert date(2027, 1, 1) in rond_nu
+    assert date(2026, 4, 27) in rond_nu
+
+
+def test_koningsdag_schuift_op_als_die_op_zondag_valt():
+    from datetime import date
+
+    from app.services.seed.cao_glastuinbouw import feestdagen_jaar
+
+    # 27 april 2025 is een zondag; dan geldt zaterdag 26 april.
+    assert date(2025, 4, 26) in feestdagen_jaar(2025)
+    assert date(2025, 4, 27) not in feestdagen_jaar(2025)
+
+
+def test_feestdagtoeslag_wordt_berekend():
+    from datetime import date, time
+
+    from app.services.calc import RegistratieRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    tweede_kerstdag = date(2026, 12, 26)  # zaterdag, maar feestdag telt
+    resultaat = bereken_week(
+        [RegistratieRegel(tweede_kerstdag, time(7, 0), time(15, 30), 480, 30)],
+        [], cao_toeslag_regels(), feestdagen_cao_periode(date(2026, 12, 20)),
+    )
+    assert any(s.bron == "feestdag" for s in resultaat.trace)
+
+
+def test_registratieregel_zonder_werktijd_telt_niet_mee():
+    """Nitea 0:00 met begin == eind werd een dienst van 24 uur -- honderden
+    euro's op de factuur, zonder melding."""
+    from datetime import date, time
+
+    from app.services.calc import RegistratieRegel, bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels
+
+    resultaat = bereken_week(
+        [RegistratieRegel(date(2026, 6, 15), time(0, 0), time(0, 0), 0, 0)],
+        [], cao_toeslag_regels(), frozenset(),
+    )
+    assert resultaat.netto_minuten == 0
+    assert [a.soort for a in resultaat.afwijkingen] == ["registratie_inconsistent"]
+    assert "zonder werktijd" in resultaat.afwijkingen[0].detail

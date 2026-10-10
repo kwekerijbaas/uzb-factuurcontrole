@@ -1,0 +1,203 @@
+{% extends "basis.html" %}
+{% block titel %}Uitzendkrachten — UF{% endblock %}
+{% block inhoud %}
+<h1>Uitzendkrachten</h1>
+
+{% if gewijzigd %}
+  <div class="melding goed">Loonschaal van <strong>{{ gewijzigd }}</strong> opgeslagen.</div>
+{% endif %}
+{% if behouden %}
+  <div class="melding goed">De handmatige loonschaal van <strong>{{ behouden }}</strong>
+     blijft staan; het bestand heeft hem niet overschreven.</div>
+{% endif %}
+
+{% set totaal_ontbreekt = per_uzb | sum(attribute='aantal') - per_uzb | sum(attribute='met_schaal') %}
+
+<div class="kaart">
+  <div class="balk">
+    <div style="flex:1 1 22rem">
+      <label for="zoek">Zoek een uitzendkracht</label>
+      <input id="zoek" type="search" placeholder="Typ een (deel van een) naam…"
+             autocomplete="off" value="{{ zoek }}">
+    </div>
+    <div>
+      <label for="alleen">Tonen</label>
+      <select id="alleen">
+        <option value="alles">Iedereen</option>
+        <option value="zonder">Alleen zonder loonschaal{% if totaal_ontbreekt %} ({{ totaal_ontbreekt }}){% endif %}</option>
+      </select>
+    </div>
+  </div>
+  <p class="hint" id="zoekstand" hidden></p>
+  {% if totaal_ontbreekt %}
+    <p class="hint"><span class="pil let-op">let op</span>
+       {{ totaal_ontbreekt }} uitzendkracht{{ '' if totaal_ontbreekt == 1 else 'en' }} zonder loonschaal. Zij staan met
+       uren maar <strong>zonder bedrag</strong> in het weekoverzicht, en hun
+       factuurregel is niet te controleren.</p>
+  {% endif %}
+</div>
+
+{% for uzb in per_uzb %}
+{% set ontbreekt = uzb.aantal - uzb.met_schaal %}
+<div class="kaart" data-bureau>
+  <div class="titelbalk">
+    <h2>{{ uzb.naam }}</h2>
+    <span class="hint">
+      {% if ontbreekt %}<span class="pil let-op">{{ ontbreekt }} zonder loonschaal</span>
+      {% elif uzb.aantal %}<span class="pil goed">compleet</span>{% endif %}
+      <span class="pil rustig">{{ uzb.aantal }} uitzendkracht{{ '' if uzb.aantal == 1 else 'en' }}</span>
+    </span>
+  </div>
+
+  {% if uzb.aantal %}
+    {% if not uzb.heeft_kaart %}
+      <p class="waarschuwing">Nog geen tariefkaart voor dit bureau; een ingevulde
+         schaal wordt daarom niet getoetst.</p>
+    {% endif %}
+    <datalist id="schalen-{{ uzb.sleutel }}">
+      {% for schaal in uzb.schalen %}<option value="{{ schaal }}">{% endfor %}
+    </datalist>
+    <div class="tabelkader">
+      <table>
+        <tr>
+          <th style="width:32%">Naam</th>
+          <th style="width:34%">Loonschaal</th>
+          <th style="width:16%">Nitea-code</th>
+          <th style="width:18%">Facturatie</th>
+        </tr>
+        {% for k in uzb.krachten %}
+        <tr data-naam="{{ k.naam|lower }}" {% if not k.loonschaal_code %}data-zonder="1"{% endif %}>
+          <td>
+            <strong>{{ k.naam }}</strong>
+            {% if not k.loonschaal_code %} <span class="pil let-op">nog invullen</span>{% endif %}
+            {% if k.schaal_handmatig %}
+              <br><span class="hint" title="Met de hand ingevuld; bestanden overschrijven dit niet.">✎ handmatig{% if k.schaal_door %} door {{ k.schaal_door }}{% endif %}</span>
+              <form method="post" action="/uzk/{{ k.id }}/loonschaal/loskoppelen" class="inline"
+                    onsubmit="return confirm('Vergrendeling van {{ k.naam }} opheffen? De schaal blijft nu staan, maar een volgende verwerkte week neemt weer automatisch de SNOOP-waarde over.')">
+                <button type="submit" class="stil klein" title="Laat SNOOP deze schaal vanaf de volgende week weer bijhouden, bijvoorbeeld als iemand van leeftijd is veranderd.">volgt weer SNOOP</button>
+              </form>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/uzk/{{ k.id }}/loonschaal" class="inline">
+              <input type="text" name="loonschaal" value="{{ k.loonschaal_code or '' }}"
+                     list="schalen-{{ uzb.sleutel }}" required
+                     aria-label="Loonschaal van {{ k.naam }}"
+                     {% if not k.loonschaal_code %}placeholder="kies of typ een schaal…"{% endif %}>
+              <button type="submit" class="klein{% if k.loonschaal_code %} stil{% endif %}">Opslaan</button>
+            </form>
+          </td>
+          <td class="hint">{{ k.externe_code or '—' }}</td>
+          <td>
+            {% if k.apart_gefactureerd %}
+              <span class="pil rustig" title="Eigen weekoverzicht en eigen factuurcontrole{% if k.apart_door %}; ingesteld door {{ k.apart_door }}{% endif %}.">apart</span>
+            {% endif %}
+            <details class="uitleg">
+              <summary>wijzigen</summary>
+              <div>
+                <form method="post" action="/uzk/{{ k.id }}/apart" class="inline">
+                  <input type="hidden" name="apart" value="{{ 'nee' if k.apart_gefactureerd else 'ja' }}">
+                  <button type="submit" class="stil klein">
+                    {{ 'Niet meer apart factureren' if k.apart_gefactureerd else 'Apart factureren' }}
+                  </button>
+                </form>
+                <form method="post" action="/uzk/{{ k.id }}/bureau" class="inline" style="margin-top:.5rem"
+                      onsubmit="return this.uzb.value ? confirm('{{ k.naam }} verplaatsen naar ' + this.uzb.options[this.uzb.selectedIndex].text + '? De weekresultaten gaan mee.') : false">
+                  <select name="uzb" aria-label="Verplaats {{ k.naam }} naar" required>
+                    <option value="">verplaats naar…</option>
+                    {% for sleutel, naam in uzbs.items() if sleutel != uzb.sleutel %}
+                    <option value="{{ sleutel }}">{{ naam }}</option>
+                    {% endfor %}
+                  </select>
+                  <button type="submit" class="gevaar klein">Verplaats</button>
+                </form>
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% else %}
+    <p class="leeg">Nog geen uitzendkrachten bekend.</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="kaart">
+  <div class="titelbalk">
+    <h2>Lijst inladen</h2>
+    <span class="hint">vult de loonschalen in één keer</span>
+  </div>
+  <form method="post" action="/uzk/lijst" enctype="multipart/form-data"
+        data-bezig="Bezig met inladen…">
+    <div class="bestand">
+      <input id="b" type="file" name="bestand" accept=".xlsx" required
+             aria-label="Uitzendkrachtenlijst (.xlsx)">
+      <span class="gekozen"></span>
+    </div>
+    <button type="submit">Lijst inladen</button>
+  </form>
+  <details class="uitleg">
+    <summary>Welk bestand hoort hier?</summary>
+    <div>
+      <p>Een SNOOP-export over een langere periode, met alle uitzendbureaus door
+         elkaar — de app verdeelt de regels zelf per bureau. Bij een schaalwissel
+         telt de meest recente.</p>
+      <p>Namen van bureaus die niet in de app zijn ingericht (en eigen
+         medewerkers) worden overgeslagen en apart gemeld. Een handmatig
+         ingevulde schaal wordt niet stilzwijgend overschreven: bij een verschil
+         volgt per persoon een ja/nee-vraag.</p>
+    </div>
+  </details>
+</div>
+
+<details class="uitleg">
+  <summary>Hoe komt iemand aan zijn loonschaal?</summary>
+  <div>
+    <p>De SNOOP-regel van de week zelf gaat altijd voor — een schaal kan
+       tussentijds wijzigen. Staat iemand niet in SNOOP, dan valt de app terug op
+       wat hier bekend is. Wat je hier met de hand invult, is daarna tegen
+       bestanden beschermd en gemarkeerd met ✎.</p>
+    <p><strong>Apart factureren</strong> is voor wie het bureau los factureert
+       (bijvoorbeeld techniek): die krijgt een eigen weekoverzicht en een eigen
+       factuurcontrole, en telt niet mee in het hoofdoverzicht.</p>
+    <p><strong>Verplaatsen</strong> is voor wie onder het verkeerde bureau staat.
+       Dat gebeurt als iemand voorkwam in het Nitea-overzicht van een week van
+       dat bureau. Zijn weekresultaten gaan mee en een dubbele rij wordt
+       samengevoegd.</p>
+  </div>
+</details>
+
+<script>
+  // Filtert op naam en op 'alleen zonder loonschaal'. Bureaukaarten zonder
+  // treffer verdwijnen, zodat de gezochte persoon meteen in beeld staat.
+  const zoek = document.getElementById("zoek");
+  const alleen = document.getElementById("alleen");
+  const stand = document.getElementById("zoekstand");
+  const filter = () => {
+    const term = zoek.value.trim().toLowerCase();
+    const alleenZonder = alleen.value === "zonder";
+    let treffers = 0;
+    document.querySelectorAll("tr[data-naam]").forEach(rij => {
+      const past = (!term || rij.dataset.naam.includes(term))
+                && (!alleenZonder || rij.dataset.zonder === "1");
+      rij.hidden = !past;
+      if (past) treffers++;
+    });
+    document.querySelectorAll("[data-bureau]").forEach(kaart => {
+      const rijen = kaart.querySelectorAll("tr[data-naam]");
+      kaart.hidden = rijen.length > 0
+                  && (term || alleenZonder)
+                  && ![...rijen].some(r => !r.hidden);
+    });
+    const actief = term || alleenZonder;
+    stand.hidden = !actief;
+    stand.textContent = actief
+      ? `${treffers} uitzendkracht${treffers === 1 ? "" : "en"} gevonden.` : "";
+  };
+  zoek.addEventListener("input", filter);
+  alleen.addEventListener("change", filter);
+  if (zoek.value) { filter(); zoek.focus(); }
+</script>
+{% endblock %}
