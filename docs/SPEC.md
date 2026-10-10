@@ -200,14 +200,26 @@ doelbureau al, dan worden de rijen samengevoegd (schaal en code van het doel
 blijven staan en worden alleen aangevuld).
 
 ### Lege begin- en eindtijd in het Nitea-overzicht
-**Oorzaak (bevestigd door Kwekerij Baas, oktober 2026): Nitea kan een dienst over
-middernacht niet vastleggen** en laat dan de begin- en/of eindtijd weg. Dat is dus
-geen incidentele fout die in Nitea te herstellen is, maar een vaste beperking van
-de bron; elke middagdienst die tot middernacht loopt en elke nachtdienst raakt
-ervan (verspeenseizoen, perceel 36T). Een advies als "vul de tijden aan in Nitea"
-is daarom niet uitvoerbaar. De oplossing zit aan de SNOOP-kant: staat die dag als
-**één geplande dienst** in SNOOP, dan neemt de app de klok daarvandaan over (zie
-hieronder).
+**Oorzaak (bevestigd door Nitea, oktober 2026): de arbeidsvoorwaarde "splitsen
+nachtwerk" staat aan.** Dan eindigt de dag in Nitea om 0:00, en het overzicht
+'Medewerker uren' kan een dienst over middernacht niet tonen: begin- en/of
+eindtijd blijven leeg, de werktijd en pauze staan er wel. Het is dus een
+instelling, geen fout in een enkele regel — en elke middagdienst die tot
+middernacht loopt en elke nachtdienst raakt ervan (verspeenseizoen, perceel 36T).
+Tijden aanvullen in Nitea zelf is niet mogelijk.
+
+Twee wegen:
+
+1. **De instelling uitzetten** (Nitea): het overzicht toont dan begin- én eindtijd
+   op de dag waarop de dienst begon, ook als de eindtijd na middernacht ligt (dus
+   vóór de begintijd, bv. 15:00 tot 0:03). Dat geldt voor registraties vanaf het
+   moment van uitzetten; na herberekenen in Nitea ook voor het verleden. Let op:
+   in 'Controle medewerker' staan de uren dan op de startdag in plaats van
+   verdeeld over twee dagen, en de instelling kan ook elders in Nitea (loon,
+   toeslagen) doorwerken — eerst navragen voor welke arbeidsvoorwaarden dit geldt.
+   De app verwerkt zulke regels zonder melding (getest, ook over de weekgrens).
+2. **Zolang dat niet kan**: de app vult de ontbrekende klok aan uit de
+   SNOOP-planning (hieronder).
 
 Het overzicht 'Medewerker uren' heeft de kolommen Nr, Medewerker, Datum,
 **Begin tijd**, **Einde tijd**, **Werk tijd** en **Pauze tijd**. Bij nacht- en

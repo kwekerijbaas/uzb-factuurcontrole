@@ -471,3 +471,36 @@ def test_tijden_overzicht_vat_de_week_samen_per_persoon():
     assert [d.day for d in overzicht["ontbreekt"][0]["dagen"]] == [16, 17]
     assert [d.day for d in overzicht["uit_planning"][0]["dagen"]] == [15]
     assert [d.day for d in overzicht["afgeleid"][0]["dagen"]] == [14, 18]
+
+
+# --------------------------------------------------------------------------- #
+# Nitea met 'splitsen nachtwerk' uit: eindtijd kan vóór de begintijd liggen
+# --------------------------------------------------------------------------- #
+def test_diensten_over_middernacht_met_alle_tijden_worden_goed_gerekend():
+    """Nitea (oktober 2026): staat de arbeidsvoorwaarde 'splitsen nachtwerk'
+    uit, dan toont het overzicht begin- én eindtijd van een dienst over
+    middernacht, op de dag waarop hij begon. De eindtijd (0:03, 6:05) ligt dan
+    vóór de begintijd; de lezer en de berekening moeten daar zonder melding en
+    zonder verlies van uren mee overweg kunnen, ook over de weekgrens."""
+    from app.services.calc import bereken_week
+    from app.services.seed.cao_glastuinbouw import cao_toeslag_regels, feestdagen_cao_periode
+
+    rijen = [
+        (1, "327 - Pawel Brzuszek", "14-09-2026", "14:58", "0:03", "8:00", "1:00"),
+        (2, "327 - Pawel Brzuszek", "15-09-2026", "15:00", "0:00", "8:00", "1:00"),
+        (3, "327 - Pawel Brzuszek", "16-09-2026", "22:00", "6:05", "7:15", "0:45"),
+        (4, "327 - Pawel Brzuszek", "20-09-2026", "22:00", "6:00", "7:30", "0:30"),
+    ]
+    overgeslagen: list[str] = []
+    pawel = lees_nitea(_nitea_pdf(rijen), overgeslagen=overgeslagen)[0]
+    assert overgeslagen == []
+    assert all(not r.afgeleid and r.tijden_bekend for r in pawel.registratie)
+
+    resultaat = bereken_week(
+        pawel.registratie, [], cao_toeslag_regels(),
+        feestdagen_cao_periode(date(2026, 9, 14)),
+    )
+    assert resultaat.netto_uren == Decimal("30.75")  # 8 + 8 + 7,25 + 7,5
+    assert resultaat.afwijkingen == []
+    # De zondagavond (22:00-24:00) is 100%; de nacht erna op maandag 50%.
+    assert resultaat.minuten_per_percentage[Decimal("100")] == 120
